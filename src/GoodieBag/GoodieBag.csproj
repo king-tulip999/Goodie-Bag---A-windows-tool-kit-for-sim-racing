@@ -1,0 +1,113 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- WPF for the main window; WinForms only for the tray icon, global hotkeys and the GDI+ overlay. -->
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF takes its per-monitor DPI setting from the manifest; the WinForms analyzer's alternative is for WinForms apps -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <ApplicationIcon>Assets\GoodieBag.ico</ApplicationIcon>
+    <AssemblyName>GoodieBag</AssemblyName>
+    <RootNamespace>GoodieBag</RootNamespace>
+    <Version>0.8.1</Version>
+    <Title>Goodie Bag</Title>
+    <AssemblyTitle>Goodie Bag</AssemblyTitle>
+    <Product>Goodie Bag</Product>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <!-- Built-in COM interop is used for audio switching, so trimming must stay off. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- The app is English only: leave out the framework's translated resource assemblies (13 languages). -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- WPF and WinForms share many type names (Application, Button, MessageBox, Point...),
+       so WinForms / System.Drawing are imported explicitly in the few files that use them. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- tests/GoodieBag.Tests checks internal logic directly -->
+    <InternalsVisibleTo Include="GoodieBag.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- iRacing settings catalog (Sim Racing Tools → iRacing Controller). -->
+    <EmbeddedResource Include="SimRacing\IracingFiles\catalog.json" />
+    <!-- Home page quotes (devtools/tools/make_quotes.py) -->
+    <EmbeddedResource Include="Assets\Quotes.txt.gz" LogicalName="Quotes.txt.gz" />
+    <EmbeddedResource Include="Assets\TrackMaps.zip" LogicalName="TrackMaps.zip" Condition="Exists('Assets\TrackMaps.zip')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\GoodieBag.ico" />
+    <Resource Include="Assets\Themes\*.ico" />
+    <Resource Include="Assets\OverlayPreview.jpg" />
+    <!-- the GRR theme: Barlow (SIL Open Font License, the licence text beside the fonts) and the GRR logo -->
+    <Resource Include="Assets\Fonts\*" />
+    <Resource Include="Assets\GrrLogo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CPU / GPU / RAM / storage / network sensors and fan control. CPU temps and motherboard fans also need PawnIO.
+         Also brings System.Management (WMI), used for RAM module speed. -->
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+    <!-- Windows event tracing, used to count frames (overlay / Performance FPS). -->
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="4.0.0" />
+  </ItemGroup>
+
+  <!-- Files the published exe leaves out because this app never loads them (each checked: nothing in the app uses them):
+       TraceEvent's symbol reader / kernel-session helper (only user-mode real-time providers are used);
+       LibreHardwareMonitor's Linux-only native helper; the .NET debugger's symbol reader; WPF / WinForms parts for
+       XPS / printing, the WinForms designer, VB forms, and the Fluent / XP-era themes (Windows 10 / 11 use Aero2;
+       Classic / AeroLite / Aero stay for high contrast and older fallbacks). Ribbon and WindowsFormsIntegration must
+       stay: they're part of WPF's XAML namespace, which every XAML file loads in full. Check a change by running the
+       published exe with the perf switch: an error line in its output names a missing file. -->
+  <ItemGroup>
+    <UnusedPublishFile Include="msdia140.dll;KernelTraceControl.dll;libMonoPosixHelper.dll;MonoPosixHelper.dll;Microsoft.DiaSymReader.Native.amd64.dll" />
+    <UnusedPublishFile Include="PresentationUI.dll;ReachFramework.dll;System.Printing.dll;System.Windows.Forms.Design.dll;Microsoft.VisualBasic.Forms.dll" />
+    <UnusedPublishFile Include="PresentationFramework.Fluent.dll;PresentationFramework.Luna.dll;PresentationFramework.Royale.dll" />
+    <!-- Also never referenced or loaded (checked by walking every assembly's references from the app's roots, then
+         running the published exe through every page): the debugger's data access / debugging libraries and the
+         crash-dump writer (no debugger attaches to a released app), the designer-time editors, the Linux-only managed
+         helper of LibreHardwareMonitor, dependency-injection / logging libraries a package brings along unused, the
+         event-log message table, Active Directory, registry ACLs, and the UI Automation client side (WPF's
+         accessibility is the provider side, UIAutomationProvider / Types, which stays). -->
+    <UnusedPublishFile Include="mscordaccore.dll;mscordbi.dll;createdump.exe;System.Design.dll;System.Drawing.Design.dll;System.Windows.Forms.Design.Editors.dll;Mono.Posix.NETStandard.dll" />
+    <UnusedPublishFile Include="Microsoft.Extensions.DependencyInjection.dll;Microsoft.Extensions.DependencyInjection.Abstractions.dll;Microsoft.Extensions.Logging.dll;Microsoft.Extensions.Options.dll;Microsoft.Extensions.Primitives.dll" />
+    <UnusedPublishFile Include="System.Diagnostics.EventLog.Messages.dll;System.DirectoryServices.dll;Microsoft.Win32.Registry.AccessControl.dll;UIAutomationClient.dll;UIAutomationClientSideProviders.dll" />
+  </ItemGroup>
+  <!-- Framework files are taken out where the runtime pack's files are listed, so GoodieBag.deps.json doesn't list
+       files that aren't there; package files at publish. -->
+  <Target Name="DropUnusedRuntimeFiles" AfterTargets="ResolveRuntimePackAssets">
+    <PropertyGroup>
+      <_UnusedList>;@(UnusedPublishFile);</_UnusedList>
+    </PropertyGroup>
+    <ItemGroup>
+      <_UnusedRuntime Include="@(RuntimePackAsset)" Condition="$(_UnusedList.Contains(';%(RuntimePackAsset.Filename)%(RuntimePackAsset.Extension);'))" />
+      <!-- the debugger's data access library also comes as a copy named after the runtime version -->
+      <_UnusedRuntime Include="@(RuntimePackAsset)" Condition="$([System.String]::Copy('%(RuntimePackAsset.Filename)').StartsWith('mscordaccore_'))" />
+      <RuntimePackAsset Remove="@(_UnusedRuntime)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="DropUnusedPublishFiles" AfterTargets="ComputeResolvedFilesToPublishList">
+    <PropertyGroup>
+      <_UnusedList>;@(UnusedPublishFile);</_UnusedList>
+    </PropertyGroup>
+    <ItemGroup>
+      <_Unused Include="@(ResolvedFileToPublish)" Condition="$(_UnusedList.Contains(';%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension);'))" />
+      <_Unused Include="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(ResolvedFileToPublish.Filename)').StartsWith('mscordaccore_'))" />
+      <ResolvedFileToPublish Remove="@(_Unused)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

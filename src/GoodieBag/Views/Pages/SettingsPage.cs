@@ -1,0 +1,1156 @@
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Automation;
+using GoodieBag.Config;
+using GoodieBag.Controls;
+using GoodieBag.Hardware;
+using GoodieBag.Plugins;
+using GoodieBag.Services;
+using GoodieBag.Theme;
+
+namespace GoodieBag.Views.Pages;
+
+internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICancelEdit
+{
+    private readonly AppServices _app;
+    private readonly MainWindow _window;
+    private readonly PanelStack _body;
+    private readonly MasonryPanel _sections = new() { MinColumnWidth = 440, MaxColumns = 3 };
+
+    public SettingsPage(AppServices app, MainWindow window)
+    {
+        _app = app;
+        _window = window;
+        _body = new PanelStack { Margin = new Thickness(28, 0, 28, 28), IsPanel = child => child == _sections || child is Collapsible };
+        Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = Ui.PageFrame(_body), Focusable = false };
+    }
+
+    private bool _shown;
+
+    public void OnShown()
+    {
+        _shown = true;
+        string built = Signature();
+        if (built != _builtFor)
+        {
+            _builtFor = built;
+            Build();
+            Motion.Stagger(_body);
+        }
+        else if (_keybindTree is { } tree && KeybindSignature() != _keybindsFor)
+            Dispatcher.BeginInvoke(new Action(() => { _keybindsFor = KeybindSignature(); tree.Rebuild(); }), System.Windows.Threading.DispatcherPriority.Background);
+        else if (_keybindHost is { Child: null } host && _keybindTree is { } kept)
+            AfterFirstFrame(() =>
+            {
+                if (!_shown || host.Child is not null || !ReferenceEquals(_keybindTree, kept)) return;
+                host.Child = kept;
+                host.MinHeight = 0;
+            });
+        if (!s_pawnIoOffered)
+        {
+            s_pawnIoOffered = true;
+            Dispatcher.BeginInvoke(new Action(() => { if (_shown) _ = OfferPawnIoAsync(); }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+        FillUpdates();
+        _app.Updates.Changed += FillUpdates;
+        _app.Plugins.Changed += OnPluginsChanged;
+    }
+
+    internal void Invalidate()
+    {
+        _builtFor = null;
+        _startupState = null;
+        _startupError = null;
+    }
+
+    private void OnPluginsChanged() => Dispatcher.BeginInvoke(new Action(() =>
+    {
+        if (!_shown) return;
+        _builtFor = Signature();
+        Build();
+    }), System.Windows.Threading.DispatcherPriority.Background);
+
+    private string? _builtFor, _keybindsFor;
+
+    private string Signature()
+    {
+        var p = _app.Config.Performance;
+        return string.Join("|", _app.Plugins.All.Select(x => x.IsActive ? "1" : "0")) + $"|{p.Rate}|{p.IntervalMs}|{p.Background}|{_app.Hardware.Ready}|{_app.Hardware.OpenError}|{_app.Hardware.PawnIoState}|{_app.Hardware.CpuTempMissing}|{_app.Hardware.Devices?.Count}|{_app.Demo}";
+    }
+
+    private string KeybindSignature() => string.Join("\n", _app.Hotkeys.Catalog().Select(e => e.Id + "=" + e.Get()));
+
+    public void OnHidden()
+    {
+        _shown = false;
+        if (_keybindTree is not null) _keybindTree.Arranging = false;
+        if (_keybindHost is { Child: FrameworkElement tree } host)
+        {
+            host.MinHeight = tree.ActualHeight;
+            host.Child = null;
+        }
+        _app.Updates.Changed -= FillUpdates;
+        _app.Plugins.Changed -= OnPluginsChanged;
+    }
+
+    private UiSettings U => _app.Config.Ui;
+
+    private void Build()
+    {
+        _body.Children.Clear();
+        var heading = Ui.Text("Settings", "H1");
+        heading.Margin = new Thickness(0, 0, 0, Ui.HeaderGap);
+        _body.Children.Add(heading);
+        _sections.Children.Clear();
+        _body.Children.Add(_sections);
+
+        BuildApplication();
+        BuildAppearance();
+        BuildSearch();
+        BuildPerformance();
+        BuildHardware();
+        BuildDiagnostics();
+        BuildData();
+        BuildAboutAndUpdates();
+        _sections.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
+        _body.Children.Add(BuildKeybinds());
+    }
+
+    private SettingsSearchBox? _search;
+
+    private void BuildSearch()
+    {
+        var card = Section("Search settings", "I.Search", "settings.search");
+        card.Children.Add(new TextBlock { Text = "Find any setting on any page and jump straight to it.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        _search = new SettingsSearchBox(_window);
+        card.Children.Add(_search);
+    }
+
+    internal void ShowKeybind(string label) => Dispatcher.BeginInvoke(new Action(() =>
+    {
+        if (_keybindSearch is null || _keybindFind is null || _keybinds is null) return;
+        if (_keybindSearch.Visibility != Visibility.Visible) _keybindFind.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        if (!_keybinds.Expanded) _keybinds.Toggle();
+        _keybindSearch.Text = label;
+        _keybinds.BringIntoView();
+    }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+    internal void FocusSearch()
+    {
+        _search?.BringIntoView();
+        _search?.FocusBox();
+    }
+
+    private StartupState? _startupState;
+    private string? _startupError;
+    private bool _startupBusy;
+
+    private void BuildApplication()
+    {
+        var app = Section("Application settings", "I.Power", "settings.app");
+        var startup = Group(app, "Startup", "settings.startup");
+        BuildStartup(startup);
+        var window = Group(app, "Window", "settings.window");
+        BuildWindow(window);
+        BuildPlugins(Group(app, "Plugins", "settings.plugins"));
+    }
+
+    private void BuildPlugins(StackPanel group)
+    {
+        group.Children.Add(new TextBlock
+        {
+            Text = "Turn on the tools you use. One that's off has no card on the home page, no page, keybind or tray item, and runs nothing in the background; its settings are kept for when you turn it back on.",
+            Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 6),
+        });
+        foreach (var plugin in PluginManager.InNavOrder(_app.Plugins.All, U.NavOrder))
+        {
+            var p = plugin;
+            var head = new StackPanel { Orientation = Orientation.Horizontal };
+            var (soft, deep) = p.Colors;
+            head.Children.Add(Ui.Badge(p.Pages.Count > 0 ? p.Pages[0].Icon : p.Icon, soft, deep, 28, 8, 15));
+            var titles = new StackPanel { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            titles.Children.Add(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold });
+            head.Children.Add(titles);
+            var sw = Ui.Switch(_app.Plugins.IsEnabled(p), on =>
+            {
+                _app.Plugins.SetEnabled(p, on);
+                _app.Notify(on ? $"{p.Name} on" : $"{p.Name} off", on ? (p.Id == PluginIds.Overlay ? "It's in Hardware Monitor → Performance Overlay." : "Its card is on the home page.") : "Its background work has stopped. Settings are kept.", NoticeKind.Success);
+            });
+            AutomationProperties.SetName(sw, p.Name);
+            var row = new Grid { Margin = new Thickness(0, 8, 0, 4) };
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel();
+            text.Children.Add(head);
+            text.Children.Add(new TextBlock { Text = p.Description, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 3, 16, 0) });
+            row.Children.Add(text);
+            sw.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(sw, 1);
+            row.Children.Add(sw);
+            group.Children.Add(row);
+        }
+    }
+
+    private static StackPanel Group(StackPanel section, string title, string anchor)
+    {
+        var group = new StackPanel { Margin = new Thickness(0, section.Children.Count > 1 ? 10 : 4, 0, 0) };
+        group.Children.Add(new TextBlock { Text = title, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 4, 0, 0) });
+        Ui.Anchor(group, anchor);
+        section.Children.Add(group);
+        return group;
+    }
+
+    private void BuildStartup(StackPanel startup)
+    {
+        if (_startupState is null && _startupError is null && !_app.Demo && !_startupBusy)
+            RunStartupTask(null);
+        bool on = _startupState?.Enabled == true;
+
+        string? description = _app.Demo ? "Not available in demo mode."
+            : on ? "Runs as administrator without a UAC prompt (a Windows scheduled task)."
+            : null;
+        var toggle = Ui.Switch(on, SetStartup);
+        toggle.IsEnabled = !_app.Demo && !_startupBusy;
+        startup.Children.Add(Ui.SettingRow("Start with Windows", description, toggle));
+
+        if (_startupState?.PointsElsewhere == true)
+        {
+            var row = Notice("ApricotSoft", "ApricotDeep", "I.Alert",
+                $"The startup entry points to a different copy of Goodie Bag ({_startupState.Command}), so it won't start this one.");
+            var repair = Ui.LabeledButton("I.Wand", "Repair", () => SetStartup(true), "SoftButton");
+            Grid.SetColumn(repair, 2);
+            row.Children.Add(repair);
+            startup.Children.Add(row);
+        }
+        if (_startupError is not null)
+        {
+            var banner = Ui.DangerBanner("Windows didn't let Goodie Bag change its startup task",
+                $"{_startupError}\n" +
+                $"To add it by hand: Task Scheduler → Create Task → tick “Run with highest privileges”, add an “At log on” trigger and the action “{Environment.ProcessPath}” with the argument --minimized.");
+            banner.Margin = new Thickness(0, 4, 0, 8);
+            var row = (Grid)banner.Child;
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var open = Ui.LabeledButton("I.ChevronRight", "Open Task Scheduler", () => Ui.OpenUrl("taskschd.msc"), "SoftButton");
+            open.VerticalAlignment = VerticalAlignment.Center;
+            open.Margin = new Thickness(12, 0, 0, 0);
+            Grid.SetColumn(open, 2);
+            row.Children.Add(open);
+            startup.Children.Add(banner);
+        }
+
+        startup.Children.Add(Ui.Divider());
+        startup.Children.Add(Ui.SettingRow("Start in background",
+            "Opens in the tray; keybinds, fans and the overlay run as normal.",
+            Ui.Switch(U.StartMinimized, v => { U.StartMinimized = v; _app.Save(); })));
+    }
+
+    private void SetStartup(bool on)
+    {
+        if (_app.Demo || _startupBusy) return;
+        RunStartupTask(on);
+    }
+
+    private async void RunStartupTask(bool? enable)
+    {
+        _startupBusy = true;
+        StartupState? state = null;
+        string? error = null;
+        await Task.Run(() =>
+        {
+            try
+            {
+                if (enable is { } on)
+                    StartupManager.SetEnabled(on);
+            }
+            catch (Exception ex) { error = ex.Message; }
+            try { state = StartupManager.State(); }
+            catch (Exception ex) { error ??= ex.Message; }
+        });
+        _startupBusy = false;
+        _startupState = state;
+        _startupError = error;
+        if (enable is { } enabled && error is null)
+            _app.Notify(enabled ? "Starts with Windows" : "Won't start with Windows", "", NoticeKind.Success);
+        if (_shown || enable is not null)
+            Build();
+    }
+
+    private void BuildWindow(StackPanel window)
+    {
+        window.Children.Add(Ui.SettingRow("Close in background",
+            U.CloseToTray
+                ? "X hides to the tray; Goodie Bag keeps running (keybinds, fans, overlay)."
+                : "X quits Goodie Bag.",
+            Ui.Switch(U.CloseToTray, v => { U.CloseToTray = v; _app.Save(); Build(); })));
+        window.Children.Add(Ui.Divider());
+        var pages = _app.NavPages();
+        var start = new ComboBox { MinWidth = 200, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var (key, title) in pages) start.Items.Add(new ComboBoxItem { Content = title, Tag = key });
+        int at = pages.ToList().FindIndex(p => p.Key == U.StartPage);
+        start.SelectedIndex = at >= 0 ? at : pages.ToList().FindIndex(p => p.Key == "plugins");
+        start.SelectionChanged += (_, _) =>
+        {
+            if (start.SelectedItem is ComboBoxItem { Tag: string key }) { U.StartPage = key; _app.Save(); }
+        };
+        var startRow = Ui.SettingRow("Open on", null, start);
+        Ui.Anchor(startRow, "settings.startpage");
+        window.Children.Add(startRow);
+        window.Children.Add(Ui.Divider());
+        var onTop = Ui.SettingRow("Keep on top", null,
+            Ui.Switch(U.AlwaysOnTop, v => { U.AlwaysOnTop = v; _window.Topmost = v; _app.Save(); }));
+        Ui.Anchor(onTop, "settings.ontop");
+        window.Children.Add(onTop);
+        window.Children.Add(Ui.Divider());
+        window.Children.Add(Ui.SettingRow("Notifications", "Warnings always show.",
+            Ui.Switch(_app.Config.ShowNotifications, v => { _app.Config.ShowNotifications = v; _app.Save(); })));
+        window.Children.Add(Ui.Divider());
+        var quit = Ui.LabeledButton("I.Power", "Quit Goodie Bag", () => _ = _window.RequestQuitAsync(), "DangerButton");
+        quit.ToolTip = "Closes Goodie Bag: keybinds, the overlay and the tray icon stop";
+        window.Children.Add(Ui.SettingRow("Quit", "With fan control on, it asks first whether a small helper keeps your fan curves running or the fans go back to the BIOS / driver.", quit));
+    }
+
+    private void BuildAppearance()
+    {
+        var look = Section("Appearance", "I.Palette", "settings.look");
+        look.Children.Add(new TextBlock { Text = "Theme", Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
+        look.Children.Add(new Border { Height = 10 });
+        look.Children.Add(new ThemePicker(U.Theme, _app.SetTheme, columns: 2, height: 64, oled: _app.UseOledColors, pastel: _app.UsePastelPreset) { Margin = new Thickness(0, 0, -10, 4) });
+        look.Children.Add(Ui.Divider());
+        var custom = new CustomThemeSection(_app, _window);
+        Ui.Anchor(custom, "settings.customcolors");
+        look.Children.Add(custom);
+        look.Children.Add(Ui.Divider());
+        var setup = Ui.LabeledButton("I.Sliders", "Open setup", () => _window.ShowSetup(firstRun: false));
+        setup.ToolTip = "The welcome screen: theme, plugins, start with Windows and update checks in one place";
+        var setupRow = Ui.SettingRow("Setup screen", null, setup);
+        Ui.Anchor(setupRow, "settings.setup");
+        look.Children.Add(setupRow);
+        look.Children.Add(Ui.Divider());
+        int scaleIndex = Array.IndexOf(UiSettings.InterfaceScales, UiSettings.InterfaceScales.OrderBy(o => Math.Abs(o - U.InterfaceScale)).First());
+        var size = Ui.Segmented(UiSettings.InterfaceScales.Select(p => $"{p}%").ToArray(), scaleIndex, i =>
+        {
+            U.InterfaceScale = UiSettings.InterfaceScales[i];
+            _app.Save();
+            _window.ApplyInterfaceScale();
+        }, "Scale", UiSettings.InterfaceScales.Select(p => (string?)(p switch
+        {
+            90 => "90%: fits the most on a small or low-resolution screen",
+            100 => "100%: the normal size",
+            _ => "110%: larger text and controls",
+        })).ToList());
+        var sizeRow = Ui.SettingRow("Interface size", null, size);
+        Ui.Anchor(sizeRow, "settings.scale");
+        look.Children.Add(sizeRow);
+        look.Children.Add(Ui.Divider());
+
+        string animationNote = SystemParameters.ClientAreaAnimation
+            ? "Page transitions, card entrances, spinning fan icons. Nothing animates while Goodie Bag is in the tray."
+            : "Windows' “Animation effects” setting is off, so animations stay off.";
+        var anim = Ui.Switch(U.Animations, v => { U.Animations = v; _app.Save(); NavIcon.RefreshAll(); });
+        anim.IsEnabled = SystemParameters.ClientAreaAnimation;
+        look.Children.Add(Ui.SettingRow("Animations", animationNote, anim));
+    }
+
+    private TextBlock? _rateNote;
+
+    private void BuildPerformance()
+    {
+        var section = Section("Performance", "I.Gauge", "settings.performance");
+        var p = _app.Config.Performance;
+        var options = PerformanceSettings.Presets.Append(SensorRate.Custom).ToArray();
+        var rate = Ui.Segmented(options.Select(PerformanceSettings.Name).ToArray(), Array.IndexOf(options, p.Rate), i =>
+        {
+            _app.SetPerformance(options[i]);
+            Build();
+        }, "SensorRate", options.Select(r => (string?)(r switch
+        {
+            SensorRate.Low => "Low: every 2 s. The lightest on your PC.",
+            SensorRate.Fast => "Fast: every 0.5 s. Smoothest charts; uses a little more CPU.",
+            SensorRate.Custom => "Custom: pick your own interval, 0.25 to 5 s.",
+            _ => "Balanced: every second. The normal rate.",
+        })).ToList());
+        _rateNote = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+        FillRateNote();
+        var rateRow = RowWithNote("Sensor update rate", _rateNote, rate);
+        Ui.Anchor(rateRow, "settings.sensorrate");
+        section.Children.Add(rateRow);
+
+        if (p.Rate == SensorRate.Custom)
+        {
+            var custom = new NumberBox(p.CustomMs, "ms") { Minimum = PerformanceSettings.MinMs, Maximum = PerformanceSettings.MaxMs, Step = 50 };
+            custom.ValueChanged += v =>
+            {
+                _app.SetPerformance(SensorRate.Custom, (int)Math.Round(v));
+                FillRateNote();
+            };
+            section.Children.Add(Ui.SettingRow("Custom interval", $"From {PerformanceSettings.MinMs} ms to {PerformanceSettings.MaxMs / 1000} s.", custom));
+        }
+
+        section.Children.Add(Ui.Divider());
+        var background = Ui.Segmented(new[] { "Standard", "Reduced" }, (int)p.Background,
+            i => _app.SetPerformance(_app.Config.Performance.Rate, background: (BackgroundUsage)i), "Background", new[]
+            {
+                "Standard: the same rate whether the window is open or not.",
+                $"Reduced: while the window is in the tray or minimized, sensors are read every {PerformanceSettings.ReducedHiddenMs / 1000} s at most.",
+            });
+        var backgroundRow = Ui.SettingRow("Background usage",
+            $"Reduced reads sensors at most every {PerformanceSettings.ReducedHiddenMs / 1000} s while the window is in the tray or minimized (pages already pause then). Fan control, the overlay, keybinds and mode triggers keep working as normal.",
+            background);
+        Ui.Anchor(backgroundRow, "settings.background");
+        section.Children.Add(backgroundRow);
+
+        section.Children.Add(Ui.Divider());
+        var lightRow = Ui.SettingRow("Lighter drawing while iRacing runs",
+            "Goodie Bag's window draws without the graphics card the sim keeps busy, and its animations pause, so pages open quickly mid-race. Back to normal when iRacing closes.",
+            Ui.Switch(p.LightWhileRacing, v => { p.LightWhileRacing = v; _app.Save(); _app.WatchSim(); }));
+        Ui.Anchor(lightRow, "settings.light");
+        section.Children.Add(lightRow);
+    }
+
+    private void FillRateNote()
+    {
+        if (_rateNote is null) return;
+        int ms = _app.Config.Performance.IntervalMs;
+        _rateNote.Text = $"Every {PerformanceSettings.Describe(ms)}. How often temperatures, loads, clocks and fan speeds are read for every page, the Hardware Monitor (its Update rate is this same setting) and mode triggers. " +
+            $"Fan control still checks its curves and the failsafe at least every {PerformanceSettings.FanLoopMs / 1000} s, and the overlay uses its own rate while it's showing. Applies at once.";
+    }
+
+    private static Grid RowWithNote(string title, TextBlock note, UIElement control)
+    {
+        var grid = Ui.SettingRow(title, null, control);
+        ((StackPanel)grid.Children[0]).Children.Add(note);
+        return grid;
+    }
+
+    private TextBlock _diagStatus = new();
+
+    private void BuildDiagnostics()
+    {
+        var section = Section("Diagnostics", "I.Stethoscope", "settings.diagnostics");
+        section.Children.Add(new TextBlock
+        {
+            Text = "Tools for troubleshooting hardware and app problems. Reports leave out personal details (user and PC names, folders, IP addresses).",
+            Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10),
+        });
+        var buttons = new WrapPanel();
+        var rescan = Ui.LabeledButton("I.Search", "Rescan hardware", Rescan);
+        rescan.ToolTip = "Closes the sensor drivers and opens them again, so new or missing temperature sensors, fans and fan controllers are detected. Fans follow the BIOS for a moment meanwhile.";
+        Ui.Anchor(rescan, "settings.rescan");
+        buttons.Children.Add(Spaced(rescan));
+        var refresh = Ui.LabeledButton("I.Refresh", "Refresh sensors", () =>
+        {
+            _app.Hardware.RefreshNow();
+            DiagStatus(_app.Hardware.Running ? "Reading every sensor and fan now." : "The sensors are idle (nothing is using them), so there's nothing to refresh.");
+        });
+        refresh.ToolTip = "Reads every sensor and fan now instead of waiting for the next update";
+        buttons.Children.Add(Spaced(refresh));
+        var logs = Ui.LabeledButton("I.FileText", "Open logs", OpenLogs);
+        logs.ToolTip = "Opens the settings folder with error.log selected (problems Goodie Bag ran into)";
+        Ui.Anchor(logs, "settings.logs");
+        buttons.Children.Add(Spaced(logs));
+        var export = Ui.LabeledButton("I.Save", "Export diagnostic report", () => _ = ExportReportAsync());
+        export.ToolTip = "Saves a text report (versions, detected hardware, fans, sensors, plugins, settings counts, recent errors) to share when asking for help";
+        Ui.Anchor(export, "settings.report");
+        buttons.Children.Add(Spaced(export));
+        var copy = Ui.LabeledButton("I.Copy", "Copy system information", () => _ = CopySystemInfoAsync());
+        copy.ToolTip = "Copies a few lines (Goodie Bag and Windows versions, CPU, GPU, sensor status) to paste into a message";
+        buttons.Children.Add(Spaced(copy));
+        section.Children.Add(buttons);
+        _diagStatus = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 2, 0, 0) };
+        section.Children.Add(_diagStatus);
+    }
+
+    private void DiagStatus(string text)
+    {
+        _diagStatus.Text = text;
+        _diagStatus.Visibility = Visibility.Visible;
+    }
+
+    private void Rescan()
+    {
+        if (_app.Demo)
+        {
+            _app.Hardware.RefreshNow();
+            DiagStatus("Demo data: nothing on this PC is scanned.");
+            return;
+        }
+        DiagStatus(_app.Hardware.Rescan()
+            ? "Rescanning: the sensors are opened again; new devices and fans show up in a few seconds."
+            : "The sensors aren't in use right now; they're detected afresh the next time a page or plugin needs them.");
+    }
+
+    private void OpenLogs()
+    {
+        try
+        {
+            if (File.Exists(DiagnosticReport.LogPath))
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{DiagnosticReport.LogPath}\"") { UseShellExecute = true })?.Dispose();
+            else
+            {
+                OpenFolder(ConfigStore.Folder);
+                DiagStatus("No errors logged so far (there's no error.log).");
+            }
+        }
+        catch { OpenFolder(ConfigStore.Folder); }
+    }
+
+    private async Task ExportReportAsync()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export diagnostic report",
+            Filter = "Text file (*.txt)|*.txt|Markdown (*.md)|*.md",
+            FileName = $"GoodieBag-diagnostics-{DateTime.Now:yyyy-MM-dd-HHmm}.txt",
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+            return;
+        DiagStatus("Collecting…");
+        try
+        {
+            string report = await DiagnosticReport.BuildAsync(_app, full: true);
+            await File.WriteAllTextAsync(dialog.FileName, report);
+            DiagStatus($"Report saved as {Path.GetFileName(dialog.FileName)}.");
+            _app.Notify("Diagnostic report saved", Path.GetFileName(dialog.FileName), NoticeKind.Success);
+        }
+        catch (Exception ex)
+        {
+            DiagStatus("");
+            _diagStatus.Visibility = Visibility.Collapsed;
+            _app.Notify("Couldn't save the report", ex.Message, NoticeKind.Error, important: true);
+        }
+    }
+
+    private async Task CopySystemInfoAsync()
+    {
+        try
+        {
+            string info = await DiagnosticReport.BuildAsync(_app, full: false);
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    Clipboard.SetText(info);
+                    break;
+                }
+                catch (System.Runtime.InteropServices.COMException) when (attempt < 3)
+                {
+                    await Task.Delay(100);
+                }
+            }
+            DiagStatus("System information copied. Paste it into your message.");
+        }
+        catch (Exception ex)
+        {
+            _app.Notify("Couldn't copy", ex.Message, NoticeKind.Warning);
+        }
+    }
+
+    private void BuildData()
+    {
+        var section = Section("Data & Configuration", "I.Folder", "settings.data");
+        var transfer = new StackPanel { Orientation = Orientation.Horizontal };
+        var export = Ui.LabeledButton("I.Save", "Export…", () => ExportSettings());
+        export.ToolTip = "Saves every setting (theme, modes, fan curves and presets, overlay, keybinds, plugins, layouts…) to a file";
+        export.Margin = new Thickness(0, 0, 8, 0);
+        transfer.Children.Add(export);
+        var import = Ui.LabeledButton("I.Download", "Import…", () => _ = ImportSettingsAsync());
+        import.ToolTip = "Loads settings from an exported file (shows what's in it first; Goodie Bag then restarts)";
+        transfer.Children.Add(import);
+        var transferRow = Ui.SettingRow("Export / import settings",
+            "Importing replaces your settings (a copy is kept) and restarts Goodie Bag.",
+            transfer);
+        Ui.Anchor(transferRow, "settings.export");
+        section.Children.Add(transferRow);
+        section.Children.Add(Ui.Divider());
+
+        var folder = Ui.LabeledButton("I.Folder", "Open folder", () => OpenFolder(ConfigStore.Folder));
+        folder.ToolTip = TextCase.VerbatimTip(ConfigStore.Folder);
+        var fileRow = Ui.SettingRow("Settings file", @"%APPDATA%\GoodieBag\config.json, next to error.log, backups made by Reset and Import, and iRacing backups.", folder);
+        Ui.Anchor(fileRow, "settings.folder");
+        section.Children.Add(fileRow);
+        section.Children.Add(Ui.Divider());
+        section.Children.Add(ResetRow());
+    }
+
+    private void ExportSettings()
+    {
+        if (_app.Demo)
+        {
+            _app.Notify("Demo mode", "Demo data isn't exported.", NoticeKind.Info);
+            return;
+        }
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export settings",
+            Filter = "Goodie Bag settings (*.json)|*.json",
+            FileName = $"GoodieBag-settings-{DateTime.Now:yyyy-MM-dd}.json",
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+            return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, ConfigTransfer.Export(_app.Config, UpdateService.Show(UpdateService.Current), DateTime.Now));
+            _app.Notify("Settings exported", Path.GetFileName(dialog.FileName), NoticeKind.Success);
+        }
+        catch (Exception ex)
+        {
+            _app.Notify("Couldn't export", ex.Message, NoticeKind.Error, important: true);
+        }
+    }
+
+    private async Task ImportSettingsAsync()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Import settings", Filter = "Goodie Bag settings (*.json)|*.json|All files (*.*)|*.*", CheckFileExists = true };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+            return;
+        string text;
+        try
+        {
+            if (new FileInfo(dialog.FileName).Length > 20 * 1024 * 1024)
+                throw new IOException("The file is too big to be a settings file.");
+            text = await File.ReadAllTextAsync(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            _app.Notify("Couldn't read the file", ex.Message, NoticeKind.Error, important: true);
+            return;
+        }
+        var preview = ConfigTransfer.Read(text, UpdateService.Current);
+        if (preview.Config is not { } imported)
+        {
+            _app.Notify("Nothing imported", preview.Error ?? "The file couldn't be used.", NoticeKind.Warning, important: true);
+            return;
+        }
+        if (!await _window.Confirm("Import these settings?",
+                $"{Path.GetFileName(dialog.FileName)} replaces all your current settings with:\n\n" +
+                string.Join("\n", preview.Lines.Select(l => "•  " + l)) +
+                "\n\nGoodie Bag will restart. A copy of your current settings is kept (config.before-import-….json in the settings folder). Start with Windows and changes already made to Windows aren't affected.",
+                "Import and restart", danger: true))
+            return;
+        if (_app.Demo)
+        {
+            _app.Notify("Demo mode", "Demo data is never saved, so nothing was imported.", NoticeKind.Info);
+            return;
+        }
+        try
+        {
+            _app.FlushPendingSave();
+            ConfigStore.ReplaceWith(imported);
+        }
+        catch (Exception ex)
+        {
+            _app.Notify("Couldn't import", ex.Message, NoticeKind.Error, important: true);
+            return;
+        }
+        App.RelaunchAfterExit("");
+    }
+
+    private Collapsible? _keybinds;
+    private KeybindTree? _keybindTree;
+    private int _keybindBuild;
+    private Border? _keybindHost;
+
+    private void AfterFirstFrame(Action action)
+    {
+        void OnFrame(object? sender, EventArgs e)
+        {
+            CompositionTarget.Rendering -= OnFrame;
+            Dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Background);
+        }
+        CompositionTarget.Rendering += OnFrame;
+    }
+    private Action? _syncArrange;
+    private Button? _keybindFind;
+    private TextBox? _keybindSearch;
+
+    public bool CancelEdit()
+    {
+        if (_keybindTree?.CancelArrange() != true) return false;
+        _syncArrange?.Invoke();
+        return true;
+    }
+
+    private Collapsible BuildKeybinds()
+    {
+        _keybindTree = null;
+        _keybindHost = null;
+        var arrange = new Button { Style = Ui.Res<Style>("GhostButton") };
+        var reset = Ui.LabeledButton("I.Undo", "Default order", () =>
+        {
+            if (_keybindTree is null) return;
+            _keybindTree.ResetOrder();
+            _app.Notify("Keybinds", "The categories are back in their default order.", NoticeKind.Info);
+        }, "GhostButton");
+        reset.ToolTip = "Put the main categories back in their default order (keys and the keybinds inside stay as they are)";
+        reset.Margin = new Thickness(8, 0, 0, 0);
+        var search = new TextBox { Width = 220, Tag = "Search keybinds", VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 8, 0) };
+        AutomationProperties.SetName(search, "Search keybinds");
+        search.TextChanged += (_, _) => { if (_keybindTree is not null) _keybindTree.Query = search.Text; };
+        search.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape || search.Text.Length == 0) return;
+            search.Clear();
+            e.Handled = true;
+        };
+        var find = new Button { Style = Ui.Res<Style>("GhostButton"), Margin = new Thickness(8, 0, 0, 0) };
+        void SyncFind()
+        {
+            bool open = search.Visibility == Visibility.Visible;
+            find.Content = Ui.IconLabel(open ? "I.X" : "I.Search", open ? "Close search" : "Search");
+            find.ToolTip = open ? "Clear the search and show every keybind" : "Find a keybind by its name, key or category";
+        }
+        find.Click += (_, _) =>
+        {
+            bool open = search.Visibility != Visibility.Visible;
+            search.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            if (open)
+            {
+                if (_keybinds is { Expanded: false } panel) panel.Toggle();
+                Dispatcher.InvokeAsync(() => search.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+            }
+            else search.Clear();
+            SyncFind();
+        };
+        void SyncArrange()
+        {
+            bool on = _keybindTree?.Arranging == true;
+            arrange.Content = Ui.IconLabel(on ? "I.Check" : "I.Layers", on ? "Done" : "Arrange");
+            arrange.Style = Ui.Res<Style>(on ? "PrimaryButton" : "GhostButton");
+            arrange.ToolTip = on ? "Finish arranging (Esc puts the order back)" : "Drag the main categories into your own order";
+        }
+        _syncArrange = SyncArrange;
+        arrange.Click += (_, _) =>
+        {
+            if (_keybindTree is null) return;
+            _keybindTree.Arranging = !_keybindTree.Arranging;
+            SyncArrange();
+        };
+        _keybindFind = find;
+        _keybindSearch = search;
+        var tools = new StackPanel { Orientation = Orientation.Horizontal, Children = { search, arrange, reset, find } };
+        _keybinds = new Collapsible("Keybinds",
+            "Every keyboard shortcut in Goodie Bag, plus iRacing's own keys (saved to its controls file), grouped by where it comes from. Click a box and press the keys; Esc clears it. Keybinds of plugins that are off are hidden (and kept).",
+            "I.Keyboard", ("AccentSoft", "AccentText"), U.KeybindsOpen,
+            () =>
+            {
+                var host = new Border { MinHeight = 120 };
+                _keybindHost = host;
+                int build = ++_keybindBuild;
+                AfterFirstFrame(() =>
+                {
+                    if (build != _keybindBuild) return;
+                    if (!_shown) { _builtFor = null; return; }
+
+                    _keybindTree = new KeybindTree(_app, _ => true, navigate: _window.Navigate) { Query = search.Text };
+                    _keybindsFor = KeybindSignature();
+                    host.MinHeight = 0;
+                    host.Child = _keybindTree;
+                    SyncArrange();
+                });
+                return host;
+            }, open =>
+            {
+                U.KeybindsOpen = open;
+                _app.Save();
+            }, tools: tools, eager: true, framed: true);
+        SyncArrange();
+        SyncFind();
+        Ui.Anchor(_keybinds, "settings.keybinds");
+        return _keybinds;
+    }
+
+    private void BuildHardware()
+    {
+        var access = Section("Hardware access", "I.Cpu", "settings.access");
+        access.Children.Add(StatusRow("Administrator", _app.IsAdmin || _app.Demo,
+            _app.Demo ? "Demo mode: nothing on this PC is changed, so administrator rights aren't needed." : _app.IsAdmin ? "Running as administrator: FPS counting, sensors and fan control are available." : "Not running as administrator, so FPS, CPU temperature and fan control are limited."));
+        access.Children.Add(Ui.Divider());
+        var pawnState = _app.Hardware.PawnIoState;
+        bool pawnOk = pawnState == PawnIoState.Installed;
+        var pawn = StatusRow("PawnIO driver", pawnOk, pawnState switch
+        {
+            PawnIoState.Installed => _app.Hardware.CpuTempMissing
+                ? "Installed, but the CPU's temperature sensors didn't answer. Restart Goodie Bag; if it stays missing, this CPU may not be supported yet."
+                : "Installed.",
+            PawnIoState.RemovalPending => "Uninstalled, but still loaded: programs still have it open (Goodie Bag, other fan or monitoring tools), so Windows can't remove it yet. Restart Windows to finish; it can be installed again after that.",
+            _ => "Not installed. CPU temperatures and motherboard fan headers need the free PawnIO driver. Install it, then restart Goodie Bag.",
+        });
+        if (pawnState == PawnIoState.Missing)
+        {
+            var install = Ui.LabeledButton("I.Download", "Install PawnIO", InstallPawnIo, "PrimaryButton");
+            Grid.SetColumn(install, 1);
+            pawn.Children.Add(install);
+        }
+        access.Children.Add(pawn);
+        access.Children.Add(Explainer());
+        access.Children.Add(Ui.Divider());
+        var hw = _app.Hardware;
+        var catalog = hw.Catalog;
+        access.Children.Add(StatusRow("Sensors", hw.OpenError is null,
+            hw.OpenError ?? (!hw.Running ? "Idle: no plugin or open page needs them right now."
+                : $"{catalog?.Temperatures.Count ?? 0} temperature sensors and {catalog?.Fans.Count ?? 0} fans detected.")));
+    }
+
+    private FrameworkElement Explainer()
+    {
+        var details = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 4), MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
+        void Para(string title, string text)
+        {
+            details.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 2) });
+            details.Children.Add(new TextBlock { Text = text, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap });
+        }
+        Para("What it is",
+            "PawnIO is a small, free, open-source Windows driver. Windows only lets drivers read certain chips directly: the CPU's own temperature and power sensors, and the motherboard's fan controller. The sensor library Goodie Bag uses talks to those chips through PawnIO. It replaces the older WinRing0 driver, which Windows Defender now flags as unsafe.");
+        Para("What it's used for here",
+            "Reading CPU temperature, CPU power and motherboard sensors, and setting motherboard fan speeds when Fan Control is on. Nothing else. Goodie Bag doesn't send data anywhere and has no account or telemetry.");
+        Para("Is it required?",
+            "No. Without it, everything else works: GPU temperatures and fans, frame rate, displays, modes, overlay, sim racing tools. CPU temperature shows as “Not available” and motherboard fans can't be controlled.");
+        Para("Is it safe?",
+            "The driver is signed for Windows and works through small modules written for one job each (an AMD or Intel CPU's sensors, a fan controller chip), instead of the old driver's open access to any hardware address. Some anti-cheat systems are strict about any low-level driver; if a game ever complains, uninstall PawnIO and Goodie Bag carries on without it.");
+        Para("How to install or remove it",
+            "Install PawnIO (above) runs “winget install namazso.PawnIO” in a window you can watch. Remove it any time from Windows Settings → Apps → Installed apps → PawnIO, or “winget uninstall namazso.PawnIO”. Restart Goodie Bag after either.");
+        Para("Why Goodie Bag runs as administrator",
+            "Counting frames (Windows' own event tracing), reading sensors, controlling fans, changing displays and watching which programs start all need it. Windows asks each time it starts; with “Start with Windows” it starts elevated at sign-in without a prompt.");
+        var toggle = Ui.LabeledButton("I.Info", "What is PawnIO, and is it safe?", () => { }, "GhostButton");
+        toggle.HorizontalAlignment = HorizontalAlignment.Left;
+        toggle.Margin = new Thickness(0, 2, 0, 2);
+        toggle.Click += (_, _) => details.Visibility = details.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        var stack = new StackPanel();
+        stack.Children.Add(toggle);
+        stack.Children.Add(details);
+        Ui.Anchor(stack, "settings.pawnio");
+        return stack;
+    }
+
+    private StackPanel _updates = new();
+
+    private void BuildAboutAndUpdates()
+    {
+        var section = Section("About & updates", "I.Info", "settings.updates");
+        Ui.Anchor(section, "settings.about");
+        var about = new Grid { Margin = new Thickness(0, 2, 0, 8) };
+        about.ColumnDefinitions.Add(new ColumnDefinition());
+        about.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
+        text.Children.Add(new TextBlock { Text = "Goodie Bag" + (_app.Demo ? " · demo data" : ""), Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold });
+        text.Children.Add(new TextBlock { Text = "A PC control center for sim rigs: modes that switch displays, audio, fans and more automatically, plus plugins for hardware monitoring, the overlay, fan control and sim racing tools.", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+        about.Children.Add(text);
+        var project = Ui.LabeledButton("I.ChevronRight", "Project page", () => Ui.OpenUrl(UpdateService.ProjectPage), "GhostButton");
+        project.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(project, 1);
+        about.Children.Add(project);
+        section.Children.Add(about);
+        section.Children.Add(Ui.Divider());
+        _updates = new StackPanel();
+        section.Children.Add(_updates);
+        FillUpdates();
+    }
+
+    private void FillUpdates()
+    {
+        var u = _app.Updates;
+        _updates.Children.Clear();
+        _updates.Children.Add(new TextBlock { Text = ThemeManager.Case("Updates"), Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 8, 0, 4) });
+
+        if (u.Available && u.Latest is { } r)
+        {
+            var box = new StackPanel();
+            var head = new StackPanel { Orientation = Orientation.Horizontal };
+            head.Children.Add(Ui.Badge("I.Download", "Accent", "Knob", 32, 10, 17));
+            var title = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            title.Children.Add(new TextBlock { Text = "A new version of Goodie Bag is available", Style = Ui.Res<Style>("H3") });
+            title.Children.Add(new TextBlock { Text = "Install it here; your settings stay.", Style = Ui.Res<Style>("Caption") });
+            head.Children.Add(title);
+            box.Children.Add(head);
+            var buttons = new WrapPanel { Margin = new Thickness(44, 12, 0, 0) };
+            if (u.State == UpdateState.Downloading)
+            {
+                buttons.Children.Add(new Meter { Width = 260, Height = 8, Steps = 8, Value = u.Progress, VerticalAlignment = VerticalAlignment.Center });
+                buttons.Children.Add(new TextBlock { Text = $"Downloading… {u.Progress:0%}", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+            }
+            else
+            {
+                bool self = r.ExeUrl is not null && UpdateService.CanSelfInstall && !_app.Demo;
+                var install = Ui.LabeledButton("I.Download", self ? "Install and restart" : "Download", () => _ = u.InstallAsync(), "PrimaryButton");
+                install.ToolTip = self ? "Downloads the new version, closes Goodie Bag, swaps the file and starts it again (your settings stay)"
+                    : "Opens the release page to download it";
+                buttons.Children.Add(Spaced(install));
+            }
+            box.Children.Add(buttons);
+            _updates.Children.Add(new Tile { Background = Ui.Res<Brush>("AccentSoft"), BorderBrush = Ui.Res<Brush>("Accent"), BorderThickness = new Thickness(1.5), CornerRadius = ThemeManager.Round(12), Padding = new Thickness(14), Margin = new Thickness(0, 4, 0, 10), Child = box });
+        }
+
+        string status = u.State switch
+        {
+            UpdateState.NotConfigured => "Update checks aren't set up in this build.",
+            UpdateState.Checking => "Checking…",
+            UpdateState.UpToDate => "You have the latest version.",
+            UpdateState.Available or UpdateState.Downloading => "A newer version is ready (above).",
+            UpdateState.Failed => $"The last check didn't work: {u.Error}",
+            _ => _app.Config.Updates.LastCheckUtc is { } last ? $"Last checked {Dates.ShortTime(last.ToLocalTime())}." : "Not checked yet.",
+        };
+        var check = Ui.LabeledButton("I.Refresh", "Check now", () => _ = u.CheckAsync(manual: true));
+        check.IsEnabled = u.State is not (UpdateState.Checking or UpdateState.Downloading or UpdateState.NotConfigured);
+        _updates.Children.Add(Ui.SettingRow("Check for updates", status, check));
+        _updates.Children.Add(Ui.Divider());
+        var when = Ui.Segmented(new[] { "On start", "Daily", "Weekly", "Manually" }, (int)_app.Config.Updates.Check, i =>
+        {
+            _app.Config.Updates.Check = (UpdateCheck)i;
+            _app.Save();
+            u.ApplySchedule();
+        }, "UpdateCheck", new[] { "Every time Goodie Bag starts", "Once a day", "Once a week", "Only when you click Check now" });
+        _updates.Children.Add(Ui.SettingRow("When to check", "Nothing is downloaded until you click Install.", when));
+    }
+
+    public IEnumerable<(string Name, Func<Task> Enter)> ScreenshotStates()
+    {
+        yield return ("keybinds", () =>
+        {
+            if (_keybinds is { Expanded: false }) _keybinds.Toggle();
+            _keybinds?.BringIntoView();
+            return Task.CompletedTask;
+        });
+        yield return ("keybinds-iracing", () =>
+        {
+            var open = new[] { "", "/Driving", "/In-car adjustments", "/Replay and TV cameras" }.Select(g => HotkeyCatalog.IracingGroup + g).ToList();
+            U.KeybindsFolded.AddRange(open);
+            _keybindTree?.Rebuild();
+            U.KeybindsFolded.RemoveAll(open.Contains);
+            _keybindTree?.UpdateLayout();
+            _keybindTree?.ShowGroup(HotkeyCatalog.IracingGroup);
+            return Task.CompletedTask;
+        });
+        yield return ("keybinds-arrange", () =>
+        {
+            if (_keybindTree is not null) _keybindTree.Arranging = true;
+            return Task.CompletedTask;
+        });
+        yield return ("keybinds-default-order", () =>
+        {
+            _keybindTree?.ResetOrder();
+            return Task.CompletedTask;
+        });
+        yield return ("keybinds-done", () =>
+        {
+            if (_keybindTree is not null) _keybindTree.Arranging = false;
+            _syncArrange?.Invoke();
+            return Task.CompletedTask;
+        });
+        yield return ("keybinds-search", () =>
+        {
+            _keybindFind?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if (_keybindSearch is not null) _keybindSearch.Text = "next";
+            _keybinds?.BringIntoView();
+            return Task.CompletedTask;
+        });
+        yield return ("keybinds-search-closed", () =>
+        {
+            _keybindFind?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            return Task.CompletedTask;
+        });
+        yield return ("confirm-delete", () =>
+        {
+            _ = _window.Confirm("Delete saved colors?", "“Dusk” is removed from My colors. The colors in use now don't change.", "Delete", danger: true);
+            return Task.CompletedTask;
+        });
+        yield return ("confirm-delete-closed", () =>
+        {
+            _window.CloseModal(false);
+            return Task.CompletedTask;
+        });
+        yield return ("pawnio-prompt", () =>
+        {
+            _ = OfferPawnIoAsync(force: true);
+            return Task.CompletedTask;
+        });
+        yield return ("pawnio-prompt-closed", () =>
+        {
+            _window.CloseModal(false);
+            return Task.CompletedTask;
+        });
+        var theme = U.Theme;
+        yield return ("custom-colors-grayed", () =>
+        {
+            _window.GoTo("settings", "settings.customcolors", flash: false);
+            return Task.CompletedTask;
+        });
+        yield return ("custom-colors-on", () =>
+        {
+            U.OledCustom.Enabled = true;
+            U.OledCustom.Colors = CustomPalette.Presets[0].Colors.Copy();
+            Themes.SetOledCustom(U.OledCustom);
+            _app.SetTheme(AppTheme.Custom);
+            _window.GoTo("settings", "settings.customcolors", flash: false);
+            return Task.CompletedTask;
+        });
+        yield return ("custom-colors-main-page", () =>
+        {
+            _window.Navigate("plugins");
+            return Task.CompletedTask;
+        });
+        yield return ("custom-colors-back", () =>
+        {
+            U.OledCustom.Enabled = false;
+            U.OledCustom.Colors = new ThemeColors();
+            Themes.SetOledCustom(U.OledCustom);
+            _app.SetTheme(theme);
+            _window.Navigate("settings");
+            return Task.CompletedTask;
+        });
+    }
+
+    private Grid ResetRow()
+    {
+        var button = Ui.LabeledButton("I.Undo", "Reset Goodie Bag", () => _ = ResetAsync(), "DangerButton");
+        button.ToolTip = "Asks first. Your current settings are kept as a copy in the settings folder.";
+        var row = Ui.SettingRow("Back to defaults",
+            "Every setting, mode, profile, layout and fan curve. Goodie Bag restarts; a copy of your settings is kept.",
+            button);
+        Ui.Anchor(row, "settings.reset");
+        return row;
+    }
+
+    private async Task ResetAsync()
+    {
+        if (_app.Demo)
+        {
+            _app.Notify("Demo mode", "Demo data is never saved, so there's nothing to reset.", NoticeKind.Info);
+            return;
+        }
+        if (!await _window.Confirm("Reset Goodie Bag to defaults?",
+                "Everything goes back to how it was on first install: modes and their triggers, launches and window placement, display profiles, " +
+                "fan curves and calibration, overlay layouts, page layouts, the home page order and these settings. Goodie Bag then restarts.\n\n" +
+                "Kept: a copy of your current settings (config.before-reset-….json in the settings folder, rename it to config.json to go back), " +
+                "iRacing backups, the PawnIO driver and the Start with Windows task. Changes already made to Windows (displays, sound) aren't undone.",
+                "Reset and restart", danger: true))
+            return;
+        try
+        {
+            ConfigStore.ResetToDefaults();
+        }
+        catch (Exception ex)
+        {
+            _app.Notify("Couldn't reset", ex.Message, NoticeKind.Error, important: true);
+            return;
+        }
+        App.RelaunchAfterExit("");
+    }
+
+    private static Grid Notice(string soft, string deep, string icon, string text)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 4, 0, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var badge = Ui.Badge(icon, soft, deep, 28, 8, 15);
+        badge.VerticalAlignment = VerticalAlignment.Top;
+        grid.Children.Add(badge);
+        var t = new TextBlock { Text = text, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(t, 1);
+        grid.Children.Add(t);
+        return grid;
+    }
+
+    private StackPanel Section(string title, string icon, string? anchor = null)
+    {
+        var stack = new StackPanel();
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        head.Children.Add(new Tile { Style = Ui.Res<Style>("IconBadge"), Width = 30, Height = 30, CornerRadius = ThemeManager.Round(9),
+            Child = new Icon { Data = Ui.Res<Geometry>(icon), Width = 16, Height = 16 } });
+        head.Children.Add(new TextBlock { Text = title, Style = Ui.Res<Style>("H2"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        stack.Children.Add(head);
+        var card = new Tile { Style = Ui.Res<Style>("Card"), Child = stack };
+        if (anchor is not null)
+            Ui.Anchor(card, anchor);
+        _sections.Children.Add(card);
+        return stack;
+    }
+
+    private static Grid StatusRow(string title, bool ok, string text)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 10, 0, 10) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var row = new DockPanel();
+        var dot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = Ui.Res<Brush>(ok ? "Sage" : "Apricot"), Margin = new Thickness(0, 6, 10, 0), VerticalAlignment = VerticalAlignment.Top };
+        DockPanel.SetDock(dot, Dock.Left);
+        row.Children.Add(dot);
+        var text2 = new StackPanel();
+        text2.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
+        text2.Children.Add(new TextBlock { Text = text, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 12, 0) });
+        row.Children.Add(text2);
+        grid.Children.Add(row);
+        return grid;
+    }
+
+    private static FrameworkElement Spaced(FrameworkElement e)
+    {
+        e.Margin = new Thickness(0, 0, 8, 8);
+        return e;
+    }
+
+    private static bool s_pawnIoOffered;
+    private bool _pawnIoOpen;
+
+    internal async Task OfferPawnIoAsync(bool force = false)
+    {
+        if (_pawnIoOpen || !force && (_app.Demo || U.HidePawnIoPrompt || _app.Hardware.PawnIoState != PawnIoState.Missing))
+            return;
+        _pawnIoOpen = true;
+        try
+        {
+            var stack = new StackPanel { MaxWidth = 460, HorizontalAlignment = HorizontalAlignment.Left };
+            void Para(string text) => stack.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+            Para("CPU temperatures and motherboard fans (case, CPU and pump headers) are read and controlled through PawnIO, a small free driver.");
+            Para("It replaces WinRing0, the older driver Windows Defender now flags as unsafe, and is installed for the whole PC.");
+            Para("Without it everything else still works: GPU temperatures and fans, frame rate, displays, modes and the overlays.");
+            var hide = new CheckBox { Content = "Don't show this again", IsChecked = U.HidePawnIoPrompt, Margin = new Thickness(0, 16, 0, 0) };
+            stack.Children.Add(hide);
+            var card = Ui.Dialog(_window, "Install the PawnIO driver?", "It isn't installed on this PC.", stack,
+                Ui.DialogButtons(_window, "Install", () => true), null, 540);
+            bool install = await _window.ShowModal(card);
+            if (hide.IsChecked == true != U.HidePawnIoPrompt)
+            {
+                U.HidePawnIoPrompt = hide.IsChecked == true;
+                _app.Save();
+            }
+            if (install)
+                InstallPawnIo();
+        }
+        finally
+        {
+            _pawnIoOpen = false;
+        }
+    }
+
+    private void InstallPawnIo()
+    {
+        if (_app.Demo)
+        {
+            _app.Notify("Demo mode", "Nothing is installed in demo mode.", NoticeKind.Info);
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo("cmd.exe", "/k winget install namazso.PawnIO -e && (echo. & echo Done. Restart Goodie Bag to use it.) || (echo. & echo If it says exit code 1072, an earlier copy is still waiting to be removed: restart Windows, then install again.)") { UseShellExecute = true })?.Dispose();
+        }
+        catch
+        {
+            Ui.OpenUrl("https://pawnio.eu");
+        }
+    }
+
+    private static void OpenFolder(string folder)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            Process.Start(new ProcessStartInfo("explorer.exe", folder) { UseShellExecute = true })?.Dispose();
+        }
+        catch { }
+    }
+}

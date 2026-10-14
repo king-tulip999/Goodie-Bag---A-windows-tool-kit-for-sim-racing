@@ -1,0 +1,142 @@
+<Window x:Class="GoodieBag.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:GoodieBag.Controls"
+        xmlns:v="clr-namespace:GoodieBag.Views"
+        Title="Goodie Bag" Width="1280" Height="820" MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterScreen" Icon="/Assets/GoodieBag.ico"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13.5"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0,0,0,1" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Grid x:Name="Root">
+        <!-- ================================================= content -->
+        <Grid x:Name="ContentArea" Background="{DynamicResource WindowBg}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- title bar (draggable; buttons opt out of the caption area) -->
+            <DockPanel x:Name="TitleBar" Grid.Row="0" LastChildFill="False">
+                <!-- left: the brand (just the mark, not a button) and, while a newer version is available, the update badge.
+                     Lined up with the pages' content (28 px). -->
+                <StackPanel x:Name="TitleLeft" DockPanel.Dock="Left" Orientation="Horizontal" Margin="28,8,0,0" VerticalAlignment="Top">
+                    <StackPanel x:Name="Brand" Orientation="Horizontal" VerticalAlignment="Center">
+                        <c:Tile x:Name="LogoTile" Background="{DynamicResource LogoBg}"
+                                BorderBrush="{DynamicResource LogoEdge}" BorderThickness="{DynamicResource LogoEdgeThickness}">
+                            <c:Icon x:Name="LogoGlyph" Data="{StaticResource I.Bag}" StrokeThickness="2.2" Foreground="{DynamicResource LogoFg}" />
+                        </c:Tile>
+                        <TextBlock x:Name="Wordmark" Foreground="{DynamicResource Heading}" />
+                    </StackPanel>
+                    <!-- only while a newer version is available (collapsed = no space); same install as Settings → Updates -->
+                    <Button x:Name="UpdateBadge" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" Margin="16,0,0,0" Padding="10,6"
+                            VerticalAlignment="Center" FontSize="12" WindowChrome.IsHitTestVisibleInChrome="True" />
+                </StackPanel>
+                <StackPanel x:Name="CaptionButtons" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Minimize">
+                        <c:Icon Data="{StaticResource I.Minus}" Width="14" Height="14" StrokeThickness="1.6" />
+                    </Button>
+                    <Button x:Name="MaxButton" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Maximize">
+                        <c:Icon x:Name="MaxIcon" Data="{StaticResource I.Square}" Width="13" Height="13" StrokeThickness="1.6" />
+                    </Button>
+                    <Button x:Name="CloseButton" Style="{StaticResource CloseCaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Close">
+                        <c:Icon Data="{StaticResource I.X}" Width="14" Height="14" StrokeThickness="1.6" />
+                    </Button>
+                </StackPanel>
+                <!-- Only for a theme with a link (ThemeSpec.Link, set up by FitBrand): its logo in the title bar beside the window
+                     buttons, on every page, as a button (ThemeLogoButton: quiet box, hover = accent glow + "Take me there") that
+                     opens the theme's site. Fades out when the bar gets too narrow for it (FitThemeLogo); the rest of the bar
+                     stays draggable. -->
+                <Button x:Name="ThemeLogo" DockPanel.Dock="Right" Style="{StaticResource ThemeLogoButton}" Click="OnThemeLogoClick"
+                        Height="34" Margin="0,2,14,0" VerticalAlignment="Top" Visibility="Collapsed"
+                        WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button.ToolTip>
+                        <StackPanel>
+                            <TextBlock x:Name="ThemeLogoTitle" FontWeight="SemiBold" />
+                            <TextBlock x:Name="ThemeLogoTip" Opacity="0.8" />
+                        </StackPanel>
+                    </Button.ToolTip>
+                    <Image x:Name="ThemeLogoImage" Stretch="Uniform" Height="28" RenderOptions.BitmapScalingMode="HighQuality" />
+                </Button>
+            </DockPanel>
+
+            <!-- the accent line between the title bar and the page, as between a page's panels; spans the window -->
+            <v:DividerLine x:Name="TitleRule" Grid.Row="0" VerticalAlignment="Bottom" Margin="28,0,28,0" />
+
+            <!-- back to the main page, centred on the window, with back-to-top on its left and the app-wide search on its right;
+                 hidden on the main page itself. All three (and the brand) are TitleButtonHeight tall. -->
+            <Grid x:Name="HomeBar" Grid.Row="0" VerticalAlignment="Top" Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="TopButton" Grid.Column="0" HorizontalAlignment="Right" Margin="0,0,8,0" Style="{StaticResource IconButton}"
+                        Width="34" Height="34" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Back to the top of this page" AutomationProperties.Name="Back to top">
+                    <c:Icon Data="{StaticResource I.ArrowUpToLine}" Width="16" Height="16" />
+                </Button>
+                <!-- navigation, not a main action: the neutral button, like back-to-top and search beside it -->
+                <Button x:Name="HomeButton" Grid.Column="1" Padding="22,0" MinWidth="160" Height="34"
+                        Style="{StaticResource GhostButton}"
+                        WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Back to the home page with every tool" AutomationProperties.Name="Home page" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button x:Name="SearchButton" Style="{StaticResource IconButton}" Width="34" Height="34" Margin="0" WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Search settings and keybinds (Ctrl+F)" AutomationProperties.Name="Search">
+                        <c:Icon Data="{StaticResource I.Search}" Width="16" Height="16" />
+                    </Button>
+                    <Border x:Name="TitleSearchHost" Width="300" Height="34" Visibility="Collapsed" WindowChrome.IsHitTestVisibleInChrome="True" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1" ClipToBounds="True">
+                <!-- every theme: a faint piece of track (ThemeSpec.Track, Theme/TrackDecor.cs: edges, kerbs, dashed racing line,
+                     apex rings) in the bottom-right 55 % × 60 % of the page area, scaled with it; cards are opaque, so it only
+                     shows in the gaps between them. One frozen brush, cached as a bitmap (redrawn only on resize). -->
+                <Grid x:Name="TrackDecor" Margin="0,0,24,8" IsHitTestVisible="False" Visibility="{DynamicResource TrackVisibility}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="45*" />
+                        <ColumnDefinition Width="55*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40*" />
+                        <RowDefinition Height="60*" />
+                    </Grid.RowDefinitions>
+                    <Rectangle Grid.Row="1" Grid.Column="1" Fill="{DynamicResource TrackBrush}">
+                        <Rectangle.CacheMode>
+                            <BitmapCache />
+                        </Rectangle.CacheMode>
+                    </Rectangle>
+                </Grid>
+                <ContentControl x:Name="PageContent" Focusable="False">
+                    <ContentControl.RenderTransform>
+                        <TranslateTransform x:Name="PageMove" />
+                    </ContentControl.RenderTransform>
+                </ContentControl>
+            </Grid>
+
+            <StackPanel x:Name="Toasts" Grid.RowSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,28,24" Width="360" />
+
+            <!-- modal layer for confirmations / prompts -->
+            <Grid x:Name="ModalLayer" Grid.RowSpan="2" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Cycle" Background="{DynamicResource Dim}">
+                <ContentControl x:Name="ModalContent" HorizontalAlignment="Center" VerticalAlignment="Center" Focusable="False" />
+            </Grid>
+        </Grid>
+
+        <!-- first-launch / revisited setup over the whole window (Views/SetupScreen.cs), with its own caption buttons -->
+        <Grid x:Name="SetupLayer" Panel.ZIndex="2" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Cycle">
+            <ContentControl x:Name="SetupContent" Focusable="False" />
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Orientation="Horizontal">
+                <Button x:Name="SetupMinButton" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Minimize">
+                    <c:Icon Data="{StaticResource I.Minus}" Width="14" Height="14" StrokeThickness="1.6" />
+                </Button>
+                <Button x:Name="SetupCloseButton" Style="{StaticResource CloseCaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Close">
+                    <c:Icon Data="{StaticResource I.X}" Width="14" Height="14" StrokeThickness="1.6" />
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

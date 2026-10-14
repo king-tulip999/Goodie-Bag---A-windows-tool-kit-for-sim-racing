@@ -1,0 +1,153 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+
+namespace GoodieBag.Controls;
+
+internal sealed class NumberBox : Grid
+{
+    private readonly TextBox _box = new() { TextAlignment = TextAlignment.Right, MinWidth = 64, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _unit = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) };
+    private double _value;
+    private bool _updating;
+
+    public double Minimum { get; init; }
+    public double Maximum { get; init; } = 1000;
+    public double Step { get; init; } = 1;
+    public int Decimals { get; init; }
+
+    public event Action<double>? ValueChanged;
+
+    public NumberBox(double value, string unit, double width = 92)
+    {
+        ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _box.MinWidth = width;
+        ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var minus = StepButton("I.Minus", "Smaller", -1);
+        var plus = StepButton("I.Plus", "Larger", +1);
+        _box.Margin = new Thickness(6, 0, 0, 0);
+        _unit.Text = unit;
+        _unit.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+        Grid.SetColumn(_box, 1);
+        Grid.SetColumn(_unit, 2);
+        Grid.SetColumn(plus, 3);
+        Children.Add(minus);
+        Children.Add(_box);
+        Children.Add(_unit);
+        Children.Add(plus);
+
+        _value = value;
+        Loaded += (_, _) =>
+        {
+            FitToRange();
+            ShowValue();
+        };
+        _box.TextChanged += (_, _) => OnTyped();
+        _box.LostKeyboardFocus += (_, _) => ShowValue();
+        _box.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Up or Key.Down)
+            {
+                Nudge(e.Key == Key.Up ? 1 : -1, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Enter)
+            {
+                ShowValue();
+                _box.SelectAll();
+            }
+        };
+        _box.PreviewMouseWheel += (_, e) =>
+        {
+            if (!_box.IsKeyboardFocusWithin)
+                return;
+            Nudge(Math.Sign(e.Delta), 1);
+            e.Handled = true;
+        };
+        _box.GotKeyboardFocus += (_, _) => _box.SelectAll();
+    }
+
+    public double Value
+    {
+        get => _value;
+        set
+        {
+            _value = value;
+            ShowValue();
+        }
+    }
+
+    private Button StepButton(string icon, string tooltip, int direction)
+    {
+        var button = new Button
+        {
+            Width = 34, Height = 34, Padding = new Thickness(0), ToolTip = tooltip + " (or scroll / arrow keys)",
+            Content = new Icon { Data = (Geometry)Application.Current.FindResource(icon), Width = 14, Height = 14 },
+        };
+        button.SetResourceReference(StyleProperty, "SoftButton");
+        ClickGuard.SetAllowRepeat(button, true);
+        button.Click += (_, _) => Nudge(direction, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1);
+        return button;
+    }
+
+    private void Nudge(int direction, int multiplier)
+    {
+        double next = Math.Round((_value + direction * Step * multiplier) / Step) * Step;
+        Set(next, show: true);
+    }
+
+    private void OnTyped()
+    {
+        if (_updating)
+            return;
+        string text = _box.Text.Trim().Replace(',', '.');
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) && v >= Minimum && v <= Maximum)
+        {
+            _box.ClearValue(Control.BorderBrushProperty);
+            Set(v, show: false);
+        }
+        else
+        {
+            _box.SetResourceReference(Control.BorderBrushProperty, "Danger");
+        }
+    }
+
+    private void Set(double value, bool show)
+    {
+        value = Math.Clamp(Precise(value, Decimals, Step), Minimum, Maximum);
+        bool changed = Math.Abs(value - _value) > 1e-9;
+        _value = value;
+        if (show)
+            ShowValue();
+        if (changed)
+            ValueChanged?.Invoke(value);
+    }
+
+    internal static double Precise(double value, int decimals, double step)
+    {
+        int stepDecimals = step > 0 && step < 1e15 ? (decimal.GetBits((decimal)step)[3] >> 16) & 0xFF : 0;
+        return Math.Round(value, Math.Clamp(Math.Max(decimals, stepDecimals), 0, 15), MidpointRounding.AwayFromZero);
+    }
+
+    private void FitToRange()
+    {
+        double widest = new[] { Minimum, Maximum }.Max(v =>
+            new FormattedText(v.ToString("F" + Decimals, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                new Typeface(_box.FontFamily, _box.FontStyle, _box.FontWeight, _box.FontStretch), _box.FontSize, Brushes.Black,
+                VisualTreeHelper.GetDpi(this).PixelsPerDip).WidthIncludingTrailingWhitespace);
+        _box.MinWidth = Math.Max(_box.MinWidth, Math.Ceiling(widest + _box.Padding.Left + _box.Padding.Right + _box.BorderThickness.Left + _box.BorderThickness.Right + 8));
+    }
+
+    private void ShowValue()
+    {
+        _updating = true;
+        _box.Text = _value.ToString("F" + Decimals, CultureInfo.InvariantCulture);
+        _box.ClearValue(Control.BorderBrushProperty);
+        _updating = false;
+    }
+}
