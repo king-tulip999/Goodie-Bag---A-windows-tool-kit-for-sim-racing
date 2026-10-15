@@ -1,5 +1,3 @@
-<p align="center"><img src="banner.png" alt="Goodie Bag: a Windows toolkit for sim rigs" width="100%"></p>
-
 # Goodie Bag
 
 **Download: [latest release](https://github.com/king-tulip999/Goodie-Bag---A-windows-tool-kit-for-sim-racing/releases)** (it's just one `GoodieBag.exe`, nothing to install)
@@ -63,3 +61,30 @@ Works on Windows 10 and 11 (x64).
 If you race in the GRR league, turn on the GRR League plugin (Settings → Plugins). It shows your next race, the championship, results and the schedule from the GRR website without leaving the app. It's off by default, so nobody else sees it.
 
 <p align="center"><img src="grr.png" alt="GRR League page" width="100%"></p>
+
+## Credits
+
+Goodie Bag is built on these, each under its own licence:
+
+| What | Used for | Licence |
+| --- | --- | --- |
+| [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | Sensors and fan control | MPL 2.0 |
+| [TraceEvent](https://github.com/microsoft/perfview) (Microsoft) | Frame counting for the FPS readouts | MIT |
+| [.NET, WPF and Windows Forms](https://github.com/dotnet) (Microsoft) | The app framework | MIT |
+| [Lucide](https://lucide.dev) | Icons (some adapted) | ISC |
+| [Barlow](https://github.com/jpt/barlow) by Jeremy Tribby | GRR theme font | SIL Open Font License 1.1 |
+| [SIMRacingApps](https://github.com/SIMRacingApps/SIMRacingAppsServer) by Jeffrey Gilliam | Track centreline and pit lane routes for the track map | Apache 2.0 |
+| Track map drawings by [iRacing](https://www.iracing.com), collected in [racing-track-maps-vector](https://github.com/meowmachine/racing-track-maps-vector) by meowmachine | Track maps for the overlay and Session Stats | © iRacing.com Motorsport Simulations, LLC |
+| [Quotes-500K](https://github.com/ShivaliGoel/Quotes-500K) by Shivali Goel, Rishi Madhok and Shweta Garg | Quotes (from *Proposing Contextually Relevant Quotes for Images*, ECIR 2018) | Shared for educational and research use |
+| [PawnIO](https://pawnio.eu) | Optional driver for CPU and motherboard sensors (not bundled; installed separately) | See its site |
+
+Inspired by (no code or assets from these are used):
+
+- [Fan Control](https://github.com/Rem0o/FanControl.Releases) by Rem0o: the Fan Control page
+- [Resize Raccoon](https://github.com/mistenkt/resize-raccoon) by mistenkt: Automations and Modes
+
+Thanks to the [GRR League](https://www.grassrootsracing.org) for letting the GRR plugin use its site data and logo.
+
+Full licence texts ship with the components (for example `NOTICES.md` inside the track map library and `Barlow-OFL.txt` beside the fonts).
+
+iRacing is a trademark of iRacing.com Motorsport Simulations, LLC. Trading Paints and Garage 61 belong to their owners. Goodie Bag isn't affiliated with or endorsed by any of them.
