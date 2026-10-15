@@ -8,7 +8,7 @@ internal enum StatKind { Duration, Count, Distance, Speed, Fuel, Temp, LapTime, 
 
 internal sealed record StatResult(string Value, string? Detail = null)
 {
-    public static readonly StatResult None = new("—") { NoData = true };
+    public static readonly StatResult None = new(GoodieBag.SimRacing.Race.RaceFormat.Missing) { NoData = true };
 
     public bool NoData { get; init; }
 }
@@ -88,8 +88,6 @@ internal static class StatRegistry
     };
 
     public static StatDef? Find(string id) => All.FirstOrDefault(d => d.Id == id);
-
-    public static IEnumerable<string> Categories => All.Select(d => d.Category).Distinct();
 
     internal const string Scope = "WITH s AS (SELECT * FROM sessions WHERE start_utc >= ?1 AND start_utc < ?2), l AS (SELECT laps.* FROM laps JOIN s ON s.id = laps.session_id) ";
 

@@ -48,6 +48,8 @@ internal sealed class SessionRecorder
     private readonly List<LapRow> _laps = new();
     private int _savedLaps;
     private string _identity = "";
+    private SessionInfo? _identityInfo;
+    private int _identitySession;
     private double? _lastTime;
 
     private double? _lapStart, _fuelStart, _lastFuel;
@@ -61,6 +63,8 @@ internal sealed class SessionRecorder
     private bool _onPitRoad, _sawStall, _wasDriving;
     private int _run, _lapRun;
     private int? _lapsAtCheckered;
+
+    public Func<bool>? Tracing { get; init; }
 
     public SessionRecorder(string source = "live", bool traces = false)
     {
@@ -86,7 +90,10 @@ internal sealed class SessionRecorder
             return f.Status == SimStatus.Connected && !f.Simulated && !ReferenceEquals(info, SessionInfo.Empty) ? null : Finish();
 
         (SessionRow, List<LapRow>)? ended = null;
-        string identity = $"{info.SubSessionId}|{f.SessionNum}|{info.TrackId}|{player.CarPath}|{player.UserId}";
+        bool same = _row is not null && ReferenceEquals(info, _identityInfo) && f.SessionNum == _identitySession;
+        string identity = same ? _identity : $"{info.SubSessionId}|{f.SessionNum}|{info.TrackId}|{player.CarPath}|{player.UserId}";
+        _identityInfo = info;
+        _identitySession = f.SessionNum;
         if (_row is not null && identity != _identity) ended = Finish();
         if (_row is null)
         {
@@ -137,6 +144,7 @@ internal sealed class SessionRecorder
         var row = _row;
         _row = null;
         _identity = "";
+        _identityInfo = null;
         _lastTime = null;
         ResetLap();
         _lastGear = 0;
@@ -279,7 +287,7 @@ internal sealed class SessionRecorder
             _pitThisLap = f.OnPitRoad;
             _lapRun = _run;
         }
-        if (_trace is not null)
+        if (_trace is not null && Tracing?.Invoke() != false)
         {
             if (f.YawNorth is { } h && f.VelocityX is { } vx && f.VelocityY is { } vy)
             {

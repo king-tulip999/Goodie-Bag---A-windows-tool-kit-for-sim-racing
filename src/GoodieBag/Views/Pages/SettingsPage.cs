@@ -335,7 +335,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         {
             U.InterfaceScale = UiSettings.InterfaceScales[i];
             _app.Save();
-            _window.ApplyInterfaceScale();
+            _window.ApplyInterfaceScale(rebuild: true);
         }, "Scale", UiSettings.InterfaceScales.Select(p => (string?)(p switch
         {
             90 => "90%: fits the most on a small or low-resolution screen",
@@ -348,7 +348,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         look.Children.Add(Ui.Divider());
 
         string animationNote = SystemParameters.ClientAreaAnimation
-            ? "Page transitions, card entrances, spinning fan icons. Nothing animates while Goodie Bag is in the tray."
+            ? "Page transitions, card entrances, spinning fan icons. Nothing animates while Goodie Bag is in the tray." + (PcClass.Weak ? " This PC gets a lighter version: 30 frames a second, no blur." : "")
             : "Windows' “Animation effects” setting is off, so animations stay off.";
         var anim = Ui.Switch(U.Animations, v => { U.Animations = v; _app.Save(); NavIcon.RefreshAll(); });
         anim.IsEnabled = SystemParameters.ClientAreaAnimation;

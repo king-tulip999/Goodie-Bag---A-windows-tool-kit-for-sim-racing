@@ -149,17 +149,6 @@ internal sealed class PanelGrid : Panel
         Commit(_added.OrderBy(i => i.Def.Order).ToList());
     }
 
-    public void ResizeAll(double width, double? height = null)
-    {
-        foreach (var item in _items.Where(i => i.Def.Resizable))
-        {
-            var (min, max) = ColumnRange(item.Def);
-            item.Slot.Cols = Math.Clamp(ColumnsFor(width), min, max);
-            item.Slot.Rows = height is { } h && item.Def.FreeHeight ? Math.Max(1, (int)Math.Round((h + Gap) / RowStep)) : null;
-        }
-        ResetLayout();
-    }
-
     public void Resize(string id, double width)
     {
         if (_items.FirstOrDefault(i => i.Def.Id == id && i.Def.Resizable) is not { } item) return;
@@ -464,7 +453,11 @@ internal sealed class PanelGrid : Panel
             DragTo(p);
             e.Handled = true;
         };
-        host.MouseLeave += (_, _) => { if (_resize != item) ShowGrip(item, null); };
+        host.MouseLeave += (_, _) =>
+        {
+            if (_resize != item) ShowGrip(item, null);
+            if (_drag is null && _pressed == item) _pressed = null;
+        };
         host.PreviewMouseLeftButtonUp += (_, e) =>
         {
             if (_pressed != item) return;

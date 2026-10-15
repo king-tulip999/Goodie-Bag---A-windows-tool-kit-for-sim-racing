@@ -41,7 +41,11 @@ internal static class FuelReplay
         var all = new Totals();
         foreach (var path in files)
         {
-            using var ibt = IbtFile.Open(path, out var error);
+            IbtFile? opened;
+            string? error;
+            try { opened = IbtFile.Open(path, out error); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { opened = null; error = ex.Message; }
+            using var ibt = opened;
             if (ibt is null) { text.AppendLine($"skip {Path.GetFileName(path)}: {error}"); continue; }
             var session = SessionInfo.Parse(ibt.SessionInfoYaml);
             var decoder = new FrameDecoder();

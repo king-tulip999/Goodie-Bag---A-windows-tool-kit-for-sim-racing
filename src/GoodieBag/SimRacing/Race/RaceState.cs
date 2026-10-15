@@ -23,7 +23,7 @@ internal sealed class RaceState
     private readonly Dictionary<int, int> _startPositions = new();
     private List<StandingRow> _standings = new();
     private long _standingsSeq = -1;
-    private string _sessionKey = "", _carTrackKey = "", _fuelIdentity = "";
+    private string _sessionKey = "", _fuelIdentity = "";
     private double _nextFuelPlanAt = double.NegativeInfinity;
     private int _fuelLapsPlanned = -1;
     private long _lastSeq = -1;
@@ -157,13 +157,6 @@ internal sealed class RaceState
 
     public int? LastPitLap(int car) => (uint)car < TelemetryFrame.MaxCars && _carPitLap[car] > 0 ? _carPitLap[car] : null;
 
-    public IEnumerable<double> RecentLaps(int car)
-    {
-        if ((uint)car >= TelemetryFrame.MaxCars) yield break;
-        int count = Math.Min(_carLapCount[car], CarLapHistory);
-        for (int k = 0; k < count; k++) yield return _carLaps[car, (_carLapCount[car] - 1 - k) % CarLapHistory];
-    }
-
     public bool OnOutLap(int car) => (uint)car < TelemetryFrame.MaxCars && _carLeftPits[car] && !Frame.CarOnPitRoad[car] && Frame.CarLapCompleted[car] == _carPitExitLap[car];
 
     public int StintLapsOf(int car) => (uint)car < TelemetryFrame.MaxCars ? Math.Max(0, Frame.CarLapCompleted[car] - _carPitExitLap[car]) : 0;
@@ -260,11 +253,9 @@ internal sealed class RaceState
             _keysFrom = f.Session;
             _keysNum = f.SessionNum;
             string sessionKey = $"{f.Session.TrackId}|{f.Session.PlayerCarIdx}|{f.SessionNum}|{f.Session.Sessions.Count}|{f.Session.Player?.CarPath}|{f.Session.SubSessionId}";
-            string carTrack = $"{f.Session.TrackId}|{f.Session.Player?.CarPath}";
             _fuelIdentity = $"{f.Session.TrackId}|{f.Session.TrackConfig}|{f.Session.Player?.CarPath}";
-            if (sessionKey != _sessionKey) NewSession(f, carTrack != _carTrackKey);
+            if (sessionKey != _sessionKey) NewSession(f);
             _sessionKey = sessionKey;
-            _carTrackKey = carTrack;
             _split = -1;
         }
         if (Now - _splitCheckedAt >= 1 || _split < 0)
@@ -288,7 +279,7 @@ internal sealed class RaceState
             FuelData.Update(f, _fuelIdentity, s.Fuel.Window);
             if (f.LapCompleted != _fuelLap || f.OnPitRoad) { _fuelLap = f.LapCompleted; _lapStartFuel = f.Fuel; FuelThisLapFrom = f.LapDistPct is { } at && at < 0.95 ? at : 0; }
         }
-        Gaps.Sample(f, Now);
+        if (!f.IsReplayPlaying) Gaps.Sample(f, Now);
 
         if (f.SessionKind == SessionKind.Race && _startPositions.Count == 0 && f.Phase >= SessionPhase.Racing)
         {
@@ -297,11 +288,14 @@ internal sealed class RaceState
                 for (int i = 0; i < TelemetryFrame.MaxCars; i++) if (f.CarPosition[i] > 0) _startPositions[i] = f.CarPosition[i];
         }
 
-        TrackPit(f);
-        TrackCars(f);
+        if (!f.IsReplayPlaying)
+        {
+            TrackPit(f);
+            TrackCars(f);
+            TrackFlags(f);
+            TrackPositions(f);
+        }
         TrackWeather(f);
-        TrackFlags(f);
-        TrackPositions(f);
         var call = _spotter.Next(f.Sides);
         if (call != SpotterCall.None)
         {
@@ -317,7 +311,7 @@ internal sealed class RaceState
         Alerts.Visible(Now);
     }
 
-    private void NewSession(TelemetryFrame f, bool carOrTrackChanged)
+    private void NewSession(TelemetryFrame f)
     {
         Laps.Clear();
         Gaps.Clear();
@@ -471,6 +465,7 @@ internal sealed class RaceState
                 PlayerLapTimeSeconds = myPace.Value,
                 WhiteFlagObserved = (f.Flags & RaceFlags.White) != 0,
                 CheckeredFlagObserved = (f.Flags & RaceFlags.Checkered) != 0,
+                LeaderFinished = f.Phase >= SessionPhase.Checkered,
             });
             return (e.LapsRemainingExpected, !e.IsAuthoritative);
         }
@@ -532,14 +527,29 @@ internal sealed class RaceState
             Alerts.Set("stint.limit", f.Driving && left <= Alerts.Threshold("stint.limit") * 60, now, detail: left > 0 ? $"{left / 60:0} min left in the stint" : "Stint time reached");
         }
         int me = f.PlayerCarIdx;
-        if ((uint)me < TelemetryFrame.MaxCars && f.Driving && f.Session.NumCarClasses > 1)
+        bool traffic = (uint)me < TelemetryFrame.MaxCars && f.Driving && f.Session.NumCarClasses > 1;
+        if (!traffic && _trafficRaised)
+        {
+            for (int i = 0; i < TelemetryFrame.MaxCars; i++)
+            {
+                Alerts.Set("traffic.faster", false, now, key: FasterKeys[i]);
+                Alerts.Set("traffic.slower", false, now, key: SlowerKeys[i]);
+            }
+        }
+        _trafficRaised = traffic;
+        if (traffic)
         {
             double faster = Alerts.Threshold("traffic.faster"), slower = Alerts.Threshold("traffic.slower");
             int myClass = FieldOrder.ClassOf(f, me);
             double? myLap = FieldOrder.LapTimeOf(f, me);
             for (int i = 0; i < TelemetryFrame.MaxCars; i++)
             {
-                if (i == me || !f.CarActive(i) || f.CarOnPitRoad[i] || FieldOrder.ClassOf(f, i) == myClass) continue;
+                if (i == me || !f.CarActive(i) || f.CarOnPitRoad[i] || FieldOrder.ClassOf(f, i) == myClass)
+                {
+                    Alerts.Set("traffic.faster", false, now, key: FasterKeys[i]);
+                    Alerts.Set("traffic.slower", false, now, key: SlowerKeys[i]);
+                    continue;
+                }
                 var gap = FieldOrder.GapSeconds(f, me, i, Profile);
                 double? lap = FieldOrder.LapTimeOf(f, i);
                 bool isFaster = lap is { } l && myLap is { } m && l < m * 0.98;
@@ -555,6 +565,8 @@ internal sealed class RaceState
             }
         }
     }
+
+    private bool _trafficRaised;
 
     private static readonly string[] FasterKeys = Enumerable.Range(0, TelemetryFrame.MaxCars).Select(i => "traffic.faster:" + i).ToArray();
     private static readonly string[] SlowerKeys = Enumerable.Range(0, TelemetryFrame.MaxCars).Select(i => "traffic.slower:" + i).ToArray();

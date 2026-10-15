@@ -232,10 +232,10 @@ internal sealed class PerformanceSection : UserControl, IPage
         return (view, f =>
         {
             var hw = f.Hw;
-            values[0].Text = F(hw?.CpuLoad);
-            values[1].Text = F(hw?.CpuTemp);
-            values[2].Text = hw?.CpuClockMhz is { } mhz and > 0 ? $"{mhz / 1000:0.00}" : "--";
-            now.Text = Verdict(hw?.CpuLoad, "Relaxed", "Boosting").Text;
+            TextCase.Set(values[0], F(hw?.CpuLoad));
+            TextCase.Set(values[1], F(hw?.CpuTemp));
+            TextCase.Set(values[2], hw?.CpuClockMhz is { } mhz and > 0 ? $"{mhz / 1000:0.00}" : "–");
+            TextCase.Set(now, Verdict(hw?.CpuLoad, "Relaxed", "Boosting").Text);
             power?.Busy(hw?.CpuPower, $"{hw?.CpuPower:0}", "W", hw?.CpuLoad, "Idle", "Working hard");
             if (spark is not null) { spark.Capacity = SampleCapacity; spark.SetValues(_samples["cpuLoad"]); }
             if (chart is not null) Plot(chart, _samples["cpuLoad"], _samples["cpuTemp"]);
@@ -307,10 +307,10 @@ internal sealed class PerformanceSection : UserControl, IPage
         return (view, f =>
         {
             var hw = f.Hw;
-            values[0].Text = F(hw?.GpuLoad);
-            values[1].Text = F(hw?.GpuTemp);
-            values[2].Text = F(hw?.GpuClockMhz);
-            now.Text = Verdict(hw?.GpuLoad, "Relaxed", "Boosting").Text;
+            TextCase.Set(values[0], F(hw?.GpuLoad));
+            TextCase.Set(values[1], F(hw?.GpuTemp));
+            TextCase.Set(values[2], F(hw?.GpuClockMhz));
+            TextCase.Set(now, Verdict(hw?.GpuLoad, "Relaxed", "Boosting").Text);
             power?.Busy(hw?.GpuPower, $"{hw?.GpuPower:0}", "W", hw?.GpuLoad, "Idle", "Working hard");
             if (hotSpot is not null)
             {
@@ -392,12 +392,12 @@ internal sealed class PerformanceSection : UserControl, IPage
             {
                 double share = used / total;
                 ram.Show($"{used:0.0}", $"of {total:0} GB", share, share >= 0.9 ? ("Nearly full", "ApricotDeep") : share >= 0.7 ? ("Busy", "GoldDeep") : ("Plenty free", "SageDeep"), $"{share * 100:0}% in use");
-                now.Text = $"{share * 100:0}%";
+                TextCase.Set(now, $"{share * 100:0}%");
             }
             else
             {
                 ram.Unavailable();
-                now.Text = "";
+                TextCase.Set(now, "");
             }
             if (vram is not null)
             {
@@ -461,17 +461,17 @@ internal sealed class PerformanceSection : UserControl, IPage
             if (hw?.DiskActivePercent is { } disk)
             {
                 activity.Show($"{disk:0}", "%", disk / 100, disk >= 90 ? ("Flat out", "ApricotDeep") : disk >= 40 ? ("Busy", "GoldDeep") : ("Quiet", "SageDeep"), null);
-                now.Text = disk >= 40 ? "Busy" : "Quiet";
+                TextCase.Set(now, disk >= 40 ? "Busy" : "Quiet");
             }
             else
             {
                 activity.Unavailable();
-                now.Text = "";
+                TextCase.Set(now, "");
             }
             if (rates is not null)
             {
-                rates[0].Text = hw?.DiskReadBps is { } r ? $"{r / 1e6:0.0}" : "--";
-                rates[1].Text = hw?.DiskWriteBps is { } w ? $"{w / 1e6:0.0}" : "--";
+                TextCase.Set(rates[0], hw?.DiskReadBps is { } r ? $"{r / 1048576.0:0.0}" : "–");
+                TextCase.Set(rates[1], hw?.DiskWriteBps is { } w ? $"{w / 1048576.0:0.0}" : "–");
             }
             if (!ReferenceEquals(f.Tree, seen))
             {
@@ -503,7 +503,7 @@ internal sealed class PerformanceSection : UserControl, IPage
                         var write = SensorLookup.Find(d, SensorKind.Throughput, "Write Rate");
                         var text = Join(act?.Value is { } a ? $"{a:0}% busy" : null, temp?.Value is { } t ? $"{t:0} °C" : null, used?.Value is { } u ? $"{u:0}% full" : null);
                         if (read?.Value is not null || write?.Value is not null)
-                            text = (text.Length == 0 ? "" : text + "\n") + $"{(read?.Value is { } r ? SensorFormat.Rate(r) : "n/a")} read · {(write?.Value is { } w ? SensorFormat.Rate(w) : "n/a")} write";
+                            text = (text.Length == 0 ? "" : text + "\n") + $"{(read?.Value is { } r ? SensorFormat.Rate(r) : "–")} read · {(write?.Value is { } w ? SensorFormat.Rate(w) : "–")} write";
                         return (d.Id, d.Name, text, (act ?? used)?.Value / 100.0);
                     }).ToList();
                     volumeItems = storage?.FirstOrDefault(d => d.Id == "/volumes")?.Children.Select(v =>
@@ -560,12 +560,12 @@ internal sealed class PerformanceSection : UserControl, IPage
                 ("Link speed", net?.LinkSpeedBps is { } ls ? NetworkMonitor.Bits(ls / 8.0) : null),
                 ("Packet loss", net?.LossPercent is { } lost ? $"{lost:0.#}% of last {net.PingsSent} pings" : null),
                 ("Ping target", net?.PingHost));
-            now.Text = net is null ? "" : !net.Connected ? "Offline" : net.Adapter ?? "";
+            TextCase.Set(now, net is null ? "" : !net.Connected ? "Offline" : net.Adapter ?? "");
             if (values is not null)
             {
-                values[0].Text = net is { Connected: true, PingMs: { } p } ? $"{p:0}" : "--";
-                values[1].Text = net is { Connected: true } ? $"{net.DownBytesPerSec * 8 / 1e6:0.0}" : "--";
-                values[2].Text = net is { Connected: true } ? $"{net.UpBytesPerSec * 8 / 1e6:0.0}" : "--";
+                TextCase.Set(values[0], net is { Connected: true, PingMs: { } p } ? $"{p:0}" : "–");
+                TextCase.Set(values[1], net is { Connected: true } ? $"{net.DownBytesPerSec * 8 / 1e6:0.0}" : "–");
+                TextCase.Set(values[2], net is { Connected: true } ? $"{net.UpBytesPerSec * 8 / 1e6:0.0}" : "–");
             }
             if (ping is not null)
             {
@@ -641,7 +641,7 @@ internal sealed class PerformanceSection : UserControl, IPage
                 tItems = t.Select(x => (x.Name, V(x))).ToArray();
                 vItems = v.Select(x => (x.Name, V(x))).ToArray();
             }
-            now.Text = size == PanelSize.Small ? "" : board?.Name ?? "";
+            TextCase.Set(now, size == PanelSize.Small ? "" : board?.Name ?? "");
             var up = TimeSpan.FromMilliseconds(Environment.TickCount64);
             string? missing = _app.Hardware.PawnIoLikelyMissing ? "Needs PawnIO" : null;
             var items = new List<(string, string?)>();
@@ -675,12 +675,12 @@ internal sealed class PerformanceSection : UserControl, IPage
         return (view, _ =>
         {
             var fans = _app.Hardware.Catalog?.Fans.Where(x => !IsHiddenFan(x.ControlId)).ToList();
-            values[0].Text = fans is null ? "--" : fans.Count(x => x.Rpm > 0 || x.Percent > 0).ToString();
-            values[1].Text = fans is null ? "--" : fans.Count.ToString();
-            values[2].Text = fans?.Max(x => x.Rpm) is { } top ? $"{top:N0}" : "--";
-            now.Text = _app.Hardware.Catalog?.Emergency == true ? "At 100% (hot!)" : $"Preset: {_app.Config.Fans.ActivePreset}";
+            TextCase.Set(values[0], fans is null ? "–" : fans.Count(x => x.Rpm > 0 || x.Percent > 0).ToString());
+            TextCase.Set(values[1], fans is null ? "–" : fans.Count.ToString());
+            TextCase.Set(values[2], fans?.Max(x => x.Rpm) is { } top ? $"{top:N0}" : "–");
+            TextCase.Set(now, _app.Hardware.Catalog?.Emergency == true ? "At 100% (hot!)" : $"Preset: {_app.Config.Fans.ActivePreset}");
             list?.Show(fans?.Take(size == PanelSize.Large ? 32 : 6).Select(x => (x.ControlId, _app.FanName(x),
-                Join(x.HasRpm ? x.Rpm is { } r ? $"{r:N0} RPM" : "RPM n/a" : null, x.Controllable ? x.Percent is { } p ? $"{p:0}%" : "control n/a" : null),
+                Join(x.HasRpm ? x.Rpm is { } r ? $"{r:N0} RPM" : "RPM –" : null, x.Controllable ? x.Percent is { } p ? $"{p:0}%" : "control –" : null),
                 x.Percent / 100.0)).ToList(),
                 fans is null ? "Reading fans…" : _app.Hardware.PawnIoLikelyMissing ? "No fans reported. Motherboard fans need the PawnIO driver." : "No fans reported.");
         });
@@ -726,16 +726,16 @@ internal sealed class PerformanceSection : UserControl, IPage
             }
             if (f.Game is { } g)
             {
-                values[0].Text = g.Stats.Fps.ToString("0");
-                values[1].Text = g.Stats.AverageFps.ToString("0");
-                values[2].Text = g.Stats.OnePercentLowFps.ToString("0");
-                values[3].Text = $"{g.Stats.FrameTimeMs:0.0}";
-                game.Text = $"Measuring {g.Name}";
+                TextCase.Set(values[0], g.Stats.Fps.ToString("0"));
+                TextCase.Set(values[1], g.Stats.AverageFps.ToString("0"));
+                TextCase.Set(values[2], g.Stats.OnePercentLowFps.ToString("0"));
+                TextCase.Set(values[3], $"{g.Stats.FrameTimeMs:0.0}");
+                TextCase.Set(game, $"Measuring {g.Name}");
             }
             else
             {
-                foreach (var v in values) v.Text = "--";
-                game.Text = _app.Frames.Error ?? (_app.Demo ? "No game running (demo data)" : "Start a game and its frame rate shows up here.");
+                foreach (var v in values) TextCase.Set(v, "–");
+                TextCase.Set(game, _app.Frames.Error ?? (_app.Demo ? "No game running (demo data)" : "Start a game and its frame rate shows up here."));
             }
             if (chart is not null)
             {
@@ -781,7 +781,7 @@ internal sealed class PerformanceSection : UserControl, IPage
             var cell = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
             cell.Children.Add(new TextBlock { Text = items[i].Label, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = items[i].Label });
             var line = new StackPanel { Orientation = Orientation.Horizontal };
-            values[i] = new TextBlock { Text = "--", FontSize = 24, FontWeight = FontWeights.SemiBold };
+            values[i] = new TextBlock { Text = "–", FontSize = 24, FontWeight = FontWeights.SemiBold };
             values[i].SetResourceReference(TextBlock.ForegroundProperty, "Text");
             line.Children.Add(values[i]);
             if (items[i].Unit.Length > 0)
@@ -890,7 +890,7 @@ internal sealed class PerformanceSection : UserControl, IPage
 
     private Frame CurrentFrame() => new(_app.Hardware.Latest, _app.Network.Latest, _app.Hardware.Tree, _app.Frames.GetMostActive());
 
-    private static string F(float? v) => v is { } x ? x.ToString("0") : "--";
+    private static string F(float? v) => v is { } x ? x.ToString("0") : "–";
 
     private static string? V(SensorReading? r) => r?.Value is { } v ? r.Format(v) : null;
 
@@ -948,7 +948,7 @@ internal sealed class PerformanceSection : UserControl, IPage
         public void Waiting(params string[] labels)
         {
             Show(labels.Select(l => (l, (string?)null)).ToArray());
-            foreach (var value in _values) value.Text = "…";
+            foreach (var value in _values) TextCase.Set(value, "…");
         }
 
         public void Show(int count, params (string Label, string? Text)[] items) => Show(items.Length <= count ? items : items[..count]);
@@ -980,7 +980,7 @@ internal sealed class PerformanceSection : UserControl, IPage
             for (int i = 0; i < items.Length; i++)
             {
                 bool missing = items[i].Text is null;
-                _values[i].Text = items[i].Text ?? "n/a";
+                TextCase.Set(_values[i], items[i].Text ?? "–");
                 if (missing == _missing[i]) continue;
                 _missing[i] = missing;
                 _values[i].SetResourceReference(TextBlock.ForegroundProperty, missing ? "TextFaint" : "Text");
@@ -1048,7 +1048,7 @@ internal sealed class PerformanceSection : UserControl, IPage
             for (int i = 0; i < items.Count && i < _rows.Count; i++)
             {
                 double? share = items[i].Share is { } v && !double.IsNaN(v) ? v : null;
-                _rows[i].Text.Text = items[i].Text;
+                TextCase.Set(_rows[i].Text, items[i].Text);
                 _rows[i].Bar.Value = Math.Clamp(share ?? 0, 0, 1);
                 _rows[i].Bar.Visibility = share is null ? Visibility.Collapsed : Visibility.Visible;
             }
@@ -1118,10 +1118,10 @@ internal sealed class PerformanceSection : UserControl, IPage
 
         public void Show(string value, string unit, double? share, (string Text, string Color) verdict, string? detail)
         {
-            _value.Text = value;
+            TextCase.Set(_value, value);
             SetValueColor("Text");
-            _unit.Text = unit;
-            _verdict.Text = verdict.Text;
+            TextCase.Set(_unit, unit);
+            TextCase.Set(_verdict, verdict.Text);
             if (verdict.Color != _color)
             {
                 _color = verdict.Color;
@@ -1133,24 +1133,24 @@ internal sealed class PerformanceSection : UserControl, IPage
             _share = Math.Clamp(share ?? 0, 0, 1);
             _track.Visibility = share is null ? Gone : Visibility.Visible;
             _fill.Width = _track.ActualWidth * _share;
-            _detail.Text = detail ?? "";
+            TextCase.Set(_detail, detail ?? "");
             _detail.Visibility = detail is null && !Steady ? Visibility.Collapsed : Visibility.Visible;
         }
 
         public void Waiting()
         {
             Unavailable("…");
-            _detail.Text = "Measuring…";
+            TextCase.Set(_detail, "Measuring…");
         }
 
         public void Unavailable(string? why = null)
         {
-            _value.Text = why ?? "n/a";
+            TextCase.Set(_value, why ?? "–");
             SetValueColor("TextFaint");
-            _unit.Text = "";
+            TextCase.Set(_unit, "");
             _pill.Visibility = Gone;
             _track.Visibility = Gone;
-            _detail.Text = why is null ? "This PC doesn't report it." : "";
+            TextCase.Set(_detail, why is null ? "This PC doesn't report it." : "");
             _detail.Visibility = Visibility.Visible;
         }
     }

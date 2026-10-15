@@ -484,19 +484,23 @@ internal sealed class HardwareService : IDisposable
 
         var clock = Stopwatch.StartNew();
         double lastSeconds = 0;
-        long nextReadMs = 0;
+        long nextReadMs = 0, nextDeepMs = 0;
 
         while (!_stopping)
         {
             int monitorMs = MonitorIntervalMs;
             bool fanLoop = _pendingFanSettings.Enabled || !_overrides.IsEmpty;
             long nowMs = Environment.TickCount64;
-            bool publish = _publishNow || nowMs >= nextReadMs - 15;
+            bool deep = _publishNow || nowMs >= nextDeepMs - 15;
+            bool publish = deep || nowMs >= nextReadMs - 15;
             if (publish)
             {
                 _publishNow = false;
                 nextReadMs = nowMs + monitorMs;
             }
+            if (deep)
+                nextDeepMs = nowMs + Math.Max(monitorMs, UserIntervalMs);
+            bool quick = !deep && !fanLoop;
 
             while (_requests.TryDequeue(out var request))
             {
@@ -508,9 +512,10 @@ internal sealed class HardwareService : IDisposable
             try
             {
                 SyncExtra(full, monitorMs);
-                UpdateDevices(computer);
+                if (quick) UpdateSnapshotDevices();
+                else UpdateDevices(computer);
 
-                int signature = SensorSignature(computer);
+                int signature = quick ? _sensorSignature : SensorSignature(computer);
                 if (signature != _sensorSignature)
                 {
                     PickDevices(computer);
@@ -545,10 +550,13 @@ internal sealed class HardwareService : IDisposable
             if (snapshot is not null && (publish || fanLoop))
             {
                 Latest = snapshot;
-                try { Catalog = BuildCatalog(); }
-                catch (Exception ex) { LogOnce("catalog", ex); }
+                if (deep || fanLoop)
+                {
+                    try { Catalog = BuildCatalog(); }
+                    catch (Exception ex) { LogOnce("catalog", ex); }
+                }
             }
-            if (snapshot is not null && publish)
+            if (snapshot is not null && deep)
             {
                 try { if (full) Tree = BuildTree(); }
                 catch (Exception ex) { LogOnce("tree", ex); }
@@ -585,6 +593,21 @@ internal sealed class HardwareService : IDisposable
     private Task? _slowRead;
     private IHardware[] _slowReading = [];
     private long _slowNextMs;
+
+    private int UserIntervalMs => PerformanceSettings.Effective(_monitorMs, _reduced ? BackgroundUsage.Reduced : BackgroundUsage.Standard, _windowHidden);
+
+    private void UpdateSnapshotDevices()
+    {
+        void One(IHardware? hw)
+        {
+            if (hw is null || _slow.Contains(hw)) return;
+            try { Update(hw); }
+            catch (Exception ex) { LogOnce("update " + hw.HardwareType, ex); }
+        }
+        One(_cpu);
+        One(_gpu);
+        foreach (var m in _memory) One(m);
+    }
 
     private void UpdateDevices(IComputer computer)
     {
@@ -1034,7 +1057,7 @@ internal sealed class HardwareService : IDisposable
         _stopping = true;
         _wake.Set();
         var thread = _thread;
-        if (thread is { IsAlive: true } && !thread.Join(3000))
+        if (thread is { IsAlive: true } && !thread.Join(7000))
         {
             try { _fans?.RestoreAll(); } catch { }
         }

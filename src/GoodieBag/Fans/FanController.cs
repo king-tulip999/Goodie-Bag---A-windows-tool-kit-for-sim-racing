@@ -98,6 +98,8 @@ internal sealed class FanController : IDisposable
 
     public void Reindex(IComputer computer)
     {
+        var oldControls = new Dictionary<string, ISensor>(_controls);
+        var oldAmd = new Dictionary<string, AmdFanCurve>(_amd);
         _controls.Clear();
         _amd.Clear();
         _rpmForControl.Clear();
@@ -106,6 +108,17 @@ internal sealed class FanController : IDisposable
         _names.Clear();
         foreach (var hw in computer.Hardware)
             Index(hw);
+
+        foreach (var id in _written.Keys.Concat(_handBack.Keys).Distinct().ToList())
+        {
+            if (_controls.ContainsKey(id)) continue;
+            try
+            {
+                if (oldAmd.TryGetValue(id, out var gone)) gone.Restore();
+                else if (oldControls.TryGetValue(id, out var lost)) HandBack(lost);
+            }
+            catch (Exception) { }
+        }
 
         Forget(_written.Keys);
         Forget(_drives.Keys);
@@ -233,7 +246,18 @@ internal sealed class FanController : IDisposable
 
     public void ClearOverride(string controlId) => _overrides.Remove(controlId);
 
+    private readonly object _restoreGate = new();
+    private bool _restored;
+
     public void Tick(double dtSeconds, float? cpuTemp, float? gpuTemp)
+    {
+        lock (_restoreGate)
+        {
+            if (!_restored) TickCore(dtSeconds, cpuTemp, gpuTemp);
+        }
+    }
+
+    private void TickCore(double dtSeconds, float? cpuTemp, float? gpuTemp)
     {
         var settings = _settings;
 
@@ -334,7 +358,9 @@ internal sealed class FanController : IDisposable
         return null;
     }
 
-    internal static bool CanStop(FanHardware hw) => hw.AllowStop && !hw.IsPump && hw.Calibration?.StopPercent is not null;
+    internal static bool StopTested(FanHardware hw) => !hw.IsPump && hw.Calibration is { StopPercent: not null, StartPercent: not null };
+
+    internal static bool CanStop(FanHardware hw) => hw.AllowStop && StopTested(hw);
 
     internal static int? StopAt(FanHardware hw) => CanStop(hw) ? Math.Clamp(hw.StopPercent ?? hw.Calibration!.StopPercent!.Value, 0, 100) : null;
 
@@ -379,11 +405,22 @@ internal sealed class FanController : IDisposable
 
     public void RestoreAll()
     {
+        if (!Monitor.TryEnter(_restoreGate, 6000)) return;
+        try
+        {
+            if (!_restored) RestoreCore();
+            _restored = true;
+        }
+        finally { Monitor.Exit(_restoreGate); }
+    }
+
+    private void RestoreCore()
+    {
         foreach (var id in _written.Keys.ToList())
             Restore(id);
-        for (int i = 0; i < 5 && _handBack.Count > 0; i++)
+        for (int i = 0; i < 25 && _handBack.Count > 0; i++)
         {
-            Thread.Sleep(20);
+            Thread.Sleep(100);
             foreach (var id in _handBack.Keys.ToList())
                 RetryHandBack(id);
         }
@@ -533,7 +570,7 @@ internal sealed class FanController : IDisposable
         if (!_controls.TryGetValue(id, out var sensor) || sensor.Control is not { } control)
             return;
         _amd.TryGetValue(id, out var amd);
-        float value = amd is not null ? (percent <= 0 ? 0 : Math.Clamp(percent, amd.MinPercent, amd.MaxPercent)) : Math.Clamp(percent, control.MinSoftwareValue, control.MaxSoftwareValue);
+        float value = amd is not null ? (percent <= 0 ? 0 : Between(percent, amd.MinPercent, amd.MaxPercent)) : Between(percent, control.MinSoftwareValue, control.MaxSoftwareValue);
         double now = _clock.Elapsed.TotalSeconds;
 
         bool same = _written.TryGetValue(id, out var last) && Math.Abs(last.Value - value) < 0.5f;
@@ -564,8 +601,11 @@ internal sealed class FanController : IDisposable
         catch (Exception ex)
         {
             _errors[id] = ex.Message;
+            _written.TryAdd(id, new WriteState { Value = float.NaN, At = now });
         }
     }
+
+    internal static float Between(float value, float a, float b) => Math.Clamp(value, Math.Min(a, b), Math.Max(a, b));
 
     internal static readonly System.Reflection.FieldInfo? SoftwareValueField =
         typeof(IControl).Assembly.GetType("LibreHardwareMonitor.Hardware.Control")?.GetField("_softwareValue", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);

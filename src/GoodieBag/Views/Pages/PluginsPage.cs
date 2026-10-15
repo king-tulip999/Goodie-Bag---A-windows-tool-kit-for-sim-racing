@@ -200,8 +200,9 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
     {
         _info = on;
         Ui.SetToggled(_infoButton, on);
-        _pageScroll.Effect = on && Motion.Enabled ? new BlurEffect { Radius = 14, KernelType = KernelType.Gaussian } : null;
+        _pageScroll.Effect = on && Motion.Enabled && PcClass.Effects ? new BlurEffect { Radius = 14, KernelType = KernelType.Gaussian } : null;
         _pageScroll.IsHitTestVisible = !on;
+        if (_shown) foreach (var card in _cards) card.Icon.IsActive = !on;
         _infoLayer.Children.Clear();
         _infoLayer.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         if (!on) return;
@@ -272,7 +273,7 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
         _quoteTimer.Start();
         _app.Plugins.Changed -= OnPluginsChanged;
         _app.Plugins.Changed += OnPluginsChanged;
-        foreach (var card in _cards) card.Icon.IsActive = true;
+        foreach (var card in _cards) card.Icon.IsActive = !_info;
         Motion.Stagger(_body);
     }
 
@@ -297,8 +298,8 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
     private void OnPluginsChanged()
     {
         Build();
+        if (_shown) foreach (var card in _cards) card.Icon.IsActive = !_info;
         if (_info) SetInfo(true);
-        if (_shown) foreach (var card in _cards) card.Icon.IsActive = true;
     }
 
     public IEnumerable<(string Name, Func<Task> Enter)> ScreenshotStates()

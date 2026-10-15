@@ -49,7 +49,9 @@ internal static class FovExchange
         {
             string original = Path.Combine(source, file), stem = Path.GetFileNameWithoutExtension(file);
             File.Copy(original, FreeName(target, stem + "_backup", ".ini"), overwrite: false);
-            SafeFileWriter.WriteAtomic(Path.Combine(target, file), doc.ToBytes());
+            var destination = Path.Combine(target, file);
+            if (File.Exists(destination)) File.Copy(destination, FreeName(target, stem + "_previous", ".ini"), overwrite: false);
+            SafeFileWriter.WriteAtomic(destination, doc.ToBytes());
             written.Add(file);
         }
         return written;

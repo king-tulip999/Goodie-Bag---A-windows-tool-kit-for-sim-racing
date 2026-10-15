@@ -39,6 +39,7 @@ internal sealed class HudHost : IDisposable
         public HudPainter? Painter;
         public long LastSeq = -1;
         public long LastDraw;
+        public long LastTop;
         public bool Dirty = true;
         public double DrawMs;
         public int Draws;
@@ -80,6 +81,7 @@ internal sealed class HudHost : IDisposable
     {
         try { Tick(); }
         catch (Exception ex) { LogOnce("tick", ex); }
+        finally { _tickPalette = null; }
     }
 
     public RaceHudSettings Settings => _app.Config.SimRacing.Hud;
@@ -96,7 +98,6 @@ internal sealed class HudHost : IDisposable
 
     public bool Editing => _editing;
     public bool Preview => _preview;
-    public bool TemporarilyHidden => _hidden;
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
 
@@ -269,6 +270,7 @@ internal sealed class HudHost : IDisposable
         if (!_holding) return;
         var frame = _app.Telemetry.Take();
         Race.Update(frame);
+        _tickPalette = HudPalette.Of(Settings.Appearance);
         ResolveLayout(force: false);
         bool show = !_app.Demo && (_editing || _preview || Settings.Enabled && !_hidden && ShowWhen(frame));
         int fastest = 0;
@@ -319,7 +321,9 @@ internal sealed class HudHost : IDisposable
         _ => f.Driving,
     };
 
-    private HudPalette Palette => HudPalette.Of(Settings.Appearance);
+    private HudPalette? _tickPalette;
+
+    private HudPalette Palette => _tickPalette ?? HudPalette.Of(Settings.Appearance);
 
     private void Draw(Slot s, TelemetryFrame frame)
     {
@@ -356,7 +360,7 @@ internal sealed class HudHost : IDisposable
             if (_editing) EditFrame(painter, s, _picked == s.Config.Id);
             if (!window.Visible) window.Show();
             window.Present(new Point((int)Math.Round(rect.X), (int)Math.Round(rect.Y)), (byte)Math.Round(s.Config.Opacity * 2.55));
-            if (++_presents % 20 == 0) window.KeepOnTop();
+            if (Stopwatch.GetElapsedTime(s.LastTop).TotalSeconds >= 3) { s.LastTop = Stopwatch.GetTimestamp(); window.KeepOnTop(); }
         }
         catch (Exception ex)
         {
@@ -373,7 +377,6 @@ internal sealed class HudHost : IDisposable
         if (since >= 2) { s.PerSecond = s.Draws / since; s.Draws = 0; s.CountSince = Stopwatch.GetTimestamp(); }
     }
 
-    private int _presents;
     private readonly HashSet<string> _logged = new();
 
     private void LogOnce(string kind, Exception ex)
@@ -445,7 +448,7 @@ internal sealed class HudHost : IDisposable
         {
             _monitors = null;
             _toolbarDirty = true;
-            foreach (var s in _slots.Values) s.Dirty = true;
+            foreach (var s in _slots.Values) { s.Dirty = true; s.Window?.Repaint(); }
             if (_holding) SafeTick();
         });
     }
@@ -529,7 +532,7 @@ internal sealed class HudHost : IDisposable
         {
             if (_editing) RecordUndo();
             HudGeometry.SnapAll(layout.Widgets, Monitors, Settings.GridSize);
-            foreach (var s in _slots.Values) s.Dirty = true;
+            foreach (var s in _slots.Values) { s.Dirty = true; s.Window?.Repaint(); }
             if (_holding) SafeTick();
         }
         Save();

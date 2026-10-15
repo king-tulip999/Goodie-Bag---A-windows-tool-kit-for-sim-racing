@@ -21,6 +21,7 @@ internal sealed class GrrService
     private readonly Dictionary<string, GrrLeagueData> _data = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTime> _fetched = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _problems = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (DateTime At, int Count)> _failed = new(StringComparer.OrdinalIgnoreCase);
     private Task? _load;
     private DateTime _lastAttempt;
     private bool _loading, _fetching;
@@ -50,7 +51,14 @@ internal sealed class GrrService
 
     public bool CanRefresh => !_demo && !Busy && DateTime.Now - _lastAttempt >= ManualGap;
 
-    private bool Stale => GrrLeagues.All.Any(l => DateTime.Now - (FetchedAt(l.Id) ?? DateTime.MinValue) >= RefreshEvery);
+    private bool Stale => GrrLeagues.All.Any(l => IsStale(l.Id, DateTime.Now));
+
+    private bool IsStale(string league, DateTime now) =>
+        now - (FetchedAt(league) ?? DateTime.MinValue) >= RefreshEvery
+        && (!_failed.TryGetValue(league, out var f) || now - f.At >= RetryAfter(f.Count));
+
+    public static TimeSpan RetryAfter(int failures) =>
+        TimeSpan.FromMinutes(Math.Min(RefreshEvery.TotalMinutes, 15 * Math.Pow(2, Math.Clamp(failures - 1, 0, 10))));
 
     public event Action? Changed;
 
@@ -64,7 +72,7 @@ internal sealed class GrrService
     private async Task RefreshIfStaleAsync()
     {
         await (_load ??= LoadCacheAsync());
-        if (Stale && _consumers.Count > 0) await RefreshAsync();
+        if (Stale && _consumers.Count > 0) await RefreshAsync(onlyStale: true);
     }
 
     public void Release(string consumer)
@@ -77,12 +85,6 @@ internal sealed class GrrService
 
     public GrrRace? Last(string league, DateTime now) =>
         Races.LastOrDefault(r => r.League == league && r.Start + RaceLength <= now);
-
-    public IEnumerable<GrrRace> Upcoming(IEnumerable<string> leagues, DateTime now)
-    {
-        var set = leagues.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return Races.Where(r => set.Contains(r.League) && r.Start + RaceLength > now);
-    }
 
     public IEnumerable<DateTime> Starts(IEnumerable<string> leagues)
     {
@@ -140,7 +142,7 @@ internal sealed class GrrService
 
     public Task RefreshNowAsync() => CanRefresh ? RefreshAsync() : Task.CompletedTask;
 
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(bool onlyStale = false)
     {
         if (_demo || _fetching) return;
         _fetching = true;
@@ -149,7 +151,8 @@ internal sealed class GrrService
         try
         {
             await (_load ??= LoadCacheAsync());
-            var reads = GrrLeagues.All.Select(async league =>
+            var now = DateTime.Now;
+            var reads = GrrLeagues.All.Where(l => !onlyStale || IsStale(l.Id, now)).Select(async league =>
             {
                 try
                 {
@@ -169,8 +172,12 @@ internal sealed class GrrService
             }).ToList();
             foreach (var (league, data, text, problem) in await Task.WhenAll(reads))
             {
-                if (problem is null) _problems.Remove(league.Id);
-                else _problems[league.Id] = problem;
+                if (problem is null) { _problems.Remove(league.Id); _failed.Remove(league.Id); }
+                else
+                {
+                    _problems[league.Id] = problem;
+                    _failed[league.Id] = (DateTime.Now, _failed.TryGetValue(league.Id, out var f) ? f.Count + 1 : 1);
+                }
                 if (data is null || text is null || problem is not null) continue;
                 _data[league.Id] = data;
                 _fetched[league.Id] = DateTime.Now;

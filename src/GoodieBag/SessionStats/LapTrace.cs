@@ -41,8 +41,6 @@ internal sealed class LapTrace
 
     public double[] Time => _data[(int)TraceChannel.Time]!;
 
-    public bool HasLine => this[TraceChannel.X] is not null && this[TraceChannel.Y] is not null;
-
     public bool Relative => OriginLat == 0 && OriginLon == 0;
 
     public double Distance(int i) => i * StepM;

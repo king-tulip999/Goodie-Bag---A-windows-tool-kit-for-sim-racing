@@ -47,6 +47,7 @@ internal sealed class ReorderGrid : Panel
             _pressed = null;
         };
         LostMouseCapture += (_, e) => { if (_drag is not null && ReferenceEquals(e.OriginalSource, this)) Cancel(); };
+        MouseLeave += (_, _) => { if (_drag is null) _pressed = null; };
     }
 
     protected override void OnVisualChildrenChanged(DependencyObject added, DependencyObject removed)

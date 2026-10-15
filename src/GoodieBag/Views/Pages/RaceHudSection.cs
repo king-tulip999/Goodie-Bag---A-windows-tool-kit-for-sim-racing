@@ -252,8 +252,6 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         Motion.Stagger(_body.Child as Panel ?? new StackPanel());
     }
 
-    internal void SetTick(Action? tick) => _tick = tick;
-
     private static Tile Group(string title, string? caption, params UIElement[] rows)
     {
         var stack = new StackPanel();
@@ -637,50 +635,58 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         return root;
     }
 
-    private const string CustomId = "custom";
-
     private static void FillCustomColours(StackPanel into, RaceHudSettings S, Action changed, Action rebuild)
     {
         var c = S.Appearance.Custom;
-        var rows = new (string Label, string Help, Func<string> Get, Action<string> Set)[]
+        var groups = new (string Title, (string Label, string Help, string Id)[] Rows)[]
         {
-            ("Background", "Behind the panels", () => c.Background, v => c.Background = v),
-            ("Panels", "Rows, cells and boxes", () => c.Surface, v => c.Surface = v),
-            ("Text", "Names and values", () => c.Text, v => c.Text = v),
-            ("Secondary text", "Labels and units", () => c.Muted, v => c.Muted = v),
-            ("Accent", "You, highlights", () => c.Accent, v => c.Accent = v),
-            ("Good", "Gains, faster", () => c.Good, v => c.Good = v),
-            ("Warning", "Cautions, low fuel", () => c.Warn, v => c.Warn = v),
-            ("Danger", "Losses, critical alerts", () => c.Danger, v => c.Danger = v),
+            ("Panels and text", new[]
+            {
+                ("Background", "Behind the panels", nameof(HudCustomColors.Background)),
+                ("Panels", "Rows, cells and boxes", nameof(HudCustomColors.Surface)),
+                ("Lines", "Outlines and dividers", nameof(HudCustomColors.Lines)),
+                ("Text", "Names and values", nameof(HudCustomColors.Text)),
+                ("Headings", "Titles and big figures", nameof(HudCustomColors.Heading)),
+                ("Secondary text", "Labels and units", nameof(HudCustomColors.Muted)),
+            }),
+            ("Highlights", new[]
+            {
+                ("Accent", "Highlights, your car on the map", nameof(HudCustomColors.Accent)),
+                ("Your row", "Your row in Relative and Standings", nameof(HudCustomColors.YourRow)),
+                ("Your row text", "Text on your row", nameof(HudCustomColors.YourRowText)),
+                ("Good", "Gains, faster", nameof(HudCustomColors.Good)),
+                ("Warning", "Cautions, low fuel", nameof(HudCustomColors.Warn)),
+                ("Danger", "Losses, critical alerts", nameof(HudCustomColors.Danger)),
+            }),
+            ("Timing", new[]
+            {
+                ("Fastest lap", "Fastest laps and personal bests", nameof(HudCustomColors.FastestLap)),
+                ("Lapping you", "Cars a lap or more ahead", nameof(HudCustomColors.Lapping)),
+                ("Lapped", "Cars a lap or more behind", nameof(HudCustomColors.Lapped)),
+            }),
+            ("Track map", new[]
+            {
+                ("Track", "The track surface", nameof(HudCustomColors.MapTrack)),
+                ("Track edges", "The outline round the track", nameof(HudCustomColors.MapEdge)),
+                ("Pit lane", "The pit lane", nameof(HudCustomColors.MapPit)),
+                ("Other cars", "Cars when class colors are off", nameof(HudCustomColors.MapCars)),
+            }),
         };
-        var grid = new WrapPanel { Margin = new Thickness(0, 2, 0, 8) };
-        foreach (var (label, help, get, set) in rows)
+        var entries = c.All().ToDictionary(e => e.Id, e => e);
+        var grid = new StackPanel { Margin = new Thickness(0, 2, 0, 8) };
+        foreach (var (title, rows) in groups)
         {
-            var swatch = new Border { Width = 22, Height = 22, CornerRadius = ThemeManager.Round(4), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-            swatch.SetResourceReference(Border.BorderBrushProperty, "LineStrong");
-            var box = new TextBox { Text = get(), Width = 92, MaxLength = 7, VerticalAlignment = VerticalAlignment.Center, FontFamily = Ui.Res<FontFamily>("MonoFont"), ToolTip = help };
-            void Show()
+            grid.Children.Add(new TextBlock { Text = title, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 6, 0, 6) });
+            var wrap = new WrapPanel();
+            foreach (var (label, help, id) in rows)
             {
-                try { swatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(get())); }
-                catch (FormatException) { swatch.Background = Brushes.Transparent; }
+                var (_, get, set) = entries[id];
+                var cell = new StackPanel { Width = 200, Margin = new Thickness(0, 0, 14, 8) };
+                cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 0, 0, 3), ToolTip = help });
+                cell.Children.Add(ColorField.Build(get, hex => { set(hex); changed(); return true; }, help, 92));
+                wrap.Children.Add(cell);
             }
-            void Commit()
-            {
-                string v = box.Text.Trim();
-                if (!v.StartsWith('#')) v = "#" + v;
-                if (v.Length == 7 && v.Skip(1).All(Uri.IsHexDigit)) { set(v.ToUpperInvariant()); Show(); changed(); }
-                box.Text = get();
-            }
-            box.LostKeyboardFocus += (_, _) => Commit();
-            box.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Commit(); };
-            Show();
-            var cell = new StackPanel { Width = 200, Margin = new Thickness(0, 0, 14, 8) };
-            cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 0, 0, 3) });
-            var line = new StackPanel { Orientation = Orientation.Horizontal };
-            line.Children.Add(swatch);
-            line.Children.Add(box);
-            cell.Children.Add(line);
-            grid.Children.Add(cell);
+            grid.Children.Add(wrap);
         }
         into.Children.Add(grid);
         var reset = Ui.LabeledButton("I.Undo", "Start from Default", () =>

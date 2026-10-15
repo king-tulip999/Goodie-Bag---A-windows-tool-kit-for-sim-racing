@@ -64,6 +64,7 @@ internal static class DiagnosticReport
         sb.AppendLine($"- {WindowsVersion()}");
         sb.AppendLine($"- .NET {Environment.Version}, {(Environment.Is64BitProcess ? "64-bit" : "32-bit")}");
         sb.AppendLine($"- Running as administrator: {(app.IsAdmin ? "yes" : "no")}");
+        sb.AppendLine($"- Drawing: {PcClass.Describe()}");
         sb.AppendLine();
 
         sb.AppendLine("## Sensors");

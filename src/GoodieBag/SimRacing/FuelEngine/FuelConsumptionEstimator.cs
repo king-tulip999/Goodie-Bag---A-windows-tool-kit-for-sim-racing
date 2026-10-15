@@ -112,12 +112,13 @@ public static class FuelConsumptionEstimator
         return slopes.Count == 0 ? null : Median(slopes.ToArray());
     }
 
-    private static double Median(double[] values)
+    internal static double Median(double[] values)
     {
         if (values.Length == 0) return double.NaN;
-        Array.Sort(values);
-        int mid = values.Length / 2;
-        return values.Length % 2 == 0 ? (values[mid - 1] + values[mid]) / 2 : values[mid];
+        var sorted = (double[])values.Clone();
+        Array.Sort(sorted);
+        int mid = sorted.Length / 2;
+        return sorted.Length % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
     }
 
     private static double OneSidedTCritical(double confidence, int degreesOfFreedom)

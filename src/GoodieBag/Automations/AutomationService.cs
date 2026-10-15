@@ -242,7 +242,7 @@ internal sealed class AutomationService
 
     private bool ConditionsHold(AutomationRule trigger)
     {
-        if (!string.IsNullOrWhiteSpace(trigger.OnlyInMode) && !string.Equals(_app.Modes.LastApplied, trigger.OnlyInMode, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(trigger.OnlyInMode) && !string.Equals(_app.Modes.Current, trigger.OnlyInMode, StringComparison.OrdinalIgnoreCase))
             return false;
         if (!string.IsNullOrWhiteSpace(trigger.OnlyIfRunning) && !_app.Watcher.IsRunning(trigger.OnlyIfRunning))
             return false;

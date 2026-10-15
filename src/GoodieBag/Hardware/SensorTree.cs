@@ -94,7 +94,7 @@ internal static class SensorFormat
     public static string Format(SensorKind kind, float? value, string? unit = null)
     {
         if (value is not { } v || float.IsNaN(v))
-            return "—";
+            return GoodieBag.SimRacing.Race.RaceFormat.Missing;
         if (unit is not null)
             return $"{v:0.##} {unit}";
         return kind switch

@@ -24,7 +24,6 @@ internal sealed class CompanionAppSection : Tile
         _about = about;
         Style = Ui.Res<Style>("Card");
         Child = _stack;
-        Build();
     }
 
     private CompanionApp? Service => _app.Plugins.Find(PluginIds.SimRacing) is SimRacingPlugin plugin ? _pick(plugin) : null;
@@ -50,13 +49,22 @@ internal sealed class CompanionAppSection : Tile
         _subscribed = null;
     }
 
-    private void Build()
+    private int _version;
+
+    private async void Build()
     {
-        _stack.Children.Clear();
+        int version = ++_version;
         if (Service is not { } app)
+        {
+            _stack.Children.Clear();
             return;
+        }
+        CompanionStatus status;
+        try { status = await Task.Run(app.Status); }
+        catch (Exception ex) { App.LogError(ex); status = CompanionStatus.Unknown; }
+        if (version != _version) return;
+        _stack.Children.Clear();
         var spec = app.Spec;
-        var status = app.Status();
         var s = app.Settings;
 
         var top = new Grid();

@@ -7,19 +7,13 @@ namespace GoodieBag.Views;
 internal sealed class ContentFrame : Decorator
 {
     private readonly ScaleTransform _scale = new();
-    private double _designWidth = double.PositiveInfinity, _minScale = 1;
+    private double _designWidth = double.PositiveInfinity;
     private bool _centered;
 
     public double DesignWidth
     {
         get => _designWidth;
         set { if (_designWidth.Equals(value)) return; _designWidth = value; InvalidateMeasure(); }
-    }
-
-    public double MinScale
-    {
-        get => _minScale;
-        set { value = Math.Clamp(value, 0.5, 1); if (_minScale.Equals(value)) return; _minScale = value; InvalidateMeasure(); }
     }
 
     public bool Centered
@@ -40,7 +34,7 @@ internal sealed class ContentFrame : Decorator
     protected override Size MeasureOverride(Size available)
     {
         if (Child is not FrameworkElement child) return default;
-        var (scale, width) = Fit(available.Width, _designWidth, _minScale);
+        var (scale, width) = Fit(available.Width, _designWidth, 1);
         if (Math.Abs(_scale.ScaleX - scale) > 0.0005) _scale.ScaleX = _scale.ScaleY = scale;
         if (!ReferenceEquals(child.LayoutTransform, _scale)) child.LayoutTransform = _scale;
         child.Measure(new Size(double.IsInfinity(width) ? width : width * scale, available.Height));
@@ -51,7 +45,7 @@ internal sealed class ContentFrame : Decorator
     protected override Size ArrangeOverride(Size final)
     {
         if (Child is not FrameworkElement child) return final;
-        var (scale, width) = Fit(final.Width, _designWidth, _minScale);
+        var (scale, width) = Fit(final.Width, _designWidth, 1);
         double w = Math.Min(final.Width, width * scale);
         double x = _centered ? Math.Max(0, (final.Width - w) / 2) : 0;
         child.Arrange(new Rect(x, 0, w, final.Height));

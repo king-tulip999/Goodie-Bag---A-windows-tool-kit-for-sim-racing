@@ -30,7 +30,6 @@ internal sealed class LapReplayView : Grid
 {
     private const double MinStage = 420, MaxStage = 900;
     private const long ReadoutMs = 66;
-    private readonly AnalysisData _data;
     private readonly AnalysisState _s;
     private readonly Config.SessionStatsSettings _settings;
     private readonly ReplayMemory _memory;
@@ -57,7 +56,6 @@ internal sealed class LapReplayView : Grid
 
     public LapReplayView(AnalysisData data, AnalysisState s, Config.SessionStatsSettings settings, ReplayMemory memory, Action save)
     {
-        _data = data;
         _s = s;
         _settings = settings;
         _memory = memory;
@@ -237,8 +235,6 @@ internal sealed class LapReplayView : Grid
         Place(force: true);
     }
 
-    public ReplayCar Followed => _follow;
-
     public TrackOutline? Outline { get; private set; }
 
     private async Task PlaceMapAsync(SimRacing.TrackMaps.TrackMap map, List<(double[] X, double[] Y, double Step, double Length)> lines)
@@ -266,8 +262,6 @@ internal sealed class LapReplayView : Grid
         double room = _page.ViewportHeight / unit - _barTile.ActualHeight - _stageTile.Margin.Bottom - 28;
         _stageTile.Height = Math.Clamp(room, MinStage, MaxStage);
     }
-
-    public bool Playing => _playing;
 
     private void OnKey(object sender, KeyEventArgs e)
     {
@@ -403,7 +397,7 @@ internal sealed class LapReplayView : Grid
         Tone(_sectorGap, sectorGap, ref _sectorSign);
     }
 
-    private const string RaceFormatMissing = "–";
+    private const string RaceFormatMissing = GoodieBag.SimRacing.Race.RaceFormat.Missing;
 
     internal static string Signed(double v, string format) =>
         (v < 0 ? "−" : "+") + Math.Abs(v).ToString(format, CultureInfo.CurrentCulture);

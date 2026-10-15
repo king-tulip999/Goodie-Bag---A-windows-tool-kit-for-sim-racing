@@ -59,13 +59,6 @@ internal sealed class Stage : IDisposable
         _still.Source = null;
     }
 
-    public async Task Crossfade(Func<Task> change, Duration? fade = null)
-    {
-        Freeze();
-        await change();
-        await Reveal(fade);
-    }
-
     public Task ShowBackdrop(bool on, Duration fade) => Show(_backdrop, on, fade);
 
     public void Caption(string title, string? kicker = null) => _caption.Set(title, kicker);

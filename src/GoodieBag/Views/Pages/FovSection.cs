@@ -418,11 +418,11 @@ internal sealed class FovSection : StackPanel
 
         _warnings.Children.Clear();
         if (r.Triple && r.OptimalUnreachable && C.AutoAngle)
-            _warnings.Children.Add(Banner("ApricotSoft", "ApricotDeep", "The side screens are too wide to face you square-on at this distance, so the angle is capped. Sit further back or use smaller side screens."));
+            _warnings.Children.Add(Banner("ApricotSoft", "The side screens are too wide to face you square-on at this distance, so the angle is capped. Sit further back or use smaller side screens."));
         if (r.HorizontalFovTotal > 180)
-            _warnings.Children.Add(Banner("AccentSoft", "AccentText", $"Your screens wrap past 180° around you ({r.HorizontalFovTotal:0}°). That's fine; some sims cap their FOV lower than this."));
+            _warnings.Children.Add(Banner("AccentSoft", $"Your screens wrap past 180° around you ({r.HorizontalFovTotal:0}°). That's fine; some sims cap their FOV lower than this."));
         if (C.DistanceCm < 35)
-            _warnings.Children.Add(Banner("ApricotSoft", "ApricotDeep", "That's very close. Double-check the distance: it's from your eyes to the screen surface."));
+            _warnings.Children.Add(Banner("ApricotSoft", "That's very close. Double-check the distance: it's from your eyes to the screen surface."));
 
         S.AssignCompareColors();
         var compared = S.Compare.Select(setup => (Result: FovCalculator.Calculate(setup), Color: CompareBrush(setup))).ToList();
@@ -497,7 +497,7 @@ internal sealed class FovSection : StackPanel
             line.Children.Add(new TextBlock { Text = v.Sim, FontWeight = mine ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
             var value = new TextBlock
             {
-                Text = v.Degrees is { } deg ? $"{deg:0.0}° {(v.Axis == "Horizontal" ? "H" : "V")}" : "—",
+                Text = v.Degrees is { } deg ? $"{deg:0.0}° {(v.Axis == "Horizontal" ? "H" : "V")}" : "–",
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
                 Foreground = Ui.Res<Brush>(v.OutOfRange ? "Danger" : v.Degrees is null ? "TextFaint" : "Text"),
             };
@@ -583,7 +583,7 @@ internal sealed class FovSection : StackPanel
             Cell(who, 0);
             Cell(T($"{r.HorizontalFovTotal:0.0}°"), 1);
             Cell(T($"{r.VerticalFov:0.0}°"), 2);
-            Cell(T(r.Triple ? $"{r.SideAngle:0.0}°" : "—"), 3);
+            Cell(T(r.Triple ? $"{r.SideAngle:0.0}°" : "–"), 3);
             Cell(T($"{ToLen(r.FootprintWidthCm):0} × {ToLen(r.FootprintDepthCm):0} {LenUnit}"), 4);
             Cell(T($"{r.PixelsPerDegree:0.0}"), 5);
             for (int c = firstCell; c < table.Children.Count; c++) table.Children[c].IsHitTestVisible = false;
@@ -820,6 +820,12 @@ internal sealed class FovSection : StackPanel
         try
         {
             int backup = FovExchange.WriteIracing(folder, C, r);
+            var saved = _app.Config.SimRacing.IracingController.SavedLayout;
+            if (saved.Count > 0)
+            {
+                foreach (var (key, value) in FovExchange.IracingValues(C, r)) saved["MonitorSetup|" + key] = value;
+                _app.Save();
+            }
             _app.Notify("Written to iRacing", $"iRacing uses it the next time it starts. Backup #{backup} has the files from before.", NoticeKind.Success);
             ReadIracing();
             Recalculate();
@@ -928,7 +934,7 @@ internal sealed class FovSection : StackPanel
         return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(6, 0, 6, 12), Child = stack };
     }
 
-    private static Tile Banner(string soft, string deep, string text)
+    private static Tile Banner(string soft, string text)
     {
         var banner = Ui.Notice(soft.Replace("Soft", ""), soft == "AccentSoft" ? "I.Info" : "I.Alert", null, text);
         banner.Margin = new Thickness(0, 8, 0, 0);

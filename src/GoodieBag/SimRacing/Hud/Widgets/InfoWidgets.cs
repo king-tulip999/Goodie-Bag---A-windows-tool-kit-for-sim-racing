@@ -160,7 +160,7 @@ internal sealed class AlertsWidget : HudWidget
         p.Text(icon, title, edge, iconBox, HAlign.Center, VAlign.Center, false);
         var body = new RectangleF(iconBox.Right + 6, r.Y + 3, r.Width - iconBox.Width - 18, r.Height - 6);
         bool detail = a.Detail is { Length: > 0 };
-        p.Text(a.Title, title, text, detail ? body.Top(p.LineHeight(title) + 1, out var rest) : body, HAlign.Left, detail ? VAlign.Top : VAlign.Center);
+        p.Text(a.Title, title, text, detail ? body.Top(p.LineHeight(title) + 1, out _) : body, HAlign.Left, detail ? VAlign.Top : VAlign.Center);
         if (detail) p.Text(a.Detail!, p.Small, dim ? p.P.Faint : p.P.Muted, new RectangleF(body.X, body.Y + p.LineHeight(title) + 1, body.Width, p.LineHeight(p.Small) + 2), HAlign.Left, VAlign.Top);
     }
 }
@@ -480,7 +480,7 @@ internal sealed class LapsWidget : HudWidget
         {
             var band = area.Top(bandH, out area);
             area = new RectangleF(area.X, area.Y + 4, area.Width, area.Height - 4);
-            p.Fill(band, p.Solid(HudPalette.Mix(p.Raised(0.06), HudPalette.Fastest, 0.42), 170), p.CornerRadius(3));
+            p.Fill(band, p.Solid(HudPalette.Mix(p.Raised(0.06), p.P.Fastest, 0.42), 170), p.CornerRadius(3));
             var inner = band.Inflated(-7 * p.Density, 0);
             double? optimal = LapMath.Theoretical(LapMath.BestSectors(laps, v.Race.Laps.SectorCount));
             bool both = optimal is not null && inner.Width > 220 * p.Density;
@@ -523,12 +523,12 @@ internal sealed class LapsWidget : HudWidget
             var lap = laps[i];
             var row = new RectangleF(area.X, y, area.Width, rowH - 2);
             bool isBest = lap.Clean && best is { } bb0 && Math.Abs(lap.Time - bb0) < 0.0005;
-            p.Fill(row, p.Solid(isBest ? HudPalette.Mix(p.Raised(0.06), HudPalette.Fastest, 0.18) : p.Raised(p.P.Dark ? 0.06 : 0.045), 110), radius);
+            p.Fill(row, p.Solid(isBest ? HudPalette.Mix(p.Raised(0.06), p.P.Fastest, 0.18) : p.Raised(p.P.Dark ? 0.06 : 0.045), 110), radius);
             var num = row.Left(numW, out var rest);
             p.Fill(num, p.Solid(p.Sunken(0.38), 120), radius);
             p.Text(lap.Lap.ToString(), p.SmallBold, p.P.Muted, num, HAlign.Center, VAlign.Center);
             var time = rest.Left(timeW, out rest);
-            p.Text(RaceFormat.LapTime(lap.Time), p.Bold, isBest ? HudPalette.Fastest : lap.Clean ? p.P.Heading : p.P.WarnText, time, HAlign.Right);
+            p.Text(RaceFormat.LapTime(lap.Time), p.Bold, isBest ? p.P.Fastest : lap.Clean ? p.P.Heading : p.P.WarnText, time, HAlign.Right);
             var delta = rest.Left(deltaW, out rest);
             if (best is { } bb && !isBest)
             {

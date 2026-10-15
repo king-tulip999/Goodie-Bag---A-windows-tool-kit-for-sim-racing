@@ -2,8 +2,6 @@ using GoodieBag.SimRacing.Telemetry;
 
 namespace GoodieBag.SimRacing.Race;
 
-internal enum ClassScope { All, MyClass, Selected }
-
 internal readonly record struct RelativeRow(int CarIdx, double? Gap, double TrackDistance, int LapDiff, bool IsPlayer);
 
 internal readonly record struct StandingRow(int CarIdx, int Position, int ClassPosition, double? GapToLeader, double? GapToClassLeader,

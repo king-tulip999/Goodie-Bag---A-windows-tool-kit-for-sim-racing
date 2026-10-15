@@ -366,17 +366,20 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         if (monitor.HdrSupported)
         {
             var hdr = new CheckBox { Style = Ui.Res<Style>("Switch"), IsChecked = monitor.HdrOn, Content = "HDR", Margin = new Thickness(0, 0, 24, 0) };
-            hdr.Click += (_, _) =>
+            hdr.Click += async (_, _) =>
             {
+                bool on = hdr.IsChecked == true;
+                hdr.IsEnabled = false;
                 try
                 {
-                    _app.Displays.SetHdr(monitor, hdr.IsChecked == true);
-                    _app.Notify(hdr.IsChecked == true ? "HDR on" : "HDR off", monitor.Name, NoticeKind.Success);
+                    await _app.DisplayProfiles.ChangeByHandAsync(() => _app.Displays.SetHdr(monitor, on));
+                    _app.Notify(on ? "HDR on" : "HDR off", monitor.Name, NoticeKind.Success);
                 }
                 catch (Exception ex)
                 {
                     _app.Notify("HDR not changed", ex.Message, NoticeKind.Warning, important: true);
                 }
+                finally { hdr.IsEnabled = true; }
             };
             actions.Children.Add(hdr);
         }

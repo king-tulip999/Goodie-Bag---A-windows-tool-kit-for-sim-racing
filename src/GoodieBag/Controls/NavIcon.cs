@@ -4,6 +4,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using GoodieBag.Services;
 using GoodieBag.Views;
 
 namespace GoodieBag.Controls;
@@ -305,6 +306,7 @@ public sealed class NavIcon : Viewbox
     {
         _period = TimeSpan.FromSeconds(seconds);
         _timeline = new ParallelTimeline { Duration = new Duration(_period), RepeatBehavior = RepeatBehavior.Forever };
+        Timeline.SetDesiredFrameRate(_timeline, Showcase.ShowcaseRunner.Active ? PcClass.FrameRate : PcClass.SoftwareRendering ? 20 : 30);
     }
 
     private void Animate(IAnimatable target, DependencyProperty property, AnimationTimeline animation, double wrap = 0)

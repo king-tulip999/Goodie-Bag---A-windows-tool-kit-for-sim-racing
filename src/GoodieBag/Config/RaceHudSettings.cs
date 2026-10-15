@@ -97,7 +97,7 @@ public sealed class RaceHudSettings
             foreach (var rule in Rules)
             {
                 if (Layout(rule.Layout) is null || !rule.Matches(session, car, track, carClass)) continue;
-                int score = rule.Specificity;
+                int score = rule.Specificity * 8 + rule.ExactFields(car, track, carClass);
                 if (score > bestScore) { best = rule; bestScore = score; }
             }
             if (best is not null) return Layout(best.Layout);
@@ -310,11 +310,17 @@ public sealed class HudLayoutRule
 
     public int Specificity => (Session is null ? 0 : 1) + (Car is null ? 0 : 1) + (Track is null ? 0 : 1) + (Class is null ? 0 : 1);
 
+    public int ExactFields(string car, string track, string carClass) =>
+        (Same(Car, car) ? 1 : 0) + (Same(Track, track) ? 1 : 0) + (Same(Class, carClass) ? 1 : 0);
+
+    private static bool Same(string? want, string actual) =>
+        !string.IsNullOrWhiteSpace(want) && string.Equals(want.Trim(), actual.Trim(), StringComparison.OrdinalIgnoreCase);
+
     public bool Matches(string session, string car, string track, string carClass) =>
         Has(Session, session, exact: true) && Has(Car, car) && Has(Track, track) && Has(Class, carClass);
 
     private static bool Has(string? want, string actual, bool exact = false) =>
-        string.IsNullOrWhiteSpace(want) || (exact ? string.Equals(want, actual, StringComparison.OrdinalIgnoreCase) : actual.Contains(want.Trim(), StringComparison.OrdinalIgnoreCase));
+        string.IsNullOrWhiteSpace(want) || (exact ? string.Equals(want.Trim(), actual.Trim(), StringComparison.OrdinalIgnoreCase) : actual.Contains(want.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public string Describe()
     {
@@ -402,24 +408,51 @@ public sealed class HudCustomColors
     public string Background { get; set; } = "#0F172A";
     public string Surface { get; set; } = "#1E293B";
     public string Text { get; set; } = "#F1F5F9";
+    public string Heading { get; set; } = "#FFFFFF";
     public string Muted { get; set; } = "#94A3B8";
+    public string Lines { get; set; } = "#475569";
     public string Accent { get; set; } = "#3B82F6";
+    public string YourRow { get; set; } = "#EAB308";
+    public string YourRowText { get; set; } = "#FCD34D";
     public string Good { get; set; } = "#22C55E";
     public string Warn { get; set; } = "#F59E0B";
     public string Danger { get; set; } = "#EF4444";
+    public string FastestLap { get; set; } = "#B06BFF";
+    public string Lapping { get; set; } = "#F87171";
+    public string Lapped { get; set; } = "#60A5FA";
+    public string MapTrack { get; set; } = "#535A68";
+    public string MapEdge { get; set; } = "#8B919C";
+    public string MapPit { get; set; } = "#3C4353";
+    public string MapCars { get; set; } = "#CFD4DA";
+
+    public IEnumerable<(string Id, Func<string> Get, Action<string> Set)> All()
+    {
+        yield return (nameof(Background), () => Background, v => Background = v);
+        yield return (nameof(Surface), () => Surface, v => Surface = v);
+        yield return (nameof(Text), () => Text, v => Text = v);
+        yield return (nameof(Heading), () => Heading, v => Heading = v);
+        yield return (nameof(Muted), () => Muted, v => Muted = v);
+        yield return (nameof(Lines), () => Lines, v => Lines = v);
+        yield return (nameof(Accent), () => Accent, v => Accent = v);
+        yield return (nameof(YourRow), () => YourRow, v => YourRow = v);
+        yield return (nameof(YourRowText), () => YourRowText, v => YourRowText = v);
+        yield return (nameof(Good), () => Good, v => Good = v);
+        yield return (nameof(Warn), () => Warn, v => Warn = v);
+        yield return (nameof(Danger), () => Danger, v => Danger = v);
+        yield return (nameof(FastestLap), () => FastestLap, v => FastestLap = v);
+        yield return (nameof(Lapping), () => Lapping, v => Lapping = v);
+        yield return (nameof(Lapped), () => Lapped, v => Lapped = v);
+        yield return (nameof(MapTrack), () => MapTrack, v => MapTrack = v);
+        yield return (nameof(MapEdge), () => MapEdge, v => MapEdge = v);
+        yield return (nameof(MapPit), () => MapPit, v => MapPit = v);
+        yield return (nameof(MapCars), () => MapCars, v => MapCars = v);
+    }
 
     public void Clean()
     {
-        var d = new HudCustomColors();
-        static string Fix(string? v, string fallback) =>
-            v is { Length: 7 } && v[0] == '#' && v.Skip(1).All(Uri.IsHexDigit) ? v.ToUpperInvariant() : fallback;
-        Background = Fix(Background, d.Background);
-        Surface = Fix(Surface, d.Surface);
-        Text = Fix(Text, d.Text);
-        Muted = Fix(Muted, d.Muted);
-        Accent = Fix(Accent, d.Accent);
-        Good = Fix(Good, d.Good);
-        Warn = Fix(Warn, d.Warn);
-        Danger = Fix(Danger, d.Danger);
+        var defaults = new HudCustomColors().All().ToDictionary(e => e.Id, e => e.Get());
+        static bool Valid(string? v) => v is { Length: 7 } && v[0] == '#' && v.Skip(1).All(Uri.IsHexDigit);
+        foreach (var (id, get, set) in All())
+            set(Valid(get()) ? get().ToUpperInvariant() : defaults[id]);
     }
 }

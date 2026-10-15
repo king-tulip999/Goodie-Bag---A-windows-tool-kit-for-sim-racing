@@ -52,8 +52,6 @@ public sealed class Mode
     public ModeProgram? Program { get; set; }
 
     public bool CloseLaunchedOnExit { get; set; }
-
-    public Mode ShallowCopy() => (Mode)MemberwiseClone();
 }
 
 public sealed class WindowRule

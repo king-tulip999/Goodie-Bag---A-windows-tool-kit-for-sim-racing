@@ -121,6 +121,16 @@ public static class TextCase
         UpperRuns(tb.Inlines, IsMono(tb.FontFamily));
     }
 
+    private static readonly DependencyProperty RawProperty = DependencyProperty.RegisterAttached("Raw", typeof(string), typeof(TextCase));
+
+    public static void Set(TextBlock tb, string text)
+    {
+        if ((string?)tb.GetValue(RawProperty) == text) return;
+        tb.SetValue(RawProperty, text);
+        bool cased = GetUpper(tb) && !GetVerbatim(tb) && tb.IsLoaded && !BindingOperations.IsDataBound(tb, TextBlock.TextProperty);
+        tb.Text = cased ? IsMono(tb.FontFamily) ? Capitals(Plain(text)) : Upper(text) : text;
+    }
+
     private static readonly Dictionary<FontFamily, bool> Mono = new();
 
     private static bool IsMono(FontFamily family)

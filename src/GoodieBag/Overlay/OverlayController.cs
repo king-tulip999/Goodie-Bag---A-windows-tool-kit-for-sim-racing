@@ -76,7 +76,6 @@ internal sealed class OverlayController : IDisposable
             _hardware.OverlayIntervalMs = Math.Clamp(_settings.UpdateIntervalMs, 100, 5000);
             _hardware.OverlayActive = true;
             _hardware.Acquire("Overlay");
-            _frames.Acquire("Overlay");
             _hardware.Nudge();
             _window.Show();
             ApplySettings();
@@ -89,10 +88,24 @@ internal sealed class OverlayController : IDisposable
             _window?.ReleaseSurface();
             _hardware.OverlayActive = false;
             _hardware.Release("Overlay");
-            _frames.Release("Overlay");
+            HoldFrames(false);
             HoldNetwork(false);
         }
     }
+
+    private bool _holdingFrames;
+
+    private void HoldFrames(bool hold)
+    {
+        if (hold == _holdingFrames)
+            return;
+        _holdingFrames = hold;
+        if (hold) _frames.Acquire("Overlay");
+        else _frames.Release("Overlay");
+    }
+
+    private static bool ShowsFrames(OverlayLayout layout) =>
+        layout.ShowGraph || layout.Shows(OverlayMetric.Fps) || layout.Shows(OverlayMetric.AverageFps) || layout.Shows(OverlayMetric.OnePercentLow) || layout.Shows(OverlayMetric.FrameTime);
 
     private void HoldNetwork(bool hold)
     {
@@ -113,6 +126,7 @@ internal sealed class OverlayController : IDisposable
         {
             var layout = _settings.Current;
             HoldNetwork(layout.Shows(OverlayMetric.Ping) || layout.Shows(OverlayMetric.Network));
+            HoldFrames(ShowsFrames(layout));
             Tick();
         }
     }
@@ -224,7 +238,7 @@ internal sealed class OverlayController : IDisposable
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) =>
-        _ui.Post(_ => { if (_running) Tick(); }, null);
+        _ui.Post(_ => { _window?.Repaint(); if (_running) Tick(); }, null);
 
     private static float DpiScale(Screen screen)
     {

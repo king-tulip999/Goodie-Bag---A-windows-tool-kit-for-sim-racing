@@ -384,8 +384,8 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         foreach (var fan in visible)
         {
             if (!_cards.TryGetValue(fan.ControlId, out var parts)) continue;
-            parts.Rpm.Text = (fan.Rpm is { } r ? $"{r:N0} rpm" : "— rpm") + (fan.Percent is not null && !fan.Controlled ? " · auto" : "");
-            parts.Output.Text = fan.Percent is { } p ? $"{p:0}%" : "—";
+            TextCase.Set(parts.Rpm, (fan.Rpm is { } r ? $"{r:N0} rpm" : "– rpm") + (fan.Percent is not null && !fan.Controlled ? " · auto" : ""));
+            TextCase.Set(parts.Output, fan.Percent is { } p ? $"{p:0}%" : "–");
             var cal = Fans.HardwareFor(fan.ControlId).Calibration;
             parts.Spinner.SetSpeed(fan.Percent, fan.Rpm, cal?.MaxRpm ?? 0, Motion.Enabled && !parts.Fresh);
             double level = fan.Percent is { } pp ? pp / 100 : cal?.MaxRpm > 0 && fan.Rpm is { } rr ? rr / cal.MaxRpm : 0;
@@ -464,10 +464,10 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         var bar = new Meter { Tiered = !hw.IsPump, Fill = Ui.Res<Brush>("Slate"), Height = 12, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(bar, 2);
         left.Children.Add(bar);
-        var output = new TextBlock { Text = "—", Style = Ui.Res<Style>("BigValue"), FontSize = 26, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var output = new TextBlock { Text = "–", Style = Ui.Res<Style>("BigValue"), FontSize = 26, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(output, 3);
         left.Children.Add(output);
-        var rpm = new TextBlock { Text = "—", Foreground = Ui.Res<Brush>("TextMuted"), FontSize = 15.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var rpm = new TextBlock { Text = "–", Foreground = Ui.Res<Brush>("TextMuted"), FontSize = 15.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(rpm, 4);
         left.Children.Add(rpm);
         _cards[fan.ControlId] = new FanCardParts { Spinner = spinner, Rpm = rpm, Output = output, Bar = bar };
@@ -617,7 +617,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         var pump = new CheckBox { Content = "This is a pump (keep at 60% or more)", IsChecked = hw.IsPump, Margin = new Thickness(0, 6, 0, 0) };
         pump.Click += (_, _) => { hw.IsPump = pump.IsChecked == true; _app.FanSettingsChanged(); _fanSignature = ""; };
         more.Children.Add(pump);
-        bool canStop = hw.Calibration?.StopPercent is not null && !hw.IsPump;
+        bool canStop = FanController.StopTested(hw);
         var stop = new CheckBox
         {
             Content = "Allow fan stop at low temperatures",
@@ -1009,8 +1009,8 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
     {
         if (mix.MixOf.Count == 0) return "Tick the curves to mix. Fans on an empty mix run at 100%.";
         string sep = mix.Function switch { MixFunction.Sum => " + ", MixFunction.Subtract => " − ", _ => " · " };
-        string Value(string name) => live?.GetValueOrDefault(name)?.Output is { } v ? $"{name} {v:0}%" : $"{name} —";
-        string result = live is null ? "—" : live.GetValueOrDefault(mix.Name)?.Output is { } r ? $"{r:0}%" : "100% (an input has no value)";
+        string Value(string name) => live?.GetValueOrDefault(name)?.Output is { } v ? $"{name} {v:0}%" : $"{name} –";
+        string result = live is null ? "–" : live.GetValueOrDefault(mix.Name)?.Output is { } r ? $"{r:0}%" : "100% (an input has no value)";
         return $"Now: {string.Join(sep, mix.MixOf.Select(Value))}  →  {result}";
     }
 
@@ -1235,7 +1235,7 @@ internal sealed class CalibrationDialog
     public async void Start()
     {
         _content.Children.Clear();
-        var rpm = new TextBlock { Text = "—", Style = Ui.Res<Style>("BigValue"), FontSize = 40 };
+        var rpm = new TextBlock { Text = "–", Style = Ui.Res<Style>("BigValue"), FontSize = 40 };
         var rpmRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
         var spinner = _hw.IsPump
             ? FanSpinner.Pump(Ui.Res<Brush>("AccentText"), Ui.Res<Brush>("TextFaint"), 34)
@@ -1338,7 +1338,7 @@ internal sealed class CalibrationDialog
         else
             _content.Children.Add(new TextBlock
             {
-                Text = $"Curves will never ask this fan for less than {r.MinStablePercent}%" + (r.StopPercent is not null ? ", and you can now allow fan stop under Limits." : "."),
+                Text = $"Curves will never ask this fan for less than {r.MinStablePercent}%" + (r is { StopPercent: not null, StartPercent: not null } ? ", and you can now allow fan stop under Limits." : "."),
                 Style = Ui.Res<Style>("Caption"),
             });
 

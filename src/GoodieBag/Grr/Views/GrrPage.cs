@@ -13,16 +13,11 @@ internal sealed class GrrPage : UserControl, IPage, IScreenshotStates
 
     public GrrPage(AppServices app, MainWindow window)
     {
-        _scroll = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = _body, Focusable = false };
+        _scroll = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = Ui.PageFrame(_body), Focusable = false };
         Content = _scroll;
-        var titles = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
-        titles.Children.Add(Ui.Text("GRR League", "H1"));
-        titles.Children.Add(new TextBlock
-        {
-            Text = "Your league's next race, championship, results and schedule from the GRR website, without leaving the app.",
-            Style = Ui.Res<Style>("Muted"), Margin = new Thickness(0, 4, 0, 0), MaxWidth = 640, HorizontalAlignment = HorizontalAlignment.Left, TextWrapping = TextWrapping.Wrap,
-        });
-        _body.Children.Add(titles);
+        var header = new Grid { Margin = new Thickness(0, 0, 0, Ui.HeaderGap) };
+        header.Children.Add(Ui.PluginTitle(GrrPlugin.PluginId, "GRR League"));
+        _body.Children.Add(header);
         _dashboard = new GrrDashboardSection(app, window);
         Ui.Anchor(_dashboard, GrrParts.Anchor);
         _body.Children.Add(_dashboard);

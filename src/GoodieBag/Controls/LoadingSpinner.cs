@@ -103,7 +103,7 @@ public sealed class LoadingSpinner : Grid
 
     private void Update()
     {
-        bool on = IsVisible && _window?.WindowState != WindowState.Minimized;
+        bool on = IsVisible && _window?.WindowState != WindowState.Minimized && (Services.AppServices.Current?.Animations ?? true);
         if (on == _spinning) return;
         _spinning = on;
         Animate(on);

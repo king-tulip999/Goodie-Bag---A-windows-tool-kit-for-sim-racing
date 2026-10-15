@@ -21,6 +21,8 @@ public sealed record GrrStanding(int Rank, string Driver, double Points)
 public sealed record GrrRound(int? Number, DateTime Start, string Track)
 {
     public string? Key { get; init; }
+    public DateTime? Day { get; init; }
+    public DateTime FeedDay => (Day ?? Start).Date;
     public string? Format { get; init; }
     public int? Laps { get; init; }
     public IReadOnlyList<(string Class, string Driver)> Winners { get; init; } = Array.Empty<(string, string)>();
@@ -83,11 +85,11 @@ public sealed record GrrLeagueData(string League)
 
     public GrrEvent? EventFor(GrrRound round) =>
         Events?.FirstOrDefault(e => e.Key is not null && e.Key == round.Key)
-        ?? Events?.FirstOrDefault(e => e.Date.Date == round.Start.Date);
+        ?? Events?.FirstOrDefault(e => e.Date.Date == round.FeedDay);
 
     public GrrRound? RoundFor(GrrEvent e) =>
         Schedule?.FirstOrDefault(r => e.Key is not null && r.Key == e.Key)
-        ?? Schedule?.FirstOrDefault(r => r.Start.Date == e.Date.Date);
+        ?? Schedule?.FirstOrDefault(r => r.FeedDay == e.Date.Date);
 
     public IReadOnlyList<GrrClassResult> ClassResults(GrrRound round)
     {
@@ -177,6 +179,7 @@ public static class GrrFeed
             rounds.Add(new GrrRound(Int(r, "round"), start, (Str(r, "track") ?? "").Trim())
             {
                 Key = Str(r, "eventId") ?? Str(r, "id"),
+                Day = day,
                 Format = Str(r, "format") is { } f && !f.Equals("standard", StringComparison.OrdinalIgnoreCase) ? f : null,
                 Laps = Int(r, "laps"),
                 Winners = winners,

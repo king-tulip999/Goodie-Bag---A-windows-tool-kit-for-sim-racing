@@ -217,37 +217,16 @@ internal sealed class CustomThemeSection : StackPanel
 
     private FrameworkElement Cell(string label, string help, Func<string> get, Action<string> set)
     {
-        var swatch = new Button
+        var field = ColorField.Build(get, hex =>
         {
-            Width = 34, Height = 30, MinHeight = 0, Padding = new Thickness(0), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Pick a color", Style = Ui.Res<Style>("Btn"),
-        };
-        swatch.Content = new Border { Width = 22, Height = 18, CornerRadius = ThemeManager.Round(3), Background = Brush(get(), Brushes.Transparent), BorderThickness = new Thickness(1), BorderBrush = Ui.Res<Brush>("LineStrong") };
-        var box = new TextBox { Text = get(), Width = 96, MaxLength = 7, FontFamily = Ui.Res<FontFamily>("MonoFont"), VerticalAlignment = VerticalAlignment.Center, ToolTip = help };
-        void Commit(string text)
-        {
-            var color = CustomPalette.Parse(text);
-            if (color is not { } v) { box.Text = get(); return; }
-            string hex = $"#{v.R:X2}{v.G:X2}{v.B:X2}";
-            if (string.Equals(hex, get(), StringComparison.OrdinalIgnoreCase)) { box.Text = get(); return; }
             set(hex);
             if (C.Profile(C.EditingProfile) is { } editing) editing.Colors = C.Colors.Copy();
             _app.OledCustomChanged();
-        }
-        box.LostKeyboardFocus += (_, _) => Commit(box.Text);
-        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Commit(box.Text); };
-        swatch.Click += (_, _) =>
-        {
-            var now = CustomPalette.Parse(get()) ?? Colors.Black;
-            using var dialog = new WinForms.ColorDialog { Color = System.Drawing.Color.FromArgb(now.R, now.G, now.B), FullOpen = true, AnyColor = true };
-            if (dialog.ShowDialog() == WinForms.DialogResult.OK)
-                Commit($"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}");
-        };
+            return true;
+        }, help);
         var cell = new StackPanel { Margin = new Thickness(0, 0, 10, 10) };
         cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4), ToolTip = help });
-        var line = new StackPanel { Orientation = Orientation.Horizontal };
-        line.Children.Add(swatch);
-        line.Children.Add(box);
-        cell.Children.Add(line);
+        cell.Children.Add(field);
         return cell;
     }
 }

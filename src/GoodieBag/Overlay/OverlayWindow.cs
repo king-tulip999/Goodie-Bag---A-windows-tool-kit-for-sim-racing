@@ -61,7 +61,8 @@ internal class OverlayWindow : Form
         base.WndProc(ref m);
     }
 
-    private IntPtr _memDc, _dib, _oldObject;
+    private IntPtr _memDc, _dib, _oldObject, _bits;
+    private readonly PresentGuard _guard = new();
     private Bitmap? _surface;
     private Graphics? _graphics;
     private Size _surfaceSize;
@@ -88,6 +89,7 @@ internal class OverlayWindow : Form
             if (_memDc == IntPtr.Zero || _dib == IntPtr.Zero || bits == IntPtr.Zero)
                 throw new OutOfMemoryException("The overlay's drawing surface couldn't be created.");
             _oldObject = SelectObject(_memDc, _dib);
+            _bits = bits;
             _surface = new Bitmap(size.Width, size.Height, size.Width * 4, System.Drawing.Imaging.PixelFormat.Format32bppPArgb, bits);
             _graphics = Graphics.FromImage(_surface);
             _surfaceSize = size;
@@ -116,7 +118,8 @@ internal class OverlayWindow : Form
             DeleteObject(_dib);
         if (_memDc != IntPtr.Zero)
             DeleteDC(_memDc);
-        (_memDc, _dib, _oldObject) = (IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        (_memDc, _dib, _oldObject, _bits) = (IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        _guard.Release();
         _surfaceSize = Size.Empty;
     }
 
@@ -125,6 +128,7 @@ internal class OverlayWindow : Form
         if (_graphics is null)
             return;
         _graphics.Flush(System.Drawing.Drawing2D.FlushIntention.Sync);
+        if (_guard.Same(_bits, _surfaceSize.Width * _surfaceSize.Height * 4, location, opacity)) return;
         IntPtr screenDc = GetDC(IntPtr.Zero);
         try
         {
@@ -132,12 +136,26 @@ internal class OverlayWindow : Form
             var source = new POINT();
             var destination = new POINT { x = location.X, y = location.Y };
             var blend = new BLENDFUNCTION { BlendOp = 0, BlendFlags = 0, SourceConstantAlpha = opacity, AlphaFormat = 1 };
-            UpdateLayeredWindow(Handle, screenDc, ref destination, ref size, _memDc, ref source, 0, ref blend, 2);
+            if (!UpdateLayeredWindow(Handle, screenDc, ref destination, ref size, _memDc, ref source, 0, ref blend, 2)) _guard.Reset();
         }
         finally
         {
             ReleaseDC(IntPtr.Zero, screenDc);
         }
+    }
+
+    public void Repaint() => _guard.Reset();
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        _guard.Reset();
+        base.OnHandleCreated(e);
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        _guard.Reset();
+        base.OnVisibleChanged(e);
     }
 
     protected override void Dispose(bool disposing)

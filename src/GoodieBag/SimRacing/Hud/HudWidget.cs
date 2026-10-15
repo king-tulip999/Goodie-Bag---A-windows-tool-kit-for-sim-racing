@@ -68,7 +68,15 @@ internal sealed record HudWidgetDef(string Kind, string Name, string Description
     public bool Clickable { get; init; }
     public bool? HideWhenEmpty { get; init; }
 
-    public HudOption? Option(string key) => Options.FirstOrDefault(o => string.Equals(o.Key, key, StringComparison.OrdinalIgnoreCase));
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyList<HudOption>, Dictionary<string, HudOption>> ByKey = new();
+
+    public HudOption? Option(string key) =>
+        ByKey.GetValue(Options, list =>
+        {
+            var map = new Dictionary<string, HudOption>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in list) map.TryAdd(o.Key, o);
+            return map;
+        }).GetValueOrDefault(key);
 }
 
 internal sealed class HudOptions
@@ -108,7 +116,10 @@ internal sealed class HudOptions
     {
         string v = Raw(key);
         var o = _def.Option(key);
-        return o is null || o.Choices.Any(c => c.Id == v) ? v : o.Default;
+        if (o is null) return v;
+        for (int i = 0; i < o.Choices.Count; i++)
+            if (o.Choices[i].Id == v) return v;
+        return o.Default;
     }
 
     public IReadOnlyList<string> Columns(string key)

@@ -21,7 +21,7 @@ internal sealed class OverlayRenderer : IDisposable
 {
     public List<OverlayHit>? Hits { get; init; }
 
-    private const string Missing = "--";
+    private const string Missing = GoodieBag.SimRacing.Race.RaceFormat.Missing;
 
     private const float BaseSize = 1.2f;
 
@@ -133,11 +133,11 @@ internal sealed class OverlayRenderer : IDisposable
             foreach (var group in row)
             {
                 bool inline = layout.Style == OverlayStyle.Compact;
+                if (inline && !ReferenceEquals(group, row[0])) Rule(g, x - groupGap / 2, y, rowHeight, colors, scale);
                 DrawText(g, group.Label, _labelFont!, colors.Accent, x, y + (rowHeight - _labelFont!.GetHeight(g)) / 2);
                 float labelWidth = inline ? Measure(group.Label, _labelFont!) : labelColumn;
                 Hits?.Add(new(group.Key, null, new RectangleF(x, y, labelWidth, rowHeight)));
                 x += labelWidth + labelGap;
-                if (inline && !ReferenceEquals(group, row[0])) Rule(g, x - groupGap / 2, y, rowHeight, colors, scale);
                 for (int i = 0; i < group.Cells.Count; i++)
                 {
                     var cell = group.Cells[i];
@@ -235,8 +235,7 @@ internal sealed class OverlayRenderer : IDisposable
                 case OverlayMetric.Fans:
                     foreach (var fan in d.Fans.Take(4))
                     {
-                        string shortName = fan.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-                        if (shortName.Length > 7) shortName = shortName[..7];
+                        string shortName = FanTag(fan.Name);
                         group.Cells.Add(new(shortName, fan.Rpm is { } r ? r.ToString("0") : Missing, "", "0000"));
                     }
                     break;
@@ -253,6 +252,15 @@ internal sealed class OverlayRenderer : IDisposable
         for (int i = 0; i < spans.Count; i++)
             if (i != from && at > (spans[i].Start + spans[i].End) / 2) index++;
         return index;
+    }
+
+    internal static string FanTag(string name)
+    {
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return "";
+        string head = words[0].Length > 7 ? words[0][..7] : words[0];
+        string last = words[^1];
+        return words.Length > 1 && last.All(char.IsDigit) ? (head.Length > 4 ? head[..4] : head) + last : head;
     }
 
     private static string Mbps(double bytesPerSecond)

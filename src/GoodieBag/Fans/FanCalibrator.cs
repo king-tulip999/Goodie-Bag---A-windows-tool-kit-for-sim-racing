@@ -18,6 +18,7 @@ internal sealed class FanCalibrator
 
     private readonly HardwareService _hardware;
     private readonly bool _demo;
+    private bool _stopTest;
 
     public FanCalibrator(HardwareService hardware, bool demo)
     {
@@ -27,6 +28,7 @@ internal sealed class FanCalibrator
 
     public async Task<FanCalibration> RunAsync(string controlId, CalibrationOptions options, IProgress<CalibrationStep> progress, CancellationToken cancel)
     {
+        _stopTest = options.TestStop;
         var steps = new List<int> { 100, 80, 60, 45, 35, 30, 25, 20 };
         if (options.TestStop)
             steps.AddRange(new[] { 15, 10, 5, 0 });
@@ -57,8 +59,8 @@ internal sealed class FanCalibrator
             if (!points.Any(p => p.Rpm > 0))
                 throw new CalibrationAbortedException("The fan never reported a speed above 0 RPM (no speed signal on that header?), so nothing was saved.");
             int? startPercent = null;
-            int? stopPercent = points.Where(p => p.Rpm == 0 && points.Any(q => q.Percent > p.Percent && q.Rpm > 0))
-                .Select(p => (int?)p.Percent).DefaultIfEmpty(null).Max();
+            int? stopPercent = options.TestStop ? points.Where(p => p.Rpm == 0 && points.Any(q => q.Percent > p.Percent && q.Rpm > 0))
+                .Select(p => (int?)p.Percent).DefaultIfEmpty(null).Max() : null;
             if (options.TestStop && stopPercent is not null)
             {
                 for (int percent = stopPercent.Value + 5; percent <= 60; percent += 5)
@@ -142,6 +144,8 @@ internal sealed class FanCalibrator
         var snapshot = _hardware.Latest;
         if (_hardware.Catalog?.Emergency == true)
             throw new CalibrationAbortedException("The emergency temperature failsafe tripped, so all fans went to full speed.", safety: true);
+        if (_stopTest && snapshot is { CpuTemp: null })
+            throw new CalibrationAbortedException("The CPU temperature can't be read, so the stop test can't watch it. Calibrate without the stop test.", safety: true);
         if ((snapshot?.CpuTemp ?? 0) >= AbortTempC || (snapshot?.GpuTemp ?? 0) >= AbortTempC)
             throw new CalibrationAbortedException($"The CPU or GPU passed {AbortTempC:0} °C. Calibrate while the PC is idle.", safety: true);
     }

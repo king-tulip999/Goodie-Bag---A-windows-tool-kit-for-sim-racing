@@ -9,6 +9,7 @@ namespace GoodieBag.Controls;
 
 internal sealed class SearchCombo : ComboBox
 {
+    private object? _before;
     private readonly TextBox _search = new() { Tag = "Search…", Margin = new Thickness(2, 2, 2, 6), Padding = new Thickness(28, 6, 8, 6) };
 
     public SearchCombo()
@@ -17,8 +18,17 @@ internal sealed class SearchCombo : ComboBox
         IsTextSearchEnabled = false;
         _search.TextChanged += (_, _) => ApplyFilter();
         _search.PreviewKeyDown += OnSearchKey;
-        DropDownOpened += (_, _) => Dispatcher.BeginInvoke(new Action(() => { _search.Focus(); Keyboard.Focus(_search); }), System.Windows.Threading.DispatcherPriority.Input);
-        DropDownClosed += (_, _) => _search.Text = "";
+        DropDownOpened += (_, _) =>
+        {
+            _before = SelectedItem;
+            Dispatcher.BeginInvoke(new Action(() => { _search.Focus(); Keyboard.Focus(_search); }), System.Windows.Threading.DispatcherPriority.Input);
+        };
+        DropDownClosed += (_, _) =>
+        {
+            _search.Text = "";
+            if (SelectedItem is null && _before is not null && Items.Contains(_before)) SelectedItem = _before;
+            _before = null;
+        };
     }
 
     public override void OnApplyTemplate()

@@ -18,14 +18,14 @@ Inputs and outputs are litres. iRacing's `FuelLevel` is litres or kWh depending 
 - `tests/GoodieBag.Tests` (`RaceTelemetryTests`) — the adapter and the planner.
 - `devtools\fuel-replay.cmd [folder]` — replays recorded iRacing sessions (`.ibt`, default `Documents\iRacing\telemetry`) through the app's decoder, the adapter and this engine, and scores every prediction against laps it hadn't seen (`devtools\shots\fuel-replay.txt`).
 
-## Validation so far (2026-10-10)
+## Validation so far (2026-10-15)
 
 45 recorded sessions on one PC (mostly the Porsche 911 Cup (992) at Watkins Glen, some Mazda MX-5 at Spa, one GT3 lap at the Nordschleife): 192 clean laps.
 
 | Check | Result |
 |---|---|
-| Next lap's fuel (165 laps) | mean absolute error 0.020 L (1.0 %), bias +0.0004 L; within the per-lap conservative bound 93 % (model target 95 %) |
-| 5-lap stints (77) / 10-lap stints (38) | expected + Balanced reserve fell short 9 % / 10.5 % (incl. stints starting after one clean lap, when there is no reserve yet) |
-| Rest of the lap from half-way (134) | lap profile error 0.017 L vs 0.055 L for "half a lap × the rate" |
+| Next lap's fuel (165 laps) | mean absolute error 0.020 L (1.0 %), bias +0.0036 L; within the per-lap conservative bound 92.6 % (model target 95 %) |
+| 5-lap stints (77) / 10-lap stints (38) | expected + Balanced reserve fell short 10.4 % / 13.2 % (incl. stints starting after one clean lap, when there is no reserve yet) |
+| Rest of the lap from half-way (134) | lap profile error 0.015 L vs 0.053 L for "half a lap × the rate" |
 
 The stint windows overlap and the data is mostly one car and track, so these figures are a sanity check, not a calibration. The reserve floor was chosen on this same data. Races (cautions, traffic, multiclass, timed finishes) and other cars, hybrids among them, still need checking against recorded sessions.

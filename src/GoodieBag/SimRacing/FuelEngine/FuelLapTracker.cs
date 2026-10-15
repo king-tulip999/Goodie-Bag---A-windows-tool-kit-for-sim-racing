@@ -6,7 +6,7 @@ public sealed class FuelLapTracker
     private readonly List<FuelLapSample> _laps = new();
     private FuelTelemetrySample? _previous;
     private string? _sessionKey, _carKey, _trackKey;
-    private double _fuelAtStart;
+    private double _fuelAtStart, _lapMinimumFuel;
     private bool _startedMidLap, _lapTouchedPit, _lapTouchedCaution, _lapFormation, _lapTouchedIncident, _lapRefueled;
     private DateTimeOffset _lastTimestamp;
     private readonly TimeSpan _maximumFrameGap;
@@ -26,7 +26,7 @@ public sealed class FuelLapTracker
     {
         _previous = null;
         _sessionKey = _carKey = _trackKey = null;
-        _fuelAtStart = 0;
+        _fuelAtStart = _lapMinimumFuel = 0;
         _startedMidLap = _lapTouchedPit = _lapTouchedCaution = _lapFormation = _lapTouchedIncident = _lapRefueled = false;
         _lastTimestamp = default;
         if (clearHistory) _laps.Clear();
@@ -85,7 +85,8 @@ public sealed class FuelLapTracker
             return new(created, reset, false, "Abrupt fuel-level drop detected; likely telemetry/session discontinuity, current lap discarded.");
         }
 
-        if (sample.FuelLevelLiters > _previous.FuelLevelLiters + _refuelThresholdLiters)
+        _lapMinimumFuel = Math.Min(_lapMinimumFuel, sample.FuelLevelLiters);
+        if (!_lapRefueled && sample.FuelLevelLiters > _lapMinimumFuel + _refuelThresholdLiters)
         {
             refueled = true;
             _lapRefueled = true;
@@ -142,7 +143,7 @@ public sealed class FuelLapTracker
 
     private void BeginLap(FuelTelemetrySample sample, bool startedMidLap)
     {
-        _fuelAtStart = sample.FuelLevelLiters;
+        _fuelAtStart = _lapMinimumFuel = sample.FuelLevelLiters;
         _startedMidLap = startedMidLap;
         _lapTouchedPit = sample.OnPitRoad || !sample.IsOnTrack;
         _lapTouchedCaution = sample.UnderCaution;

@@ -26,6 +26,20 @@ internal sealed class ModeService
 
     public string? AppliedFor { get; private set; }
 
+    public string? Current =>
+        Find(LastApplied) is { OneOff: false } last && MatchesScreens(last) ? last.Name : OnlyMatch()?.Name;
+
+    private bool MatchesScreens(Mode m) =>
+        m.DisplayProfile is null || _app.DisplayProfiles.Active is { } display && string.Equals(m.DisplayProfile, display.Name, StringComparison.OrdinalIgnoreCase);
+
+    private Mode? OnlyMatch()
+    {
+        var display = _app.DisplayProfiles.Active;
+        if (display is null) return null;
+        var matches = _app.Config.Modes.Where(m => !m.OneOff && string.Equals(m.DisplayProfile, display.Name, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
     public event Action? ActiveChanged;
 
     public event Action? OneOffRan;
@@ -64,13 +78,14 @@ internal sealed class ModeService
         try
         {
             bool monitorsChanged = false;
-            if (_app.DisplayProfiles.Find(m.DisplayProfile) is { } profile)
+            bool displaysOn = _app.Plugins.IsActive(PluginIds.Displays);
+            if (displaysOn && _app.DisplayProfiles.Find(m.DisplayProfile) is { } profile)
             {
                 var (profileProblems, changed) = await _app.DisplayProfiles.ApplyCoreAsync(profile, null, quiet: true);
                 problems.AddRange(profileProblems);
                 monitorsChanged = changed;
             }
-            else if (m.DisplayProfile is not null)
+            else if (displaysOn && m.DisplayProfile is not null)
             {
                 problems.Add($"Display profile “{m.DisplayProfile}” doesn't exist any more");
             }
@@ -78,10 +93,12 @@ internal sealed class ModeService
             if (!_app.Demo)
                 await AudioManager.ApplyAsync(m.Audio, m.Volume, monitorsChanged, problems);
 
-            if (m.OverlayLayout is { } layout && _app.Plugins.IsActive(PluginIds.Overlay))
-                _app.UseOverlayLayout(layout);
+            if (m.OverlayLayout is { } layout && _app.Plugins.IsActive(PluginIds.Overlay) && !_app.UseOverlayLayout(layout))
+                problems.Add($"Overlay layout “{layout}” doesn't exist any more");
             if (m.Overlay != OverlayMode.Unchanged && _app.Plugins.IsActive(PluginIds.Overlay))
                 _app.SetOverlayVisible(m.Overlay == OverlayMode.Toggle ? !_app.Config.Overlay.Visible : m.Overlay == OverlayMode.Show);
+            if (m.FanPreset is { } missing && _app.Plugins.IsActive(PluginIds.FanControl) && !_app.Config.Fans.Presets.Any(p => p.Name == missing))
+                problems.Add($"Fan preset “{missing}” doesn't exist any more");
             if (m.FanPreset is { } preset && _app.Plugins.IsActive(PluginIds.FanControl) && _app.Config.Fans.Presets.Any(p => p.Name == preset))
                 _app.SetFanPreset(preset);
 
@@ -181,8 +198,11 @@ internal sealed class ModeService
     {
         var changes = new List<ModeChange>();
 
-        var profile = _app.DisplayProfiles.Find(mode.DisplayProfile);
-        if (profile is not null)
+        bool displaysOn = _app.Plugins.IsActive(PluginIds.Displays);
+        var profile = displaysOn ? _app.DisplayProfiles.Find(mode.DisplayProfile) : null;
+        if (!displaysOn && mode.DisplayProfile is not null)
+            changes.Add(new ModeChange("Display", $"Display profile “{mode.DisplayProfile}” skipped: Displays is turned off"));
+        else if (profile is not null)
             changes.AddRange(_app.DisplayProfiles.Preview(profile, withAudio: false));
         else if (mode.DisplayProfile is not null)
             changes.Add(new ModeChange("Display", $"Display profile “{mode.DisplayProfile}” doesn't exist any more"));

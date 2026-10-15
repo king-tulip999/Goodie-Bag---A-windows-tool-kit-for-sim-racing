@@ -45,17 +45,22 @@ internal sealed class CompanionApp
 
     public event Action? Changed;
 
+    private readonly object _findGate = new();
+
     public string? ExePath
     {
         get
         {
             if (_app.Demo) return Spec.DemoPath;
-            if (!_searched || (_exe is not null && !File.Exists(_exe)))
+            lock (_findGate)
             {
-                _exe = Find();
-                _searched = true;
+                if (!_searched || (_exe is not null && !File.Exists(_exe)))
+                {
+                    _exe = Find();
+                    _searched = true;
+                }
+                return _exe;
             }
-            return _exe;
         }
     }
 
@@ -202,7 +207,8 @@ internal sealed class CompanionApp
     public void Start()
     {
         if (Settings.LaunchWithGoodieBag)
-            Launch(quiet: true);
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeAsync(() => { if (!_off && Settings.LaunchWithGoodieBag) Launch(quiet: true); },
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         UpdateWatch();
     }
 

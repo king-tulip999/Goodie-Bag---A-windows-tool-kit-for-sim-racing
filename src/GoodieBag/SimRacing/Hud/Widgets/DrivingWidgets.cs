@@ -72,8 +72,8 @@ internal sealed class TimingWidget : HudWidget
                 "last" => ("LAST", RaceFormat.LapTime(f.LapLast), LastColor(p, v)),
                 "best" => ("BEST", RaceFormat.LapTime(f.LapBest), null),
                 "predicted" => ("PREDICTED", d is { } dd && refLap is { } rl ? RaceFormat.LapTime(rl + dd) : RaceFormat.Missing, p.P.AccentText),
-                "sessionBest" => ("SESSION", RaceFormat.LapTime(FieldOrder.FastestLap(f)?.Time), HudPalette.Fastest),
-                "classBest" => ((f.Session.Player?.ClassName ?? "CLASS").ToUpperInvariant(), RaceFormat.LapTime(FieldOrder.FastestLap(f, f.Session.Player?.ClassId)?.Time), HudPalette.Fastest),
+                "sessionBest" => ("SESSION", RaceFormat.LapTime(FieldOrder.FastestLap(f)?.Time), p.P.Fastest),
+                "classBest" => ((f.Session.Player?.ClassName ?? "CLASS").ToUpperInvariant(), RaceFormat.LapTime(FieldOrder.FastestLap(f, f.Session.Player?.ClassId)?.Time), p.P.Fastest),
                 "theoretical" => ("OPTIMAL", RaceFormat.LapTime(LapMath.Theoretical(LapMath.BestSectors(v.Race.Laps.Laps, v.Race.Laps.SectorCount))), (Color?)null),
                 _ => ("", "", null),
             };
@@ -103,7 +103,7 @@ internal sealed class TimingWidget : HudWidget
         var laps = v.Race.Laps.Laps;
         if (laps.Count == 0) return p.P.Heading;
         var last = laps[^1];
-        return !last.Clean ? p.P.WarnText : v.Frame.LapBest is { } best && Math.Abs(last.Time - best) < 0.0005 ? HudPalette.Fastest : p.P.Heading;
+        return !last.Clean ? p.P.WarnText : v.Frame.LapBest is { } best && Math.Abs(last.Time - best) < 0.0005 ? p.P.Fastest : p.P.Heading;
     }
 
     private static void Sectors(HudPainter p, HudView v, RectangleF r)
@@ -128,7 +128,7 @@ internal sealed class TimingWidget : HudWidget
                 if (labels) label = st.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
                 bool pb = best[i] is null || st <= best[i]!.Value + 0.0005;
                 bool faster = previous is not null && i < previous.Count && previous[i] is { } ps && st < ps;
-                fill = pb ? HudPalette.Fastest : faster ? p.P.Good : p.P.Warn;
+                fill = pb ? p.P.Fastest : faster ? p.P.Good : p.P.Warn;
                 text = HudPalette.On(fill);
             }
             else if (i == tracker.CurrentSector) { fill = HudPalette.Alpha(p.P.AccentSoft, 200); text = p.P.AccentText; }

@@ -112,6 +112,17 @@ internal static class LayoutGuard
             : Settings(s).Where(x => saved.TryGetValue(x.Section + "|" + x.Key, out var want) && !Setting.SameValue(want, x.Applied))
                 .Select(x => new Difference(x, saved[x.Section + "|" + x.Key])).ToList();
 
+    public static void Adopt(SettingsSession s, Dictionary<string, string> saved, IEnumerable<string>? keys = null)
+    {
+        if (saved.Count == 0) return;
+        var only = keys?.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var x in Settings(s))
+        {
+            string key = x.Section + "|" + x.Key;
+            if (only is null || only.Contains(key)) saved[key] = x.Applied;
+        }
+    }
+
     public static int StageRestore(SettingsSession s, IReadOnlyDictionary<string, string> saved) =>
         Differences(s, saved).Count(d => s.SetDraft(d.Setting, d.Saved) is null);
 

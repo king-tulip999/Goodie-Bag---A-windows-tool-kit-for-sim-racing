@@ -19,7 +19,6 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
     private readonly Collapsible _performanceSection, _sensorsSection;
     private Collapsible? _overlaySection;
     private readonly Controls.CollapseAllButton _collapseAll = new();
-    private readonly Button _panelsButton;
     private readonly Controls.Tile _panelTools;
     private ArrangeList? _arrange;
     private bool _shown;
@@ -36,7 +35,7 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         var titles = new StackPanel { Margin = new Thickness(0, 0, 0, Ui.HeaderGap) };
         var heading = new DockPanel();
         _collapseAll.Requested += fold => { if (fold) CollapseAll(); else ExpandAll(); };
-        _panelTools = Ui.PanelTools("Show, hide and arrange the sections", "monitor.panels", _ => OpenPanelsMenu(), _collapseAll, out _panelsButton);
+        _panelTools = Ui.PanelTools("Show, hide and arrange the sections", "monitor.panels", _ => OpenPanelsMenu(), _collapseAll, out _);
         DockPanel.SetDock(_panelTools, Dock.Right);
         heading.Children.Add(_panelTools);
         var title = Ui.PluginTitle(Plugins.PluginIds.HardwareMonitor, "Hardware Monitor");

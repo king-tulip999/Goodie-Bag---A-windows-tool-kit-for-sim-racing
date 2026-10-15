@@ -47,7 +47,9 @@ internal static class AlertCatalog
         new("telemetry.lost", "Telemetry lost", "Data stopped arriving while driving.", AlertLevel.Warning, true, DefaultCooldown: 30, Sticky: true),
     };
 
-    public static AlertDef? Find(string id) => All.FirstOrDefault(a => a.Id == id);
+    private static Dictionary<string, AlertDef>? _byId;
+
+    public static AlertDef? Find(string id) => (_byId ??= All.GroupBy(a => a.Id).ToDictionary(g => g.Key, g => g.First())).GetValueOrDefault(id);
 
     public static readonly (string Id, string Title, string Icon, string[] Alerts)[] Groups =
     {
@@ -85,9 +87,9 @@ internal sealed class AlertEngine
     {
         string k = key ?? id;
         bool was = _condition.TryGetValue(k, out var c) && c;
-        _condition[k] = active;
-        if (active && !was) Raise(id, k, now, title, detail, null);
-        else if (!active && was)
+        if (active && !was) _condition[k] = Raise(id, k, now, title, detail, null) || AlertCatalog.Find(id)?.Sticky != true;
+        else _condition[k] = active;
+        if (!active && was)
         {
             _dismissed.Remove(k);
             foreach (var a in _visible) if (a.Key == k) a.Active = false;
@@ -99,12 +101,12 @@ internal sealed class AlertEngine
     public void Fire(string id, double now, string? title = null, string? detail = null, string? key = null) =>
         Raise(id, key ?? id, now, title, detail, sticky: false);
 
-    private void Raise(string id, string key, double now, string? title, string? detail, bool? sticky)
+    private bool Raise(string id, string key, double now, string? title, string? detail, bool? sticky)
     {
-        if (AlertCatalog.Find(id) is not { } def) return;
+        if (AlertCatalog.Find(id) is not { } def) return false;
         var choice = _choice(def);
-        if (!choice.Enabled) return;
-        if (_lastRaised.TryGetValue(key, out var last) && now - last < choice.Cooldown) return;
+        if (!choice.Enabled) return false;
+        if (_lastRaised.TryGetValue(key, out var last) && now - last < choice.Cooldown) return false;
         _lastRaised[key] = now;
         var alert = new HudAlert(id, key, title ?? def.Title, detail, def.Level, now, sticky ?? def.Sticky);
         _visible.RemoveAll(a => a.Key == key);
@@ -112,6 +114,7 @@ internal sealed class AlertEngine
         _history.Add(alert);
         if (_history.Count > HistorySize) _history.RemoveAt(0);
         Raised?.Invoke(alert, choice);
+        return true;
     }
 
     public IReadOnlyList<HudAlert> Visible(double now)

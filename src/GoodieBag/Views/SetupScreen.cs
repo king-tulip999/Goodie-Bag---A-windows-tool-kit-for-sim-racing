@@ -45,11 +45,22 @@ internal sealed class SetupScreen : UserControl
             if (Window.GetWindow(this) is not { WindowState: WindowState.Normal } window || ScreenshotRunner.Active) return;
             double extra = _scroll.ExtentHeight - _scroll.ViewportHeight;
             if (extra <= 1) return;
-            var area = SystemParameters.WorkArea;
+            var area = WorkAreaOf(window);
             double height = Math.Min(area.Height, window.Height + extra * _app.Config.Ui.ScaleFactor + 8);
             window.Height = height;
             window.Top = area.Top + (area.Height - height) / 2;
         }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+    }
+
+    private static Rect WorkAreaOf(Window window)
+    {
+        var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero || PresentationSource.FromVisual(window)?.CompositionTarget is not { } target) return SystemParameters.WorkArea;
+        var px = System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
+        var m = target.TransformFromDevice;
+        var topLeft = m.Transform(new Point(px.Left, px.Top));
+        var bottomRight = m.Transform(new Point(px.Right, px.Bottom));
+        return new Rect(topLeft, bottomRight);
     }
 
     private void Unsubscribe()

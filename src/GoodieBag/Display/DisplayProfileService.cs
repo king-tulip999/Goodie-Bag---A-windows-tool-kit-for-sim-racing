@@ -10,6 +10,19 @@ internal sealed class DisplayProfileService
     private readonly AppServices _app;
     private readonly SemaphoreSlim _applyLock = new(1, 1);
 
+    private static Task<T> OnStaThread<T>(Func<T> work)
+    {
+        var done = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try { done.SetResult(work()); }
+            catch (Exception ex) { done.SetException(ex); }
+        }) { IsBackground = true, Name = "Wallpapers" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return done.Task;
+    }
+
     public DisplayProfileService(AppServices app)
     {
         _app = app;
@@ -105,12 +118,16 @@ internal sealed class DisplayProfileService
 
             if (profile.Taskbar != TaskbarMode.Unchanged && !_app.Demo)
             {
-                try { Taskbar.SetOnAllDisplays(profile.Taskbar == TaskbarMode.AllDisplays); }
+                bool all = profile.Taskbar == TaskbarMode.AllDisplays;
+                try { await Task.Run(() => Taskbar.SetOnAllDisplays(all)); }
                 catch (Exception ex) { problems.Add("Taskbar: " + ex.Message); }
             }
 
             if (profile.Wallpapers.Count > 0 && !_app.Demo)
-                problems.AddRange(Wallpapers.Apply(profile.Wallpapers).Select(e => "Wallpaper: " + e));
+            {
+                var wallpapers = new Dictionary<string, string>(profile.Wallpapers, StringComparer.OrdinalIgnoreCase);
+                problems.AddRange((await OnStaThread(() => Wallpapers.Apply(wallpapers).ToList())).Select(e => "Wallpaper: " + e));
+            }
 
             if (!_app.Demo)
                 await AudioManager.ApplyAsync(profile.Audio, profile.Volume, displayChanged, problems);

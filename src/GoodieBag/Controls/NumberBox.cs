@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace GoodieBag.Controls;
 
@@ -12,6 +13,10 @@ internal sealed class NumberBox : Grid
     private readonly TextBlock _unit = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) };
     private double _value;
     private bool _updating;
+    private double? _typed;
+    private readonly DispatcherTimer _pause = new() { Interval = TimeSpan.FromMilliseconds(TypingPauseMs) };
+
+    public const int TypingPauseMs = 800;
 
     public double Minimum { get; init; }
     public double Maximum { get; init; } = 1000;
@@ -47,8 +52,14 @@ internal sealed class NumberBox : Grid
             FitToRange();
             ShowValue();
         };
+        _pause.Tick += (_, _) => CommitTyped();
+        Unloaded += (_, _) => CommitTyped();
         _box.TextChanged += (_, _) => OnTyped();
-        _box.LostKeyboardFocus += (_, _) => ShowValue();
+        _box.LostKeyboardFocus += (_, _) =>
+        {
+            CommitTyped();
+            ShowValue();
+        };
         _box.PreviewKeyDown += (_, e) =>
         {
             if (e.Key is Key.Up or Key.Down)
@@ -58,6 +69,7 @@ internal sealed class NumberBox : Grid
             }
             else if (e.Key == Key.Enter)
             {
+                CommitTyped();
                 ShowValue();
                 _box.SelectAll();
             }
@@ -74,9 +86,11 @@ internal sealed class NumberBox : Grid
 
     public double Value
     {
-        get => _value;
+        get => _typed is { } t ? Math.Clamp(Precise(t, Decimals, Step), Minimum, Maximum) : _value;
         set
         {
+            _typed = null;
+            _pause.Stop();
             _value = value;
             ShowValue();
         }
@@ -97,6 +111,7 @@ internal sealed class NumberBox : Grid
 
     private void Nudge(int direction, int multiplier)
     {
+        CommitTyped();
         double next = Math.Round((_value + direction * Step * multiplier) / Step) * Step;
         Set(next, show: true);
     }
@@ -109,12 +124,23 @@ internal sealed class NumberBox : Grid
         if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) && v >= Minimum && v <= Maximum)
         {
             _box.ClearValue(Control.BorderBrushProperty);
-            Set(v, show: false);
+            _typed = v;
         }
         else
         {
             _box.SetResourceReference(Control.BorderBrushProperty, "Danger");
+            _typed = null;
         }
+        _pause.Stop();
+        if (_typed is not null) _pause.Start();
+    }
+
+    private void CommitTyped()
+    {
+        _pause.Stop();
+        if (_typed is not { } v) return;
+        _typed = null;
+        Set(v, show: false);
     }
 
     private void Set(double value, bool show)

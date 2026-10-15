@@ -7,7 +7,7 @@ namespace GoodieBag.Modes;
 
 internal static class ModeLauncher
 {
-    private static readonly TimeSpan StartTimeout = TimeSpan.FromMinutes(5);
+    internal static readonly TimeSpan StartTimeout = TimeSpan.FromMinutes(5);
     private static readonly HashSet<string> Watching = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<Mode> InFlight = new();
 
@@ -26,39 +26,51 @@ internal static class ModeLauncher
     public static async Task LaunchAsync(AppServices app, Mode mode)
     {
         if (mode.Program is null || !InFlight.Add(mode)) return;
-        try { await LaunchCoreAsync(app, mode, mode.Program); }
-        finally { InFlight.Remove(mode); }
+        bool launched = false;
+        try { launched = await LaunchCoreAsync(app, mode, mode.Program); }
+        finally
+        {
+            if (launched) _ = ReleaseLater(mode);
+            else InFlight.Remove(mode);
+        }
     }
 
-    private static async Task LaunchCoreAsync(AppServices app, Mode mode, ModeProgram program)
+    private static async Task ReleaseLater(Mode mode)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(10));
+        InFlight.Remove(mode);
+    }
+
+    private static async Task<bool> LaunchCoreAsync(AppServices app, Mode mode, ModeProgram program)
     {
         var running = AppWatcher.Snapshot();
         if (CanDetect(program) && running.Contains(ProcessOf(program)))
         {
             app.Notify($"{ProgramName(mode)} is already running", "Nothing was started again.", NoticeKind.Info, important: true);
-            return;
+            return false;
         }
         if (!app.Demo && !program.Path.Contains("://") && Path.IsPathFullyQualified(program.Path) && !File.Exists(program.Path))
         {
             app.Notify($"{mode.Name}: the program wasn't found", $"{program.Path} doesn't exist any more. Edit the mode to pick it again; nothing was changed.", NoticeKind.Warning, important: true);
-            return;
+            return false;
         }
 
         var started = mode.Launch.Where(l => !running.Contains(AppWatcher.Normalize(l.Path))).Select(l => l.Path).ToList();
-        if (!string.Equals(app.Modes.LastApplied, mode.Name, StringComparison.OrdinalIgnoreCase))
-            app.Switcher.NoteRestorePoint(app.Modes.LastApplied, CanDetect(program) ? ProcessOf(program) : null, mode.Launch.Select(l => l.Path));
+        if (app.Modes.Current is { } before && !string.Equals(before, mode.Name, StringComparison.OrdinalIgnoreCase))
+            app.Switcher.NoteRestorePoint(before, CanDetect(program) ? ProcessOf(program) : null, mode.Launch.Select(l => l.Path));
         bool applied = await app.Modes.ApplyAsync(mode, quiet: true);
 
         string? error = app.Demo ? null : ProcessLauncher.Launch(program.Path, program.Arguments, program.AsAdmin);
         if (error is not null)
         {
             app.Notify($"{mode.Name}: the program didn't start", error, NoticeKind.Warning, important: true);
-            return;
+            return false;
         }
         if (mode.CloseLaunchedOnExit && started.Count > 0 && CanDetect(program) && !app.Demo)
             CloseWhenDone(app, mode, ProcessOf(program), started);
         if (applied)
             app.Notify($"Starting {mode.Name}", "", NoticeKind.Success);
+        return true;
     }
 
     private static void CloseWhenDone(AppServices app, Mode mode, string main, List<string> helpers)

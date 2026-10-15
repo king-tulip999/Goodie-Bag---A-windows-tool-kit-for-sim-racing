@@ -76,11 +76,11 @@ internal sealed class TrackMapWidget : HudWidget
             p.G.MultiplyTransform(_view);
         }
 
-        var track = HudPalette.Mix(p.PanelColor, p.P.Text, p.P.Dark ? 0.30 : 0.22);
-        var edge = HudPalette.Mix(p.PanelColor, p.P.Text, p.P.Dark ? 0.55 : 0.45);
+        var track = p.P.MapTrack ?? HudPalette.Mix(p.PanelColor, p.P.Text, p.P.Dark ? 0.30 : 0.22);
+        var edge = p.P.MapEdge ?? HudPalette.Mix(p.PanelColor, p.P.Text, p.P.Dark ? 0.55 : 0.45);
         if (Has("pit"))
         {
-            var pitColor = HudPalette.Mix(p.PanelColor, p.P.Text, p.P.Dark ? 0.2 : 0.16);
+            var pitColor = p.P.MapPit ?? HudPalette.Mix(p.PanelColor, p.P.Text, p.P.Dark ? 0.2 : 0.16);
             foreach (var (path, width) in _pit)
                 if (width <= 0) p.G.FillPath(p.Brush(pitColor), path);
                 else p.G.DrawPath(p.Pen(pitColor, width * grow), path);
@@ -168,7 +168,7 @@ internal sealed class TrackMapWidget : HudWidget
             _map = null;
             _built = null;
             _loading = sample ? TrackMapLibrary.ByKey(SampleKey) : TrackMapLibrary.For(want.Item1, want.Item2);
-            ((IAsyncResult)_loading).AsyncWaitHandle.WaitOne(250);
+            if (f.Simulated) ((IAsyncResult)_loading).AsyncWaitHandle.WaitOne(250);
         }
         if (_map is null && _loading is { IsCompletedSuccessfully: true } done) _map = done.Result;
     }
@@ -307,7 +307,7 @@ internal sealed class TrackMapWidget : HudWidget
                 if (inPits && !pitCars && !player) continue;
                 var at = Screen(Place(map.At(pct)));
                 float radius = player ? r * 1.25f : r;
-                var fill = player ? p.P.Accent : classColors ? p.ClassColor(f.Session, d.ClassId) : HudPalette.Mix(p.P.Text, p.PanelColor, 0.15);
+                var fill = player ? p.P.Accent : classColors ? p.ClassColor(f.Session, d.ClassId) : p.P.MapCars ?? HudPalette.Mix(p.P.Text, p.PanelColor, 0.15);
                 if (inPits) fill = HudPalette.Mix(fill, p.PanelColor, 0.5);
                 if (player) p.Dot(at.X, at.Y, radius + 3, HudPalette.Alpha(p.P.Accent, 90));
                 p.Dot(at.X, at.Y, radius, fill);

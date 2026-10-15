@@ -148,11 +148,11 @@ internal static class HudTable
                 x += w + Gap;
                 continue;
             }
-            if (cell.Bold && cell.Color == HudPalette.Fastest && cell.Text.Length > 0)
+            if (cell.Bold && cell.Color == pal.Fastest && cell.Text.Length > 0)
             {
                 float tw = Math.Min(w + 4, p.Measure(cell.Text, bold) + 8);
                 float tx = col.Align == HAlign.Right ? box.Right - tw + 3 : col.Align == HAlign.Center ? box.X + (w - tw) / 2 : box.X - 3;
-                p.Fill(new RectangleF(tx, row.Y + 2, tw, row.Height - 4), HudPalette.Alpha(HudPalette.Fastest, 70), 2);
+                p.Fill(new RectangleF(tx, row.Y + 2, tw, row.Height - 4), HudPalette.Alpha(pal.Fastest, 70), 2);
             }
             if (col.Marks is { } marks)
             {
@@ -296,10 +296,10 @@ internal static class FieldColumns
         PositionBlock, NumberFill, NumberEdge, FlagEdgeOption, FlagWidth, BandOpacity,
     };
 
-    private static void Marks(TelemetryFrame f, int car, List<(string, Color, Color, FlagKind)> list)
+    private static void Marks(HudPalette pal, TelemetryFrame f, int car, List<(string, Color, Color, FlagKind)> list)
     {
         int? cls = f.Session.NumCarClasses > 1 && f.Session.ByCar.TryGetValue(car, out var d) ? d.ClassId : null;
-        if (f.CarBestLap[car] > 0 && FieldOrder.FastestLap(f, cls) is { } fl && fl.Car == car) list.Add(("FL", HudPalette.Fastest, Color.White, FlagKind.None));
+        if (f.CarBestLap[car] > 0 && FieldOrder.FastestLap(f, cls) is { } fl && fl.Car == car) list.Add(("FL", pal.Fastest, Color.White, FlagKind.None));
         var flags = f.CarFlags[car];
         if ((flags & RaceFlags.Disqualify) != 0) list.Add(("", default, default, FlagKind.Disqualified));
         else if ((flags & RaceFlags.Black) != 0) list.Add(("", default, default, FlagKind.Black));
@@ -353,7 +353,7 @@ internal static class FieldColumns
                     var d = D(car);
                     string name = d is null ? $"Car {car}" : d.Name.Length > 0 ? RaceFormat.Name(d.Name, nameFormat, noDigits) : d.TeamName;
                     return new Cell(name, Text(car), car == f.PlayerCarIdx);
-                }, Flex: true) { Marks = v.Def.Option("marks") is not null && v.Options.Bool("marks") ? (car, list) => Marks(f, car, list) : null };
+                }, Flex: true) { Marks = v.Def.Option("marks") is not null && v.Options.Bool("marks") ? (car, list) => Marks(pal, f, car, list) : null };
             case "team": return new Column(id, "TEAM", "Team Name Here", HAlign.Left, car => D(car) is { TeamName.Length: > 0 } d ? new Cell(d.TeamName, pal.Muted) : None);
             case "badge":
                 string badgeFormat = Choice(BadgeFormat);
@@ -378,7 +378,7 @@ internal static class FieldColumns
                 {
                     double t = f.CarBestLap[car];
                     bool fastest = t > 0 && FieldOrder.FastestLap(f, D(car)?.ClassId) is { } fl && fl.Car == car;
-                    return new Cell(Time(t > 0 ? t : null), fastest ? HudPalette.Fastest : Text(car), fastest);
+                    return new Cell(Time(t > 0 ? t : null), fastest ? pal.Fastest : Text(car), fastest);
                 });
             case "delta":
                 return new Column(id, "Δ LAST", "+0.00", HAlign.Right, car =>
@@ -926,11 +926,11 @@ internal static class Strips
                         : ("Δ", missing, p.P.Faint));
                     break;
                 case "fastest":
-                    items.Add(FieldOrder.FastestLap(f) is { } fl ? ("FL", $"{RaceFormat.LapTime(fl.Time)} {Short(f, fl.Car)}", HudPalette.Fastest) : ("FL", missing, p.P.Faint));
+                    items.Add(FieldOrder.FastestLap(f) is { } fl ? ("FL", $"{RaceFormat.LapTime(fl.Time)} {Short(f, fl.Car)}", p.P.Fastest) : ("FL", missing, p.P.Faint));
                     break;
                 case "classFastest":
                     string classFl = (f.Session.Player?.ClassName is { Length: > 0 } pcn ? pcn.ToUpperInvariant() : "CLASS") + " FL";
-                    items.Add(f.Session.Player is { } pl && FieldOrder.FastestLap(f, pl.ClassId) is { } cfl ? (classFl, RaceFormat.LapTime(cfl.Time), HudPalette.Fastest) : (classFl, missing, p.P.Faint));
+                    items.Add(f.Session.Player is { } pl && FieldOrder.FastestLap(f, pl.ClassId) is { } cfl ? (classFl, RaceFormat.LapTime(cfl.Time), p.P.Fastest) : (classFl, missing, p.P.Faint));
                     break;
                 case "fuel": items.Add(("FUEL", v.Race.Fuel is { } plan ? $"{plan.LapsOfFuel:0.0} laps" : missing, null)); break;
                 case "inc":

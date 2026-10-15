@@ -19,12 +19,12 @@ internal sealed class HudPalette
     public bool Dark;
     public Color Player, PlayerText;
     public Color Lapping = Color.FromArgb(0xF8, 0x71, 0x71), Lapped = Color.FromArgb(0x60, 0xA5, 0xFA);
+    public Color Fastest = Color.FromArgb(0xB0, 0x6B, 0xFF);
+    public Color? MapTrack, MapEdge, MapPit, MapCars;
 
     public static readonly Color FlagGreen = Color.FromArgb(0x1E, 0xA8, 0x4A), FlagYellow = Color.FromArgb(0xFF, 0xD0, 0x1A),
         FlagBlue = Color.FromArgb(0x1F, 0x6F, 0xEB), FlagRed = Color.FromArgb(0xE0, 0x24, 0x24), FlagWhite = Color.FromArgb(0xF2, 0xF2, 0xF2),
         FlagBlack = Color.FromArgb(0x10, 0x10, 0x10), FlagOrange = Color.FromArgb(0xF2, 0x7A, 0x1A);
-
-    public static readonly Color Fastest = Color.FromArgb(0xB0, 0x6B, 0xFF);
 
     public static HudPalette Of(HudAppearance look) => look.Colors == HudColors.Custom ? Custom(look.Custom) : Default;
 
@@ -32,7 +32,7 @@ internal sealed class HudPalette
 
     public static HudPalette Custom(HudCustomColors c)
     {
-        string key = string.Join("|", c.Background, c.Surface, c.Text, c.Muted, c.Accent, c.Good, c.Warn, c.Danger);
+        string key = string.Join("|", c.All().Select(e => e.Get()));
         lock (CustomCache)
         {
             if (CustomCache.TryGetValue(key, out var cached)) return cached;
@@ -43,20 +43,22 @@ internal sealed class HudPalette
                 catch (Exception) { return ColorTranslator.FromHtml(fallback); }
             }
             Color bg = Hex(c.Background, d.Background), surface = Hex(c.Surface, d.Surface), text = Hex(c.Text, d.Text), muted = Hex(c.Muted, d.Muted),
-                accent = Hex(c.Accent, d.Accent), good = Hex(c.Good, d.Good), warn = Hex(c.Warn, d.Warn), danger = Hex(c.Danger, d.Danger);
+                accent = Hex(c.Accent, d.Accent), good = Hex(c.Good, d.Good), warn = Hex(c.Warn, d.Warn), danger = Hex(c.Danger, d.Danger),
+                heading = Hex(c.Heading, d.Heading), lines = Hex(c.Lines, d.Lines);
             bool dark = Luminance(bg) < 0.35;
             Color Readable(Color colour) => Mix(colour, text, Math.Abs(Luminance(colour) - Luminance(surface)) < 0.25 ? 0.45 : 0.15);
             var p = new HudPalette
             {
                 Dark = dark,
-                Bg = bg, Surface = surface, SurfaceAlt = Mix(surface, bg, 0.5), Text = text, Heading = Mix(text, dark ? Color.White : Color.Black, 0.15),
-                Muted = muted, Faint = Mix(muted, bg, 0.3), Line = Mix(surface, text, 0.12), LineStrong = Mix(surface, text, 0.32),
+                Bg = bg, Surface = surface, SurfaceAlt = Mix(surface, bg, 0.5), Text = text, Heading = heading,
+                Muted = muted, Faint = Mix(muted, bg, 0.3), Line = Mix(surface, lines, 0.6), LineStrong = lines,
                 Accent = accent, AccentText = Readable(accent), AccentSoft = Mix(surface, accent, 0.22), OnAccent = On(accent),
                 Good = good, GoodText = Readable(good), GoodSoft = Mix(surface, good, 0.2), Warn = warn, WarnText = Readable(warn), WarnSoft = Mix(surface, warn, 0.2),
                 Danger = danger, DangerText = Readable(danger), DangerSoft = Mix(surface, danger, 0.2), Gold = warn, Slate = muted, Plum = Mix(accent, muted, 0.5),
+                Player = Hex(c.YourRow, d.YourRow), PlayerText = Hex(c.YourRowText, d.YourRowText),
+                Lapping = Hex(c.Lapping, d.Lapping), Lapped = Hex(c.Lapped, d.Lapped), Fastest = Hex(c.FastestLap, d.FastestLap),
+                MapTrack = Hex(c.MapTrack, d.MapTrack), MapEdge = Hex(c.MapEdge, d.MapEdge), MapPit = Hex(c.MapPit, d.MapPit), MapCars = Hex(c.MapCars, d.MapCars),
             };
-            p.Player = accent;
-            p.PlayerText = p.Heading;
             CustomCache[key] = p;
             return p;
         }
@@ -207,6 +209,7 @@ internal sealed class HudPainter : IDisposable
 
     public Font Font(float px, bool bold)
     {
+        px = MathF.Round(px * 2) / 2;
         var key = (px, bold);
         if (_fonts.TryGetValue(key, out var f)) return f;
         f = new Font(bold ? Semibold : Regular, px * _textScale, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -393,13 +396,6 @@ internal sealed class HudPainter : IDisposable
         if (w > 0.5f) Fill(new RectangleF(r.X, r.Y, w, r.Height), fill, Math.Min(3, r.Height / 2));
     }
 
-    public void VBar(RectangleF r, double value, Color fill)
-    {
-        Fill(r, HudPalette.Alpha(P.LineStrong, 110), 2);
-        float h = (float)(Math.Clamp(value, 0, 1) * r.Height);
-        if (h > 0.5f) Fill(new RectangleF(r.X, r.Bottom - h, r.Width, h), fill, 2);
-    }
-
     public void Pill(RectangleF r, string text, Color bg, Font font, Color? fg = null)
     {
         Fill(r, bg, Math.Min(4, r.Height / 2));
@@ -414,8 +410,6 @@ internal sealed class HudPainter : IDisposable
         Text(LabelText(label), Label, LabelColor, new RectangleF(r.X, r.Y, r.Width, lh), align, VAlign.Top);
         Text(value, valueFont ?? Bold, valueColor ?? P.Heading, new RectangleF(r.X, r.Y + lh, r.Width, r.Height - lh), align, VAlign.Center);
     }
-
-    public float StatHeight => LineHeight(Label) + 1 + LineHeight(Bold) + 4;
 
     public Color PanelColor => P.Surface;
 
@@ -511,10 +505,11 @@ internal sealed class HudPainter : IDisposable
         return paren > 0 ? label[..paren] : label;
     }
 
+    private static readonly string[] Units = { " L", " gal", " km/h", " mph", " kPa", " psi", " s", "°C", "°F", "%", " laps", " lap" };
+
     internal static int UnitStart(string value)
     {
-        string[] units = { " L", " gal", " km/h", " mph", " kPa", " psi", " s", "°C", "°F", "%", " laps", " lap" };
-        foreach (var u in units)
+        foreach (var u in Units)
             if (value.EndsWith(u, StringComparison.Ordinal) && value.Length > u.Length && char.IsDigit(value[value.Length - u.Length - 1]))
                 return value.Length - u.Length;
         return -1;
@@ -570,20 +565,6 @@ internal sealed class HudPainter : IDisposable
     public float StripHeight => LineHeight(SmallBold) + 7 * Density;
 
     public Color BandColor(int? opacity = null) => HudPalette.Alpha(P.Bg, (int)Math.Round((opacity ?? 70) * 2.55));
-
-    public void StateBlock(RectangleF r, Color fill, string label, string value, Font? valueFont = null)
-    {
-        Fill(r, fill, CornerRadius(4));
-        var on = HudPalette.On(fill);
-        var inner = r.Inflated(-7 * Density, -3 * Density);
-        var font = valueFont ?? Big;
-        float lh = LineHeight(Label) + 1;
-        bool both = inner.Height >= lh + LineHeight(font) * 0.8f;
-        if (both) Text(LabelText(label), Label, HudPalette.Alpha(on, 210), new RectangleF(inner.X, inner.Y, inner.Width, lh), HAlign.Left, VAlign.Top);
-        var valueBox = both ? new RectangleF(inner.X, inner.Y + lh, inner.Width, inner.Height - lh) : inner;
-        if (both) Number(value, font, on, valueBox, HAlign.Left, VAlign.Center);
-        else Text(label + " " + value, SmallBold, on, valueBox, HAlign.Left, VAlign.Center);
-    }
 
     public RectangleF Header(string title, string? right = null, Color? rightColor = null)
     {

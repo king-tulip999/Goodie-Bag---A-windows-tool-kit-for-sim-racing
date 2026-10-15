@@ -55,7 +55,11 @@ internal sealed class AppWatcher : IDisposable
             var watched = _consumers.Values.SelectMany(n => n).ToHashSet(StringComparer.OrdinalIgnoreCase);
             added = watched.Where(w => !_watched.Contains(w)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _watched = watched;
-            if (!start) _catchUp.UnionWith(added);
+            if (!start)
+            {
+                _catchUp.UnionWith(added);
+                _running.ExceptWith(added);
+            }
         }
         if (start)
             Start();

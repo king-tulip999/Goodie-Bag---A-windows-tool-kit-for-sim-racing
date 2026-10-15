@@ -200,17 +200,6 @@ internal sealed class AppServices : IDisposable
             Tray.ShowBalloon(title, message, kind);
     }
 
-    public void ChangeWindows(string what, Action change)
-    {
-        if (Demo)
-        {
-            Notify(what, "Demo data: nothing on this PC was changed.");
-            return;
-        }
-        try { change(); }
-        catch (Exception ex) { Notify(what, $"Couldn't change it: {ex.Message}", NoticeKind.Warning); }
-    }
-
     public void ResetFpsStats()
     {
         Frames.Reset();

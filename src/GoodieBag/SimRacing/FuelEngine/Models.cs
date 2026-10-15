@@ -95,6 +95,7 @@ public sealed record TimedRaceInput
     public required double PlayerLapTimeSeconds { get; init; }
     public bool WhiteFlagObserved { get; init; }
     public bool CheckeredFlagObserved { get; init; }
+    public bool LeaderFinished { get; init; }
 }
 
 public sealed record TimedRaceEstimate(

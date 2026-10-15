@@ -48,14 +48,14 @@ public partial class MainWindow : Window
         _app.Plugins.Changed += OnPluginsChanged;
         ThemeManager.Changed += OnThemeChanged;
         IsVisibleChanged += (_, _) => { UpdatePageSensors(); UpdatePageActive(); ScheduleTrim(); };
-        _trimTimer.Tick += (_, _) => { _trimTimer.Stop(); if (!IsVisible) TrimWhileHidden(); };
+        _trimTimer.Tick += (_, _) => { _trimTimer.Stop(); if (!OnScreen) TrimWhileHidden(); };
 
         MinButton.Click += (_, _) => WindowState = WindowState.Minimized;
         MaxButton.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         CloseButton.Click += (_, _) => Close();
         SetupMinButton.Click += (_, _) => WindowState = WindowState.Minimized;
         SetupCloseButton.Click += (_, _) => Close();
-        StateChanged += (_, _) => { OnStateChanged(); UpdatePageSensors(); UpdatePageActive(); };
+        StateChanged += (_, _) => { OnStateChanged(); UpdatePageSensors(); UpdatePageActive(); ScheduleTrim(); };
         TitleBar.SizeChanged += (_, _) => FitThemeLogo();
         ThemeLogo.SizeChanged += (_, _) => FitThemeLogo();
         Loaded += (_, _) => FitThemeLogo();
@@ -185,13 +185,14 @@ public partial class MainWindow : Window
         if (quick)
         {
             var short_ = TimeSpan.FromMilliseconds(130);
-            PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.7, 1, short_) { EasingFunction = Motion.Ease, FillBehavior = FillBehavior.Stop });
+            if (PcClass.Effects) PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.7, 1, short_) { EasingFunction = Motion.Ease, FillBehavior = FillBehavior.Stop });
             PageMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-12, 0, short_) { EasingFunction = Motion.Ease, FillBehavior = FillBehavior.Stop });
             return;
         }
         var fade = TimeSpan.FromMilliseconds(240);
-        PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, fade) { EasingFunction = Motion.Ease, FillBehavior = FillBehavior.Stop });
+        if (PcClass.Effects) PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, fade) { EasingFunction = Motion.Ease, FillBehavior = FillBehavior.Stop });
         PageMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-48, 0, TimeSpan.FromMilliseconds(460)) { EasingFunction = PageDrop, FillBehavior = FillBehavior.Stop });
+        if (!PcClass.Effects) return;
         PageContent.Effect = SwipeBlur;
         var blur = new DoubleAnimation(8, 0, fade) { EasingFunction = Motion.Ease };
         blur.Completed += (_, _) =>
@@ -279,10 +280,11 @@ public partial class MainWindow : Window
         Motion.Refresh();
     }
 
-    internal void ApplyInterfaceScale()
+    internal void ApplyInterfaceScale(bool rebuild = false)
     {
         double scale = _app.Config.Ui.ScaleFactor;
         Root.LayoutTransform = Math.Abs(scale - 1) < 0.001 ? Transform.Identity : new ScaleTransform(scale, scale);
+        if (rebuild) Dispatcher.BeginInvoke(new Action(OnThemeChanged), DispatcherPriority.Background);
     }
 
     private void ApplyThemeIcon()
@@ -329,7 +331,7 @@ public partial class MainWindow : Window
     private void ScheduleTrim()
     {
         _trimTimer.Stop();
-        if (!IsVisible && !ScreenshotRunner.Active) _trimTimer.Start();
+        if (!OnScreen && !ScreenshotRunner.Active) _trimTimer.Start();
     }
 
     internal void TrimWhileHidden()

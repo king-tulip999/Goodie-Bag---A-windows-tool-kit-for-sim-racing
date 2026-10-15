@@ -332,12 +332,13 @@ internal sealed class SetupStore : IDisposable
         {
             Quiet();
             var paths = list.Select(PathOf).ToList();
-            int gone = RecycleBin.Send(paths);
+            RecycleBin.Send(paths);
+            bool left = paths.Any(p => File.Exists(p) || Directory.Exists(p));
             list = list.Where((n, i) => !File.Exists(paths[i]) && !Directory.Exists(paths[i])).ToList();
-            if (gone < paths.Count)
+            if (left)
             {
                 foreach (var n in list) n.Parent!.Children.Remove(n);
-                return (list.Count, "Some items couldn't be moved to the Recycle Bin (in use, or no permission).");
+                return (list.Count, "Some items are still there (in use, no permission, or kept when asked).");
             }
         }
         foreach (var n in list) n.Parent!.Children.Remove(n);

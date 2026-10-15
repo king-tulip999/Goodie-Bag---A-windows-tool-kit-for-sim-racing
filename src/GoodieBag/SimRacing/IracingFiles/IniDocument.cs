@@ -185,7 +185,7 @@ internal sealed class IniDocument
     public IniLine? Find(string section, string key)
     {
         IniLine? loose = null;
-        foreach (var l in Entries.Where(l => string.Equals(l.Section, section, StringComparison.OrdinalIgnoreCase)))
+        foreach (var l in Entries.Where(l => string.Equals(l.Section ?? "", section ?? "", StringComparison.OrdinalIgnoreCase)))
         {
             if (l.Key == key) return l;
             if (loose is null && string.Equals(l.Key, key, StringComparison.OrdinalIgnoreCase)) loose = l;

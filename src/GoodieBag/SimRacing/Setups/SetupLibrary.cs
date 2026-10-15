@@ -284,7 +284,7 @@ internal static class SetupNames
         if (name.Length == 0) return (null, "Enter a name.");
         if (name.IndexOfAny(Invalid) >= 0) return (null, "Names can't contain < > : \" / \\ | ? *");
         if (isFile && !name.EndsWith(".sto", StringComparison.OrdinalIgnoreCase)) name += ".sto";
-        if (name.EndsWith('.') || name.EndsWith(' ')) return (null, "Names can't end with a space or a full stop.");
+        if (name.EndsWith('.') || name.EndsWith(' ')) return (null, "Names can't end with a space or a period.");
         string stem = name.Split('.')[0].ToUpperInvariant();
         if (stem is "CON" or "PRN" or "AUX" or "NUL" || (stem.Length == 4 && (stem.StartsWith("COM") || stem.StartsWith("LPT")) && char.IsDigit(stem[3])))
             return (null, "Windows keeps that name for itself.");

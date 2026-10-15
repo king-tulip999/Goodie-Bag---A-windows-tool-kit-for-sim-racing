@@ -9,25 +9,37 @@ public static class RaceDistanceEstimator
         if (input.CheckeredFlagObserved)
             return new(0, 0, 0, 0, true, "iRacing's checkered flag is authoritative: race finished.");
 
-        if (input.WhiteFlagObserved)
+        if (input.LeaderFinished)
         {
             double last = input.PlayerLapProgress >= 1 ? 0 : 1 - input.PlayerLapProgress;
             return new(last, last, last, 0, true,
-                "White flag observed from iRacing: the player is on the final lap and finishes at the next line crossing.");
+                "The leader has taken the checkered flag: the player finishes at the next line crossing.");
         }
 
         double leaderToLine = (1 - input.LeaderLapProgress) * input.LeaderLapTimeSeconds;
+        if (input.WhiteFlagObserved)
+        {
+            double final = LapsToFirstCrossingAfter(leaderToLine, input);
+            return new(final, final, final, 0, true,
+                "White flag observed from iRacing: the checkered falls when the leader next crosses the line; the player finishes at their first crossing after it.");
+        }
+
         double afterFirstCrossing = input.SessionTimeRemainingSeconds - leaderToLine;
         int moreLeaderLaps = afterFirstCrossing > 0 ? (int)Math.Ceiling(afterFirstCrossing / input.LeaderLapTimeSeconds - 1e-9) : 0;
         double checkeredIn = leaderToLine + moreLeaderLaps * input.LeaderLapTimeSeconds;
         double whiteFlagIn = Math.Max(0, checkeredIn - input.LeaderLapTimeSeconds);
 
-        double playerProgressAtCheckered = input.PlayerLapProgress + checkeredIn / input.PlayerLapTimeSeconds;
-        double finishBoundary = Math.Max(Math.Ceiling(playerProgressAtCheckered - 1e-9), input.PlayerLapProgress > 0 ? 1 : 0);
-        double lapsRemaining = Math.Max(0, finishBoundary - input.PlayerLapProgress);
+        double lapsRemaining = LapsToFirstCrossingAfter(checkeredIn, input);
         return new(lapsRemaining, Math.Max(0, lapsRemaining - 1), lapsRemaining + 1, whiteFlagIn, false,
             $"Forecast only: at the leader's recent pace the checkered flag falls in about {checkeredIn:0} s (white flag in about {whiteFlagIn:0} s); "
             + "the player finishes at their first crossing after it, at their own recent pace. Replaced by iRacing's flags as soon as they show.");
+    }
+
+    private static double LapsToFirstCrossingAfter(double checkeredInSeconds, TimedRaceInput input)
+    {
+        double progressAtCheckered = input.PlayerLapProgress + checkeredInSeconds / input.PlayerLapTimeSeconds;
+        double finishBoundary = Math.Max(Math.Ceiling(progressAtCheckered - 1e-9), input.PlayerLapProgress > 0 ? 1 : 0);
+        return Math.Max(0, finishBoundary - input.PlayerLapProgress);
     }
 
     public static double LapLimitedLapsRemaining(int targetCompletedLaps, int playerCompletedLaps, double playerLapProgress)
@@ -36,15 +48,6 @@ public static class RaceDistanceEstimator
         if (playerCompletedLaps < 0) throw new ArgumentOutOfRangeException(nameof(playerCompletedLaps));
         ValidateProgress(playerLapProgress, nameof(playerLapProgress));
         return Math.Max(0, targetCompletedLaps - playerCompletedLaps - playerLapProgress);
-    }
-
-    public static double LapsUntilFinishAfterSeconds(double secondsUntilLeaderFinish, double playerLapProgress, double playerLapTimeSeconds)
-    {
-        if (!double.IsFinite(secondsUntilLeaderFinish) || secondsUntilLeaderFinish < 0) throw new ArgumentOutOfRangeException(nameof(secondsUntilLeaderFinish));
-        ValidateProgress(playerLapProgress, nameof(playerLapProgress));
-        if (!double.IsFinite(playerLapTimeSeconds) || playerLapTimeSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(playerLapTimeSeconds));
-        double progressAtFinish = playerLapProgress + secondsUntilLeaderFinish / playerLapTimeSeconds;
-        return Math.Max(0, Math.Floor(progressAtFinish + 1e-10) + 1 - playerLapProgress);
     }
 
     private static void ValidateTimedInput(TimedRaceInput input)

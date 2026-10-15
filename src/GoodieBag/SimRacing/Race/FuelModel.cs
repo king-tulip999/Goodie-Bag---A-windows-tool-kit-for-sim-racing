@@ -7,6 +7,7 @@ internal sealed class FuelModel
 {
     public const int Sectors = 10;
     private const int MaxSectorLaps = 40;
+    private static readonly TimeSpan PairWindow = TimeSpan.FromSeconds(1);
 
     private readonly FuelLapTracker _tracker = new();
     private readonly FuelSectorSampler _sampler = new(Sectors);
@@ -16,6 +17,8 @@ internal sealed class FuelModel
     private int? _lastIncidents;
     private int _window = -1, _lapsSeen = -1;
     private IReadOnlyDictionary<string, IrsdkVar>? _unitsFrom;
+    private (double[] Boundaries, DateTimeOffset At)? _pendingProfile;
+    private (FuelLapSample Lap, DateTimeOffset At)? _pendingLap;
 
     public IReadOnlyList<FuelLapSample> Laps => _tracker.Laps;
 
@@ -30,6 +33,8 @@ internal sealed class FuelModel
         _tracker.Reset();
         _sampler.Reset();
         _sectorLaps.Clear();
+        _pendingProfile = null;
+        _pendingLap = null;
         _lastTime = double.NaN;
         _lastIncidents = null;
         _lapsSeen = -1;
@@ -55,11 +60,9 @@ internal sealed class FuelModel
             _lastTime = (sample.Timestamp - DateTimeOffset.UnixEpoch).TotalSeconds;
             var update = _tracker.Update(sample);
             var boundaries = _sampler.Update(sample.LapCompleted, sample.LapDistPct, sample.FuelLevelLiters);
-            if (boundaries is not null && update.NewLaps.Count == 1)
-            {
-                _sectorLaps.Add(new FuelSectorLapSample(update.NewLaps[0].LapNumber, boundaries, update.NewLaps[0].Flags, sample.Timestamp));
-                if (_sectorLaps.Count > MaxSectorLaps) _sectorLaps.RemoveAt(0);
-            }
+            if (boundaries is not null) _pendingProfile = (boundaries, sample.Timestamp);
+            if (update.NewLaps.Count == 1) _pendingLap = (update.NewLaps[0], sample.Timestamp);
+            PairProfileWithLap(sample.Timestamp);
         }
         if (_tracker.Laps.Count != _lapsSeen || window != _window)
         {
@@ -67,6 +70,17 @@ internal sealed class FuelModel
             _window = window;
             Estimate = FuelConsumptionEstimator.Estimate(_tracker.Laps, new FuelEstimatorOptions { WindowSize = Math.Max(1, window) });
         }
+    }
+
+    private void PairProfileWithLap(DateTimeOffset now)
+    {
+        if (_pendingProfile is { } stale && now - stale.At > PairWindow) _pendingProfile = null;
+        if (_pendingLap is { } staleLap && now - staleLap.At > PairWindow) _pendingLap = null;
+        if (_pendingProfile is not { } profile || _pendingLap is not { } lap) return;
+        _sectorLaps.Add(new FuelSectorLapSample(lap.Lap.LapNumber, profile.Boundaries, lap.Lap.Flags, now));
+        if (_sectorLaps.Count > MaxSectorLaps) _sectorLaps.RemoveAt(0);
+        _pendingProfile = null;
+        _pendingLap = null;
     }
 
     private FuelTelemetrySample? Sample(TelemetryFrame f)

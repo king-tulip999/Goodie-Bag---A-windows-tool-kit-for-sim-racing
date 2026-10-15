@@ -249,7 +249,7 @@ internal sealed class ModesPage : UserControl, IPage, IScreenshotStates
         if (mode.Triggers.Count == 0)
             stack.Children.Add(Ui.Text(mode.Hotkey is null ? "Only when you pick it: Apply or the tray." : $"Only when you pick it: Apply, the tray or {GoodieBag.Hotkeys.Hotkey.Display(mode.Hotkey)}.", "Caption"));
         foreach (var trigger in mode.Triggers)
-            stack.Children.Add(TriggerLine(mode, trigger));
+            stack.Children.Add(TriggerLine(trigger));
         var addTrigger = Ui.LabeledButton("I.Plus", "Add trigger", () => _ = EditAsync(mode, addTrigger: true), "SoftButton");
         addTrigger.HorizontalAlignment = HorizontalAlignment.Left;
         addTrigger.Margin = new Thickness(0, 6, 0, 0);
@@ -295,7 +295,7 @@ internal sealed class ModesPage : UserControl, IPage, IScreenshotStates
         return card;
     }
 
-    private Grid TriggerLine(Mode mode, AutomationRule trigger)
+    private Grid TriggerLine(AutomationRule trigger)
     {
         var row = new Grid { Margin = new Thickness(0, 2, 0, 4), Opacity = trigger.Enabled ? 1 : 0.6 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -308,7 +308,7 @@ internal sealed class ModesPage : UserControl, IPage, IScreenshotStates
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = AutomationCatalog.Sentence(trigger), Style = Ui.Res<Style>("Body"), FontSize = 12.5, TextWrapping = TextWrapping.Wrap });
-        if (Status(mode, trigger) is { } status)
+        if (Status(trigger) is { } status)
         {
             var line = new TextBlock { Text = status.Text, Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>(status.Brush), TextWrapping = TextWrapping.Wrap };
             text.Children.Add(status.Brush == "Warn" ? Ui.IconText("I.Alert", line, "Warn") : line);
@@ -318,11 +318,12 @@ internal sealed class ModesPage : UserControl, IPage, IScreenshotStates
         return row;
     }
 
-    private (string Text, string Brush)? Status(Mode mode, AutomationRule t)
+    private (string Text, string Brush)? Status(AutomationRule t)
     {
         if (!t.Enabled) return null;
         if (_app.Automations.TriggerOffNote(t) is { } off) return (off, "Warn");
         if (AutomationCatalog.UsesApp(t.Trigger) && string.IsNullOrWhiteSpace(t.App)) return ("No program chosen.", "Warn");
+        if (!string.IsNullOrWhiteSpace(t.OnlyInMode) && _app.Modes.Find(t.OnlyInMode) is null) return ($"Only runs in the mode “{t.OnlyInMode}”, which no longer exists. Edit the trigger to pick another.", "Warn");
         if (t.Trigger == TriggerType.WhileRunning)
             return _app.Switcher.InCharge is { } c && c.Trigger.Id == t.Id ? ("Running now: this mode is in charge", "AccentText") : null;
         string? last = _app.Automations.LastRuns.TryGetValue(t.Id, out var run)
@@ -372,17 +373,27 @@ internal sealed class ModesPage : UserControl, IPage, IScreenshotStates
     private void UpdateToCurrent(Mode mode)
     {
         var fresh = _app.Modes.CaptureCurrent(mode.Name);
+        var took = new List<string>();
         if (fresh.DisplayProfile is not null)
+        {
             mode.DisplayProfile = fresh.DisplayProfile;
+            took.Add("display profile");
+        }
         if (fresh.Audio is not null && (mode.DisplayProfile is null || mode.Audio is not null))
         {
             bool comms = mode.Audio?.SetCommunications ?? true;
             mode.Audio = fresh.Audio;
             mode.Audio.SetCommunications = comms;
+            took.Add("audio");
+        }
+        if (took.Count == 0)
+        {
+            _app.Notify("Nothing to update", $"No display profile matches your monitors now, and {mode.Name} keeps its audio from its display profile. Save a display profile first.", NoticeKind.Info);
+            return;
         }
         _app.Modes.MarkApplied(mode.Name);
         _app.RaiseModesChanged();
-        _app.Notify("Mode updated", $"{mode.Name} now matches your current setup.", NoticeKind.Success);
+        _app.Notify("Mode updated", $"{mode.Name} now uses your current {string.Join(" and ", took)}.", NoticeKind.Success);
     }
 
     private async Task DeleteAsync(Mode mode)

@@ -397,8 +397,6 @@ internal sealed class ModeEditor
 
     private void FillAudio(ComboBox box, EDataFlow flow, string? selectedId, string? selectedName) => FillAudio(_app, box, flow, selectedId, selectedName);
 
-    internal static bool SameProcess(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-
     public static void FillAudio(AppServices app, ComboBox box, EDataFlow flow, string? selectedId, string? selectedName)
     {
         box.Items.Add(new Choice(null, "Don't change"));
@@ -426,7 +424,7 @@ internal sealed class ModeEditor
 
     private static bool Missing(string path)
     {
-        var exists = Task.Run(() => System.IO.File.Exists(path));
+        var exists = Task.Run(() => System.IO.File.Exists(Environment.ExpandEnvironmentVariables(path)));
         return exists.Wait(TimeSpan.FromSeconds(2)) && !exists.Result;
     }
 

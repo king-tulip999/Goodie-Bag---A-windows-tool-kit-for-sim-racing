@@ -5,6 +5,7 @@ using System.Windows.Media;
 using GoodieBag.Controls;
 using GoodieBag.Hardware;
 using GoodieBag.Services;
+using GoodieBag.Theme;
 
 namespace GoodieBag.Views.Pages;
 
@@ -24,6 +25,7 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
     private readonly List<(FrameworkElement Header, string Device, List<FrameworkElement> Children, Icon Chevron, bool Top)> _groups = new();
     private readonly List<StackPanel> _tables = new();
     private (int Hash, int Count)? _signature;
+    private SensorTree? _lastTree;
     private readonly Tile _loading = new();
 
     public SensorsSection(AppServices app)
@@ -186,9 +188,11 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
         _grid.Visibility = tree is null ? Visibility.Collapsed : Visibility.Visible;
         if (tree is null)
         {
-            _state.Text = hw.OpenError is { } openError ? "Sensors unavailable: " + openError : "Reading sensors…";
+            TextCase.Set(_state, hw.OpenError is { } openError ? "Sensors unavailable: " + openError : "Reading sensors…");
             return;
         }
+        if (ReferenceEquals(tree, _lastTree) && _signature is not null) return;
+        _lastTree = tree;
 
         var listed = Listed(tree);
         var hash = new HashCode();
@@ -203,8 +207,8 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
                 count++;
             }
         }
-        _state.Text = hw.OpenError is { } error ? "Sensors unavailable: " + error
-            : $"{count} readings from {listed.Count} devices · updated every {Config.PerformanceSettings.Describe(_app.Config.Performance.IntervalMs)}" +(_app.Demo ? " · demo data" : "");
+        TextCase.Set(_state, hw.OpenError is { } error ? "Sensors unavailable: " + error
+            : $"{count} readings from {listed.Count} devices · updated every {Config.PerformanceSettings.Describe(_app.Config.Performance.IntervalMs)}" +(_app.Demo ? " · demo data" : ""));
         var signature = (hash.ToHashCode(), count);
         if (signature != _signature)
         {
@@ -218,9 +222,9 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
             {
                 if (!_rows.TryGetValue(s.Id, out var row))
                     continue;
-                row.Value.Text = s.Format(s.Value);
-                row.Min.Text = s.Min is null ? "" : s.Format(s.Min);
-                row.Max.Text = s.Max is null ? "" : s.Format(s.Max);
+                TextCase.Set(row.Value, s.Format(s.Value));
+                TextCase.Set(row.Min, s.Min is null ? "" : s.Format(s.Min));
+                TextCase.Set(row.Max, s.Max is null ? "" : s.Format(s.Max));
             }
         }
     }
@@ -356,22 +360,6 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
         if (menu.Items.Count > 0) menu.Items.Add(new Separator());
         menu.Items.Add(all);
         menu.IsOpen = true;
-    }
-
-    private void ToggleAll()
-    {
-        if (_arranging)
-        {
-            bool anyFolded = _groups.Any(g => g.Top && !_arrangeOpen.Contains(g.Device));
-            _arrangeOpen.Clear();
-            if (anyFolded)
-                foreach (var g in _groups.Where(g => g.Top)) _arrangeOpen.Add(g.Device);
-        }
-        else if (_collapsed.Count > 0)
-            _collapsed.Clear();
-        else
-            foreach (var g in _groups) _collapsed.Add(g.Device);
-        ShowFolds();
     }
 
     private void ApplyFolds()

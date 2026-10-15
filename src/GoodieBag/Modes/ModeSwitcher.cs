@@ -31,8 +31,6 @@ internal sealed class ModeSwitcher
 
     public (Mode Mode, AutomationRule Trigger)? InCharge => _inCharge;
 
-    public string? InChargeLabel => _inCharge is { } c ? Label(c.Trigger) : null;
-
     private static string Label(AutomationRule t) => string.IsNullOrWhiteSpace(t.Name) ? AppWatcher.Normalize(t.App ?? "") : t.Name!;
 
     private IEnumerable<(Mode Mode, AutomationRule Trigger)> Programs() =>
@@ -107,7 +105,8 @@ internal sealed class ModeSwitcher
 
     private void OnStarted(string name)
     {
-        _startedAt[name] = Environment.TickCount64;
+        if (_app.Watcher.CatchingUp) _startedAt[name] = 0;
+        else _startedAt[name] = Environment.TickCount64;
         _ = EvaluateAsync();
     }
 
@@ -163,16 +162,17 @@ internal sealed class ModeSwitcher
         if (found is { } winner)
         {
             var mode = winner.Mode;
-            if (_pendingRestore is { } pending && Environment.TickCount64 - pending.At >= 120_000) _pendingRestore = null;
+            if (_pendingRestore is { } pending && Environment.TickCount64 - pending.At >= (long)ModeLauncher.StartTimeout.TotalMilliseconds) _pendingRestore = null;
             if (_inCharge is null && _pendingRestore is { } point && RestorePointFor(AppWatcher.Normalize(winner.Trigger.App!), point.Process, point.Helpers))
             {
                 _restoreTo = point.Mode;
                 _pendingRestore = null;
             }
+            string? before = _app.Modes.Current;
+            if (!string.Equals(before, mode.Name, StringComparison.OrdinalIgnoreCase)) _restoreTo ??= before;
             bool nothingToApply = string.Equals(_app.Modes.LastApplied, mode.Name, StringComparison.OrdinalIgnoreCase) && _app.Modes.AppliedFor is null;
             if (nothingToApply)
             {
-                _restoreTo ??= _app.Modes.LastApplied;
                 _inCharge = winner;
                 _appliedMode = _app.Modes.LastApplied;
                 Changed?.Invoke();
@@ -180,7 +180,6 @@ internal sealed class ModeSwitcher
             }
             if (!AllowSwitch())
                 return;
-            _restoreTo ??= _app.Modes.LastApplied;
             _inCharge = winner;
             _appliedMode = mode.Name;
             Changed?.Invoke();
@@ -190,11 +189,14 @@ internal sealed class ModeSwitcher
 
         bool userChangedIt = !string.Equals(_app.Modes.LastApplied, _appliedMode, StringComparison.OrdinalIgnoreCase);
         var restore = _app.Modes.Find(_restoreTo);
+        if (string.Equals(restore?.Name, _appliedMode, StringComparison.OrdinalIgnoreCase)) restore = null;
+        if (S.RestorePrevious && !userChangedIt && restore is not null && !AllowSwitch())
+            return;
         _inCharge = null;
         _appliedMode = null;
         _restoreTo = null;
         Changed?.Invoke();
-        if (S.RestorePrevious && !userChangedIt && restore is not null && AllowSwitch())
+        if (S.RestorePrevious && !userChangedIt && restore is not null)
             await _app.Modes.ApplyAsync(restore);
     }
 

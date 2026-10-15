@@ -24,7 +24,7 @@ public sealed class Sparkline : FrameworkElement
         _values.Add(value.Value);
         while (_values.Count > Capacity)
             _values.RemoveAt(0);
-        InvalidateVisual();
+        Repaint();
     }
 
     public void SetValues(IEnumerable<double?> values)
@@ -32,16 +32,37 @@ public sealed class Sparkline : FrameworkElement
         _values.Clear();
         foreach (var v in values.Where(v => v is not null).TakeLast(Capacity))
             _values.Add(v!.Value);
-        InvalidateVisual();
+        Repaint();
     }
 
     public void Clear()
     {
         _values.Clear();
-        InvalidateVisual();
+        Repaint();
+    }
+
+    private readonly DrawingGroup _drawing = new();
+
+    public Sparkline()
+    {
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true) InvalidateVisual(); };
+    }
+
+    private void Repaint()
+    {
+        if (!IsVisible) return;
+        if (ActualWidth <= 0 || ActualHeight <= 0) { InvalidateVisual(); return; }
+        using var dc = _drawing.Open();
+        Paint(dc);
     }
 
     protected override void OnRender(DrawingContext dc)
+    {
+        using (var inner = _drawing.Open()) Paint(inner);
+        dc.DrawDrawing(_drawing);
+    }
+
+    private void Paint(DrawingContext dc)
     {
         double w = ActualWidth, h = ActualHeight;
         if (_values.Count < 2 || w <= 0 || h <= 0)

@@ -79,7 +79,12 @@ internal sealed class SessionInfo
 
     public DriverEntry? Player => ByCar.TryGetValue(PlayerCarIdx, out var d) ? d : null;
 
-    public SessionEntry? Session(int number) => Sessions.FirstOrDefault(s => s.Number == number);
+    public SessionEntry? Session(int number)
+    {
+        for (int i = 0; i < Sessions.Count; i++)
+            if (Sessions[i].Number == number) return Sessions[i];
+        return null;
+    }
 
     public static SessionKind KindOf(string type)
     {

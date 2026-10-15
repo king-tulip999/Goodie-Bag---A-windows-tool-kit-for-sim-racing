@@ -77,14 +77,16 @@ internal sealed class IrsdkMemory : IDisposable
         return vars;
     }
 
+    private byte[] _info = Array.Empty<byte>();
+
     public string? SessionInfo()
     {
         int len = Int(16), offset = Int(20);
         if (len <= 0 || offset <= 0 || offset + (long)len > _view.Capacity) return null;
-        var raw = new byte[len];
-        _view.ReadArray(offset, raw, 0, len);
-        int end = Array.IndexOf(raw, (byte)0);
-        return Latin1.GetString(raw, 0, end < 0 ? len : end);
+        if (_info.Length < len) _info = new byte[len];
+        _view.ReadArray(offset, _info, 0, len);
+        int end = Array.IndexOf(_info, (byte)0, 0, len);
+        return Latin1.GetString(_info, 0, end < 0 ? len : end);
     }
 
     public int CopyLatest()

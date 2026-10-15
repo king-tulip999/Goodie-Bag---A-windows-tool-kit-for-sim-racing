@@ -140,8 +140,10 @@ internal sealed class UpdateService
                 var buffer = new byte[81920];
                 long done = 0;
                 int read;
-                while ((read = await source.ReadAsync(buffer)) > 0)
+                using var stall = new CancellationTokenSource(StallTimeout);
+                while ((read = await ReadOrStall(source, buffer, stall)) > 0)
                 {
+                    stall.CancelAfter(StallTimeout);
                     await file.WriteAsync(buffer.AsMemory(0, read));
                     done += read;
                     if (total > 0 && (int)(100.0 * done / total) != (int)(100 * Progress))
@@ -168,6 +170,14 @@ internal sealed class UpdateService
             Set(UpdateState.Available);
             _app.Notify("Update didn't install", ex.Message + " You can download it from the release page instead.", NoticeKind.Warning, important: true);
         }
+    }
+
+    private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(30);
+
+    private static async Task<int> ReadOrStall(Stream source, byte[] buffer, CancellationTokenSource stall)
+    {
+        try { return await source.ReadAsync(buffer, stall.Token); }
+        catch (OperationCanceledException) when (stall.IsCancellationRequested) { throw new IOException("The download stopped (no data for 30 seconds)."); }
     }
 
     internal static string[] SwapSteps(string current, string download)

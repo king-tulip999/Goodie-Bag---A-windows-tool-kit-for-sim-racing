@@ -13,9 +13,11 @@ internal static class GrrParts
 {
     public const string Anchor = "grr.dashboard";
 
-    public static string LongWhen(DateTime t) => $"{t:dddd d MMMM} · {t:t}";
+    public static string LongWhen(DateTime t) => LongDate(t) + " · " + Dates.Time(t);
 
-    public static string ShortWhen(DateTime t) => $"{t:ddd d MMM} · {t:t}";
+    public static string LongDate(DateTime t) => t.ToString("dddd", System.Globalization.CultureInfo.CurrentCulture) + " " + Dates.Short(t);
+
+    public static string ShortWhen(DateTime t) => t.ToString("ddd", System.Globalization.CultureInfo.CurrentCulture) + " " + Dates.Short(t) + " · " + Dates.Time(t);
 
     public static string Ago(DateTime t)
     {
@@ -43,14 +45,6 @@ internal static class GrrParts
         var t = new TextBlock { Text = text, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, top, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         if (brush is not null) t.Foreground = Ui.Res<Brush>(brush);
         return t;
-    }
-
-    public static StackPanel SectionLabel(string text, double top = 0)
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, top, 0, 8) };
-        row.Children.Add(new Border { Width = 10, Height = 3, Background = Ui.Res<Brush>("Accent"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), CornerRadius = ThemeManager.Round(1) });
-        row.Children.Add(Eyebrow(text));
-        return row;
     }
 
     public static TextBlock Caption(string text, double top = 0) =>
@@ -92,7 +86,7 @@ internal static class GrrParts
 
         clock = Clock(clockSize, live ? "SageDeep" : "Heading");
         clock.Margin = new Thickness(0, 8, 0, 0);
-        clock.Text = GrrLeagues.Countdown(race.Start - now);
+        clock.Text = GrrLeagues.Countdown(GrrLeagues.Until(race.Start, now));
         body.Children.Add(clock);
         body.Children.Add(new TextBlock { Text = race.Track, Style = Ui.Res<Style>("H2"), Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
 

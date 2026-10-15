@@ -352,7 +352,8 @@ internal static class Ui
             }
             if (d is null) return;
             e.Handled = true;
-            page.ScrollToVerticalOffset(page.VerticalOffset - e.Delta / 120.0 * SystemParameters.WheelScrollLines * 16);
+            double step = SystemParameters.WheelScrollLines < 0 ? page.ViewportHeight : SystemParameters.WheelScrollLines * 16;
+            page.ScrollToVerticalOffset(page.VerticalOffset - e.Delta / 120.0 * step);
         };
     }
 

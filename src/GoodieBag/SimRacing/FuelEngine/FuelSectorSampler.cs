@@ -36,34 +36,39 @@ public sealed class FuelSectorSampler
             return null;
         }
 
-        double[]? completed = null;
-        if (lapCompleted == _lap)
-        {
-            if (lapProgress < _previousProgress)
-            {
-                Start(lapCompleted, lapProgress, fuel, atLine: null);
-                return null;
-            }
-            Fill(_previousProgress, lapProgress, _previousFuel, fuel, lapProgress - _previousProgress);
-        }
-        else if (lapCompleted == _lap + 1)
-        {
-            double total = 1 - _previousProgress + lapProgress;
-            double atLine = total > 1e-9 ? _previousFuel + (fuel - _previousFuel) * (1 - _previousProgress) / total : fuel;
-            Fill(_previousProgress, 1, _previousFuel, atLine, 1 - _previousProgress);
-            _boundaries[SectorCount] = atLine;
-            if (_boundaries.All(b => b.HasValue)) completed = _boundaries.Select(b => b!.Value).ToArray();
-            Start(lapCompleted, lapProgress, fuel, atLine);
-            if (lapProgress > 0) Fill(0, lapProgress, atLine, fuel, lapProgress);
-            return completed;
-        }
-        else
+        if (lapCompleted < _lap || lapCompleted > _lap + 1)
         {
             Start(lapCompleted, lapProgress, fuel, atLine: null);
             return null;
         }
-        _previousProgress = lapProgress;
-        _previousFuel = fuel;
+        _lap = lapCompleted;
+
+        double delta = lapProgress - _previousProgress;
+        if (delta > 0.5)
+        {
+            Start(lapCompleted, lapProgress, fuel, atLine: null);
+            return null;
+        }
+        if (delta >= 0)
+        {
+            Fill(_previousProgress, lapProgress, _previousFuel, fuel, delta);
+            _previousProgress = lapProgress;
+            _previousFuel = fuel;
+            return null;
+        }
+        if (delta > -0.5)
+        {
+            Start(lapCompleted, lapProgress, fuel, atLine: null);
+            return null;
+        }
+
+        double total = 1 - _previousProgress + lapProgress;
+        double atLine = total > 1e-9 ? _previousFuel + (fuel - _previousFuel) * (1 - _previousProgress) / total : fuel;
+        Fill(_previousProgress, 1, _previousFuel, atLine, 1 - _previousProgress);
+        _boundaries[SectorCount] = atLine;
+        double[]? completed = _boundaries.All(b => b.HasValue) ? _boundaries.Select(b => b!.Value).ToArray() : null;
+        Start(lapCompleted, lapProgress, fuel, atLine);
+        if (lapProgress > 0) Fill(0, lapProgress, atLine, fuel, lapProgress);
         return completed;
     }
 

@@ -79,7 +79,7 @@ internal sealed class TelemetryService : IDisposable
             _simRunning = _watcher.IsRunning(SimProcess);
         }
         _stop = false;
-        _thread = new Thread(Run) { IsBackground = true, Name = "Telemetry", Priority = ThreadPriority.AboveNormal };
+        _thread = new Thread(Run) { IsBackground = true, Name = "Telemetry", Priority = ThreadPriority.Normal };
         _thread.Start();
     }
 

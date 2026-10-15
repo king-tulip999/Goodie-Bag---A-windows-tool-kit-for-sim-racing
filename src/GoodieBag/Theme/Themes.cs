@@ -100,6 +100,7 @@ internal static class Themes
     {
         if (_all.Any(t => t.Id == theme.Id)) return false;
         _all = _all.Append(theme).ToArray();
+        OverlayPresets.ClearCache();
         return true;
     }
 
@@ -107,6 +108,7 @@ internal static class Themes
     {
         if (BuiltIn.Any(t => t.Id == id)) return;
         _all = _all.Where(t => t.Id != id).ToArray();
+        OverlayPresets.ClearCache();
     }
 
     internal static void ResetRegistered() => _all = BuiltIn;
@@ -144,7 +146,7 @@ internal static class Themes
 
     public const string DefaultCustomName = "Custom";
 
-    public static ThemeSpec For(AppTheme id) => _all.FirstOrDefault(t => t.Id == id) ?? Light;
+    public static ThemeSpec For(AppTheme id) => _all.FirstOrDefault(t => t.Id == id) ?? Dark;
 
     public static bool Exists(AppTheme id) => _all.Any(t => t.Id == id);
 }

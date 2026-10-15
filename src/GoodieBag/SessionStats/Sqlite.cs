@@ -121,6 +121,7 @@ internal sealed class SqliteDb : IDisposable
 
     private IntPtr Prepare(string sql, object?[] args)
     {
+        if (_db == IntPtr.Zero) throw new ObjectDisposedException(nameof(SqliteDb));
         if (sqlite3_prepare16_v2(_db, sql, -1, out var stmt, IntPtr.Zero) != Ok) throw Error(sql);
         for (int i = 0; i < args.Length; i++)
         {

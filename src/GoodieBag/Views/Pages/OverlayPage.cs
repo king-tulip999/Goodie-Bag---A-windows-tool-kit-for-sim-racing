@@ -56,6 +56,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     public void OnShown()
     {
         _visible.IsChecked = O.Visible;
+        if (!ReferenceEquals(_built, L)) BuildSettings();
         RenderPreview();
         _app.Tick += RenderPreview;
         _app.OverlayChanged += OnOverlayChanged;
@@ -75,6 +76,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private void OnOverlayChanged()
     {
         _visible.IsChecked = O.Visible;
+        if (!ReferenceEquals(_built, L)) BuildSettings();
         RenderPreview();
     }
 
@@ -108,8 +110,11 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         _body.Children.Add(header);
     }
 
+    private OverlayLayout? _built;
+
     private void BuildSettings()
     {
+        _built = L;
         _left.Children.Clear();
         _right.Children.Clear();
         BuildLayouts();

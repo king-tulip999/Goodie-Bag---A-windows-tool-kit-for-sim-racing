@@ -11,7 +11,7 @@ internal sealed class SessionStatsService : IDisposable
     private const string Consumer = "Session stats";
     private readonly AppServices _app;
     private readonly SynchronizationContext _ui;
-    private readonly SessionRecorder _live = new("live", traces: true);
+    private readonly SessionRecorder _live;
     private readonly object _feedGate = new(), _queueGate = new();
     private Task _writes = Task.CompletedTask;
     private CancellationTokenSource? _importCancel;
@@ -26,6 +26,7 @@ internal sealed class SessionStatsService : IDisposable
         _app = app;
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
         _observer = OnFrame;
+        _live = new SessionRecorder("live", traces: true) { Tracing = () => Settings.TraceRecord };
         _live.LapDone += (row, laps) =>
         {
             var traces = _live.TakeTraces();
@@ -70,8 +71,6 @@ internal sealed class SessionStatsService : IDisposable
         return (store.LatestDriver(), Settings.DriverNumber ?? store.MostUsedNumber(Leagues ?? Array.Empty<int>()));
     }
 
-    public string? AutoNumber() => Store?.MostUsedNumber(Leagues ?? Array.Empty<int>());
-
     public Task<List<(StatDef Def, StatResult Result)>> EvaluateAsync(IEnumerable<StatDef> defs, StatQuery q)
     {
         var list = defs.ToList();
@@ -114,12 +113,16 @@ internal sealed class SessionStatsService : IDisposable
         lock (_feedGate)
             if (_live.Finish() is { } last) Queue(store => store.SaveLive(last.Row, last.Laps));
         _importCancel?.Cancel();
-        _import?.Join(3000);
-        _import = null;
+        bool stillImporting = _import is { } import && !import.Join(4000);
+        if (stillImporting) _disposeAfterImport = true;
+        else _import = null;
         try { _writes.Wait(5000); } catch (AggregateException) { }
-        Store?.Dispose();
+        if (!stillImporting)
+        {
+            Store?.Dispose();
+            Traces?.Dispose();
+        }
         Store = null;
-        Traces?.Dispose();
         Traces = null;
         Importing = null;
     }
@@ -203,11 +206,53 @@ internal sealed class SessionStatsService : IDisposable
         var cancel = _importCancel = new CancellationTokenSource();
         bool traces = Settings.TraceRecord && Traces is not null;
         var retention = Retention;
-        _import = new Thread(() => Import(folder, traces, retention, cancel.Token)) { IsBackground = true, Name = "Stats import", Priority = ThreadPriority.Lowest };
+        _import = new Thread(() => Import(folder, traces, retention, cancel.Token)) { IsBackground = true, Name = ImportThread, Priority = ThreadPriority.Lowest };
         _import.Start();
     }
 
     private void Import(string folder, bool traces, TraceRetention retention, CancellationToken cancel)
+    {
+        var store = Store;
+        var traceStore = Traces;
+        try { ImportCore(folder, traces, retention, cancel); }
+        finally
+        {
+            Foreground();
+            if (_disposeAfterImport)
+            {
+                _disposeAfterImport = false;
+                store?.Dispose();
+                traceStore?.Dispose();
+            }
+        }
+    }
+
+    private volatile bool _disposeAfterImport;
+
+    private const int BackgroundBegin = 0x10000, BackgroundEnd = 0x20000;
+
+    [ThreadStatic] private static bool _background;
+
+    private static void Foreground()
+    {
+        if (_background) SetThreadPriority(GetCurrentThread(), BackgroundEnd);
+        _background = false;
+    }
+
+    private static void Background()
+    {
+        if (!_background && Thread.CurrentThread.Name == ImportThread) _background = SetThreadPriority(GetCurrentThread(), BackgroundBegin);
+    }
+
+    private const string ImportThread = "Stats import";
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentThread();
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool SetThreadPriority(IntPtr thread, int priority);
+
+    private void ImportCore(string folder, bool traces, TraceRetention retention, CancellationToken cancel)
     {
         var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
@@ -220,9 +265,9 @@ internal sealed class SessionStatsService : IDisposable
         finally
         {
             SetProgress(null);
-            try { if (!cancel.IsCancellationRequested) Traces?.Prune(retention, DateTime.UtcNow, null); }
+            try { if (!cancel.IsCancellationRequested && Traces is { } prune) prune.Prune(retention, DateTime.UtcNow, null); }
             catch (Exception ex) { App.LogError(ex); }
-            if (_rescan && !cancel.IsCancellationRequested)
+            if (_rescan && _started)
             {
                 _rescan = false;
                 var self = Thread.CurrentThread;
@@ -258,13 +303,17 @@ internal sealed class SessionStatsService : IDisposable
             try
             {
                 string hash = StatsStore.HashOf(file.FullName);
-                if (!store.HashImported(hash) && !ImportFile(store, file.FullName, traces, cancel)) return;
-                store.MarkImported(file.Name, hash);
+                if (store.HashImported(hash)) store.MarkImported(file.Name, hash);
+                else if (!ImportFile(store, file.FullName, traces, cancel, (file.Name, hash))) return;
                 done.Add(file.Name);
                 if (!traces) NoteWithoutTraces(file.LastWriteTimeUtc);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
             }
             catch (Exception ex)
             {
@@ -347,14 +396,21 @@ internal sealed class SessionStatsService : IDisposable
         return null;
     }
 
-    internal static bool ImportFile(StatsStore store, string path, bool traces = false, CancellationToken cancel = default)
+    internal static bool ImportFile(StatsStore store, string path, bool traces = false, CancellationToken cancel = default, (string File, string Hash)? imported = null)
     {
         if (Read(path, traces, cancel) is not { } found) return false;
-        foreach (var (row, laps) in found) store.Save(row, laps);
+        store.SaveFile(found, imported);
         return true;
     }
 
     private static List<(SessionRow Row, List<LapRow> Laps)>? Read(string path, bool traces, CancellationToken cancel)
+    {
+        Background();
+        try { return ReadFile(path, traces, cancel); }
+        finally { Foreground(); }
+    }
+
+    private static List<(SessionRow Row, List<LapRow> Laps)>? ReadFile(string path, bool traces, CancellationToken cancel)
     {
         using var ibt = IbtFile.Open(path, out var error);
         if (ibt is null) throw new InvalidDataException(error ?? "not a telemetry file");

@@ -69,8 +69,8 @@ public static class FuelSectorProfileEstimator
     {
         if (values.Length == 0 || values.Any(v => !double.IsFinite(v) || v < -0.02)) return null;
         values = values.Select(v => Math.Max(0, v)).ToArray();
-        double median = Median(values);
-        double mad = Median(values.Select(v => Math.Abs(v - median)).ToArray());
+        double median = FuelConsumptionEstimator.Median(values);
+        double mad = FuelConsumptionEstimator.Median(values.Select(v => Math.Abs(v - median)).ToArray());
         double threshold = options.OutlierThreshold * Math.Max(options.MinimumRobustScaleLiters, mad * MadToSigma);
         var accepted = new List<(double Value, double Weight)>();
         for (int i = 0; i < values.Length; i++)
@@ -109,12 +109,5 @@ public static class FuelSectorProfileEstimator
         if (!double.IsFinite(options.WeightHalfLifeLaps) || options.WeightHalfLifeLaps <= 0) throw new ArgumentOutOfRangeException(nameof(options.WeightHalfLifeLaps));
         if (!double.IsFinite(options.MinimumRobustScaleLiters) || options.MinimumRobustScaleLiters <= 0) throw new ArgumentOutOfRangeException(nameof(options.MinimumRobustScaleLiters));
         if (!double.IsFinite(options.OutlierThreshold) || options.OutlierThreshold < 1) throw new ArgumentOutOfRangeException(nameof(options.OutlierThreshold));
-    }
-
-    private static double Median(double[] values)
-    {
-        Array.Sort(values);
-        int mid = values.Length / 2;
-        return values.Length % 2 == 0 ? (values[mid - 1] + values[mid]) / 2 : values[mid];
     }
 }

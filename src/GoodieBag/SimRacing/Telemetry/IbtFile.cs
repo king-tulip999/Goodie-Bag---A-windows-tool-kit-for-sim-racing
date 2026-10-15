@@ -67,11 +67,16 @@ internal sealed class IbtFile : IDisposable
                 StartSessionTime = BitConverter.ToDouble(header, HeaderSize + 8),
             };
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is EndOfStreamException or ArgumentException)
         {
             stream?.Dispose();
             error = ex.Message;
             return null;
+        }
+        catch
+        {
+            stream?.Dispose();
+            throw;
         }
     }
 
@@ -99,7 +104,7 @@ internal sealed class IbtFile : IDisposable
         while (read < length)
         {
             int n = stream.Read(bytes, read, length - read);
-            if (n <= 0) throw new IOException("the file ends early");
+            if (n <= 0) throw new EndOfStreamException("the file ends early");
             read += n;
         }
         return bytes;

@@ -71,7 +71,7 @@ internal sealed class WindowRulesEditor : StackPanel
         head.Children.Add(program);
         var pick = Ui.IconButton("I.AppWindow", "Pick from the programs running now", () => { });
         pick.Margin = new Thickness(8, 0, 4, 0);
-        pick.Click += (_, _) => ShowPrograms(pick, all: false, p => program.Text = p);
+        pick.Click += (_, _) => ShowPrograms(pick, all: false, p => { if (p.Length > 0) program.Text = p; else { program.Focus(); program.SelectAll(); } });
         head.Children.Add(pick);
         var all = Ui.IconButton("I.Search", "All processes (also ones without a window)", () => { });
         all.Click += (_, _) => ShowPrograms(all, all: true, p => program.Text = p);

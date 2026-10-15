@@ -78,26 +78,35 @@ internal sealed class StatsStore : IDisposable
 
     internal static DateTime FromUnix(long seconds) => DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime;
 
-    public void Save(SessionRow row, IReadOnlyList<LapRow> laps)
+    public void Save(SessionRow row, IReadOnlyList<LapRow> laps) => SaveFile(new[] { (row, laps) }, null);
+
+    public void SaveFile(IReadOnlyList<(SessionRow Row, List<LapRow> Laps)> sessions, (string File, string Hash)? imported) =>
+        SaveFile(sessions.Select(x => (x.Row, (IReadOnlyList<LapRow>)x.Laps)).ToList(), imported);
+
+    private void SaveFile(IReadOnlyList<(SessionRow Row, IReadOnlyList<LapRow> Laps)> sessions, (string File, string Hash)? imported)
     {
-        long? replaced = null;
-        (long Id, int? Offset)? attach = null;
+        var replaced = new List<long>();
+        var attach = new List<(long Id, SessionRow Row, int? Offset)>();
         _db.Transaction(() =>
         {
-            if (Match(row) is { } existing)
+            foreach (var (row, laps) in sessions)
             {
-                if (existing.Source == "live" && row.Source != "live") { attach = (existing.Id, null); return; }
-                if (existing.Source == row.Source) { attach = (existing.Id, Merge(existing.Id, row, laps)); return; }
-                _db.Run("DELETE FROM sessions WHERE id = ?1", existing.Id);
-                replaced = existing.Id;
+                if (Match(row) is { } existing)
+                {
+                    if (existing.Source == "live" && row.Source != "live") { attach.Add((existing.Id, row, null)); continue; }
+                    if (existing.Source == row.Source) { attach.Add((existing.Id, row, Merge(existing.Id, row, laps))); continue; }
+                    _db.Run("DELETE FROM sessions WHERE id = ?1", existing.Id);
+                    replaced.Add(existing.Id);
+                }
+                row.Id = InsertRow(row);
+                InsertLaps(row.Id, laps, 0);
+                LinkRatings(row);
+                attach.Add((row.Id, row, 0));
             }
-            row.Id = InsertRow(row);
-            InsertLaps(row.Id, laps, 0);
-            LinkRatings(row);
-            attach = (row.Id, 0);
+            if (imported is { } f) MarkImported(f.File, f.Hash);
         });
-        if (replaced is { } old) Traces?.DeleteSession(old);
-        if (attach is { } a) AttachTraces(a.Id, row, a.Offset);
+        foreach (var old in replaced) Traces?.DeleteSession(old);
+        foreach (var a in attach) AttachTraces(a.Id, a.Row, a.Offset);
     }
 
     public bool FillMissing(SessionRow r)

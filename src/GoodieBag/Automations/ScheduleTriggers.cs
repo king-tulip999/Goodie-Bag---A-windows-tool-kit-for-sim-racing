@@ -16,7 +16,8 @@ internal static class ScheduleTriggers
     }
 
     public static string Signature(AutomationRule r) =>
-        $"{r.Trigger}|{r.AtMinute}|{string.Join(",", r.Days)}|{r.Date:o}|{r.PluginTrigger}";
+        $"{r.Trigger}|{r.AtMinute}|{string.Join(",", r.Days)}|{r.Date:o}|{r.PluginTrigger}" +
+        (r.Trigger == TriggerType.Plugin ? $"|{r.Threshold}|{(r.Extra is null ? "" : string.Join(",", r.Extra.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => e.Key + "=" + e.Value.GetRawText())))}" : "");
 
     public static DateTime? NextDue(AutomationRule rule, DateTime from)
     {

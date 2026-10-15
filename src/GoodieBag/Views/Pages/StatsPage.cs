@@ -94,15 +94,20 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
         if (Stats is { } stats) stats.Changed -= OnStatsChanged;
     }
 
+    private long _importRefreshed;
+
     private void OnStatsChanged()
     {
-        if (_analysisLaps is not null && _shown && Stats is { } stats)
+        if (_shown && Stats is { } stats && (_analysisLaps is not null || stats.Importing is not null && Environment.TickCount64 - _importRefreshed < ImportRefreshMs))
         {
             _progress.Content = StatsUi.Progress(stats);
             return;
         }
+        _importRefreshed = Environment.TickCount64;
         Refresh();
     }
+
+    private const long ImportRefreshMs = 15_000;
 
     private void Changed()
     {

@@ -147,12 +147,19 @@ internal sealed class IracingControllerSection : StackPanel
         return n == 0 || await _window.Confirm("Discard changes?", $"{n} change{(n == 1 ? " hasn't" : "s haven't")} been written to iRacing yet.", "Discard", danger: true);
     }
 
+    private long _simCheckedAt = long.MinValue / 2;
+
     private void UpdatePending()
     {
         _draftsChanged?.Invoke();
         var pending = Session?.Pending.ToList() ?? new List<Setting>();
         _pending.Visibility = pending.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         if (pending.Count == 0) return;
+        if (Environment.TickCount64 - _simCheckedAt > 2000)
+        {
+            _simRunning = _ws.SimRunning;
+            _simCheckedAt = Environment.TickCount64;
+        }
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -227,6 +234,7 @@ internal sealed class IracingControllerSection : StackPanel
             }
         }
         if (Session is null) return;
+        var layoutKeys = Session.Pending.Select(s => s.Section + "|" + s.Key).ToList();
         try
         {
             var result = Session.Write(_ws.Store);
@@ -239,6 +247,7 @@ internal sealed class IracingControllerSection : StackPanel
             return;
         }
         _ws.Load();
+        if (Session is { } written) { LayoutGuard.Adopt(written, S.SavedLayout, layoutKeys); _app.Save(); }
         Build();
     }
 
@@ -1178,16 +1187,24 @@ internal sealed class IracingControllerSection : StackPanel
             _app.Notify("Close iRacing first", "It rewrites its settings when it closes, which would undo the restore.", NoticeKind.Warning, important: true);
             return;
         }
+        var layoutBefore = Session is { } current ? LayoutGuard.Capture(current) : new Dictionary<string, string>();
         try
         {
             var before = _ws.Store.Restore(b, _ws.Folder);
             _app.Notify($"Backup #{b.Number} restored", $"Backup #{before.Number} has the files from before.", NoticeKind.Success);
+            _ws.Load();
+            if (Session is { } restored)
+            {
+                var changed = LayoutGuard.Capture(restored).Where(kv => !layoutBefore.TryGetValue(kv.Key, out var was) || !Setting.SameValue(was, kv.Value)).Select(kv => kv.Key).ToList();
+                LayoutGuard.Adopt(restored, S.SavedLayout, changed);
+                _app.Save();
+            }
         }
         catch (Exception ex)
         {
             _app.Notify("Couldn't restore", ex.Message, NoticeKind.Warning, important: true);
+            _ws.Load();
         }
-        _ws.Load();
         Build();
     }
 

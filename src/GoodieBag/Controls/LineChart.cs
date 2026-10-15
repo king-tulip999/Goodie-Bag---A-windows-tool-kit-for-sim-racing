@@ -29,7 +29,7 @@ public sealed class LineChart : FrameworkElement
     public string StartLabel { get; set; } = "2 min ago";
     public string EndLabel { get; set; } = "now";
 
-    public void Refresh() => InvalidateVisual();
+    public void Refresh() => Repaint();
 
     private Pen? _gridPen;
     private (double Min, double Max)[] _ranges = Array.Empty<(double, double)>();
@@ -65,7 +65,28 @@ public sealed class LineChart : FrameworkElement
         return _seriesPens[s] = (pen, fill);
     }
 
+    private readonly DrawingGroup _drawing = new();
+
+    public LineChart()
+    {
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true) InvalidateVisual(); };
+    }
+
+    private void Repaint()
+    {
+        if (!IsVisible) return;
+        if (ActualWidth <= 0 || ActualHeight <= 0) { InvalidateVisual(); return; }
+        using var dc = _drawing.Open();
+        Paint(dc);
+    }
+
     protected override void OnRender(DrawingContext dc)
+    {
+        using (var inner = _drawing.Open()) Paint(inner);
+        dc.DrawDrawing(_drawing);
+    }
+
+    private void Paint(DrawingContext dc)
     {
         double w = ActualWidth, h = ActualHeight;
         dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, w, h));

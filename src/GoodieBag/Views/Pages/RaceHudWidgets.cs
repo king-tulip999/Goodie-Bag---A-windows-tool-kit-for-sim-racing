@@ -436,7 +436,6 @@ internal sealed class RaceHudWidgets
         stack.Children.Add(row);
     }
 
-    private EditorSection? _previewSection;
     private TextBlock? _previewHint;
 
     private Border Editor(HudWidgetConfig w)
@@ -457,7 +456,6 @@ internal sealed class RaceHudWidgets
         stack.Children.Add(new TextBlock { Text = def.Description, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 16, 6) });
 
         var preview = Section("preview", "Preview", true, fixedOpen: true);
-        _previewSection = preview;
         _previewHint = new TextBlock { Text = "Drag any item to move it, live", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), Visibility = Visibility.Collapsed };
         preview.Line!.Children.Add(_previewHint);
         Add(preview, PreviewBlock(w));

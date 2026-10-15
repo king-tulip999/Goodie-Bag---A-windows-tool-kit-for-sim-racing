@@ -26,6 +26,8 @@ public static class GrrLeagues
 
     public static string Name(string id) => Find(id)?.Name ?? id;
 
+    public static TimeSpan Until(DateTime start, DateTime now) => start.ToUniversalTime() - now.ToUniversalTime();
+
     public static string Countdown(TimeSpan left) =>
         left <= TimeSpan.Zero ? "Racing now"
         : left.TotalDays >= 1 ? $"{(int)left.TotalDays}d {left.Hours:00}h {left.Minutes:00}m"

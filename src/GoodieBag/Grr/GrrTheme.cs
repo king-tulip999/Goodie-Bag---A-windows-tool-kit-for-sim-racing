@@ -51,7 +51,7 @@ internal static class GrrTheme
         UiFont = "./Assets/Fonts/#Barlow, Segoe UI Variable Text, Segoe UI",
         MonoFont = "./Assets/Fonts/#Barlow Condensed, Bahnschrift SemiCondensed, Arial Narrow, Segoe UI",
         HeadingWeight = FontWeights.ExtraBold, HeadingStyle = FontStyles.Italic, MonoLabels = true,
-        Radius = 0.25, ChipRadius = 2,
+        Radius = 0, ChipRadius = 0,
         CardEdge = new Thickness(1), LogoEdge = new Thickness(0),
         RacingDecor = true, FocusOffset = 2,
         CornerGlow = true, StepsClimb = false, Track = TrackShape.Corner,

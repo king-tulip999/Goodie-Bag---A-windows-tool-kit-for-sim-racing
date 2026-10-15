@@ -45,7 +45,7 @@ public partial class App : Application
             return;
         }
         PerfProbe.Mark("onstartup");
-        System.Windows.Media.Animation.Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(System.Windows.Media.Animation.Timeline), new FrameworkPropertyMetadata { DefaultValue = 60 });
+        System.Windows.Media.Animation.Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(System.Windows.Media.Animation.Timeline), new FrameworkPropertyMetadata { DefaultValue = PcClass.FrameRate });
         Controls.ClickGuard.Install();
         Views.Motion.InstallPress();
         Views.Ui.InstallDropDownWheel();
@@ -67,7 +67,7 @@ public partial class App : Application
             Shutdown();
             return;
         }
-        bool tookOverFans = !demo && FanService.StopRunning(TimeSpan.FromSeconds(6));
+        bool tookOverFans = !demo && FanService.StopRunning(TimeSpan.FromSeconds(12));
 
         DispatcherUnhandledException += OnUiException;
         Dispatcher.BeginInvoke(new Action(() => _starting = false));
@@ -188,13 +188,14 @@ public partial class App : Application
         var lines = new List<string>
         {
             "@echo off",
+            ScriptCodePage,
             ":wait",
             $"{SystemTool("tasklist")} /fi \"PID eq {pid}\" | {SystemTool("find")} \"{pid}\" >nul && ({WaitASecond} & goto wait)",
         };
         if (steps is not null) lines.AddRange(steps);
         lines.Add($"start \"\" {BatchPath(exe)} {args}");
         lines.Add("del \"%~f0\"");
-        File.WriteAllText(script, string.Join("\r\n", lines));
+        WriteScript(script, lines);
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c \".\\{Path.GetFileName(script)}\"")
         {
             WorkingDirectory = Path.GetDirectoryName(script)!,
@@ -202,6 +203,11 @@ public partial class App : Application
         })?.Dispose();
         Quit();
     }
+
+    internal const string ScriptCodePage = "chcp 65001 >nul";
+
+    internal static void WriteScript(string path, IEnumerable<string> lines) =>
+        File.WriteAllText(path, string.Join("\r\n", lines), new System.Text.UTF8Encoding(false));
 
     internal static string ScratchFolder(string exe)
     {
@@ -298,12 +304,5 @@ public partial class App : Application
     {
         int i = Array.FindIndex(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
         return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-    }
-
-    private static IEnumerable<string> ArgValues(string[] args, string name)
-    {
-        for (int i = 0; i + 1 < args.Length; i++)
-            if (args[i].Equals(name, StringComparison.OrdinalIgnoreCase))
-                yield return args[i + 1];
     }
 }

@@ -35,13 +35,34 @@ internal sealed class IracingKeybinds
     {
         _settings.KeybindProfile = profile;
         File = null;
+        Forget();
         Refresh();
     }
 
+    private long _refreshedAt = long.MinValue;
+    private ControlsFile? _describedFile;
+    private IReadOnlyList<IracingAction> _described = Array.Empty<IracingAction>();
+
     public IReadOnlyList<IracingAction> Actions()
     {
-        Refresh();
-        return File is null ? Array.Empty<IracingAction>() : Describe(File);
+        long now = Environment.TickCount64;
+        if (now - _refreshedAt > 2000)
+        {
+            Refresh();
+            _refreshedAt = now;
+        }
+        if (!ReferenceEquals(File, _describedFile))
+        {
+            _described = File is null ? Array.Empty<IracingAction>() : Describe(File);
+            _describedFile = File;
+        }
+        return _described;
+    }
+
+    private void Forget()
+    {
+        _refreshedAt = long.MinValue;
+        _describedFile = null;
     }
 
     public static string? Resolve(string? picked, IReadOnlyList<string> profiles, string? defaultProfile) =>
@@ -132,6 +153,7 @@ internal sealed class IracingKeybinds
 
     public void Set(string name, IracingKey? key)
     {
+        Forget();
         if (!_demo && AppWatcher.IsRunningNow(IracingPaths.SimProcess))
             throw new InvalidOperationException("Close iRacing first: it saves its own controls when it exits, which would undo this change.");
         string? shown = FilePath;

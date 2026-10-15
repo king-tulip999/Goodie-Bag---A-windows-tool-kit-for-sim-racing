@@ -20,9 +20,6 @@ internal static class Find
         }
     }
 
-    public static IEnumerable<DependencyObject> Everywhere() =>
-        PresentationSource.CurrentSources.OfType<HwndSource>().Select(s => s.RootVisual).OfType<Visual>().SelectMany(Descendants);
-
     public static IEnumerable<T> Shown<T>(DependencyObject root) where T : FrameworkElement =>
         Descendants(root).OfType<T>().Where(e => e.IsVisible && e.ActualWidth > 0);
 

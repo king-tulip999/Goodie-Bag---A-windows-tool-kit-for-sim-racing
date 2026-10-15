@@ -22,6 +22,8 @@ internal sealed class GrrDashboardSection : StackPanel
     private readonly Button _refresh;
     private readonly ContentControl _content = new() { Focusable = false };
     private TextBlock? _heroClock;
+    private bool _heroLive;
+    private string? _freshnessText;
     private GrrRace? _heroRace;
     private string _shape = "";
     private bool _held, _allStandings, _fullSeason, _allResults;
@@ -92,13 +94,13 @@ internal sealed class GrrDashboardSection : StackPanel
         var now = DateTime.Now;
         if (_heroRace is { } race && _heroClock is not null)
         {
-            if (race.Start + GrrService.RaceLength <= now || race.Start <= now && !_heroClock.Text.StartsWith("Racing", StringComparison.OrdinalIgnoreCase))
+            if (race.Start + GrrService.RaceLength <= now || race.Start <= now && !_heroLive)
             {
                 _shape = "";
                 Build();
                 return;
             }
-            _heroClock.Text = GrrLeagues.Countdown(race.Start - now);
+            if (!_heroLive) _heroClock.Text = GrrLeagues.Countdown(GrrLeagues.Until(race.Start, now));
         }
         UpdateFreshness();
     }
@@ -240,7 +242,7 @@ internal sealed class GrrDashboardSection : StackPanel
             tip = problem;
         }
         else text = grr.FetchedAt(League!) is { } t ? $"Updated {GrrParts.Ago(t)}" : "Not read yet";
-        if (!_freshness.Text.Equals(text, StringComparison.OrdinalIgnoreCase)) _freshness.Text = text;
+        if (_freshnessText != text) { _freshnessText = text; _freshness.Text = text; }
         _freshness.Foreground = Ui.Res<Brush>(brush);
         _freshness.FontSize = 12.5;
         _freshness.ToolTip = tip;
@@ -303,6 +305,7 @@ internal sealed class GrrDashboardSection : StackPanel
             body.Children.Add(GrrParts.Hero(race, data, now, out var clock, 38));
             _heroClock = clock;
             _heroRace = race;
+            _heroLive = race.Start <= now;
         }
         if (data.Schedule is { Count: > 0 } s)
         {
@@ -565,7 +568,7 @@ internal sealed class GrrDashboardSection : StackPanel
         foreach (var e in events)
         {
             var r = data.RoundFor(e);
-            picker.Items.Add(new ComboBoxItem { Content = $"{(r?.Number is { } n ? $"Round {n} · " : "")}{e.Track}", Tag = Key(e), IsSelected = e == ev, ToolTip = $"{e.Date:dddd d MMMM}" });
+            picker.Items.Add(new ComboBoxItem { Content = $"{(r?.Number is { } n ? $"Round {n} · " : "")}{e.Track}", Tag = Key(e), IsSelected = e == ev, ToolTip = GrrParts.LongDate(e.Date) });
         }
         picker.SelectionChanged += (_, _) =>
         {
@@ -598,7 +601,7 @@ internal sealed class GrrDashboardSection : StackPanel
         }
         var session = sessions[si];
         var winners = round?.Winners.Count > 1 ? " · " + string.Join(" · ", round.Winners.Select(w => $"{w.Class} {w.Driver}")) : "";
-        body.Children.Add(GrrParts.Caption($"{ev.Date:dddd d MMMM}{(round?.Format is { } f ? $" · {char.ToUpperInvariant(f[0])}{f[1..]}" : "")}{(round?.Pole is { } pole ? $" · pole {pole}" : "")}", 0));
+        body.Children.Add(GrrParts.Caption($"{GrrParts.LongDate(ev.Date)}{(round?.Format is { } f ? $" · {char.ToUpperInvariant(f[0])}{f[1..]}" : "")}{(round?.Pole is { } pole ? $" · pole {pole}" : "")}", 0));
         if (winners.Length > 0) body.Children.Add(GrrParts.Caption("Winners" + winners, 2));
 
         int level = Level(CardWidth - 40);
@@ -686,7 +689,7 @@ internal sealed class GrrDashboardSection : StackPanel
             else if (i == next)
             {
                 var c = GrrParts.Clock(13, "AccentText");
-                c.Text = GrrLeagues.ShortCountdown(r.Start - now);
+                c.Text = GrrLeagues.ShortCountdown(GrrLeagues.Until(r.Start, now));
                 right = c;
             }
             list.Children.Add(strip
