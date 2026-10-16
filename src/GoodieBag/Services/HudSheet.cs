@@ -55,19 +55,14 @@ internal static class HudSheet
                 Save(def, def.W, def.H, Path.Combine(dir, def.Kind + ".png"));
                 Save(def, def.MinW, def.MinH, Path.Combine(dir, def.Kind + "-min.png"));
             }
-            var map = HudCatalog.Find("trackmap")!;
-            Save(map, map.W, map.H, Path.Combine(dir, "trackmap-follow.png"), 1, ("follow", "true"));
-            Save(map, map.W, map.H, Path.Combine(dir, "trackmap-rotate.png"), 1, ("rotate", "true"));
-            Save(map, map.W, map.H, Path.Combine(dir, "trackmap-follow-rotate.png"), 1, ("follow", "true"), ("rotate", "true"));
-            var weather = HudCatalog.Find("weather")!;
-            Save(weather, weather.W, weather.H, Path.Combine(dir, "weather-ring.png"), 1, ("windStyle", "ring"));
             var relative = HudCatalog.Find("relative")!;
             Save(relative, 460, relative.H, Path.Combine(dir, "relative-strips.png"), 1, ("header", "lap,best,delta,sof,air,track"), ("footer", "wind,humidity,wetness,cars,csof"));
             var flags = race.Frame.Flags;
-            foreach (var (file, where, flag) in new[] { ("relative-flag-top", "top", RaceFlags.Yellow), ("relative-flag-side", "side", RaceFlags.Checkered), ("relative-flag-blue", "top", RaceFlags.Blue), ("relative-flag-meatball", "side", RaceFlags.Repair) })
+            foreach (var (file, where, flag) in new[] { ("relative-flag-top", "top", RaceFlags.Yellow), ("relative-flag-checkered", "top", RaceFlags.Checkered), ("relative-flag-blue", "top", RaceFlags.Blue), ("relative-flag-meatball", "top", RaceFlags.Repair) })
             {
                 race.Frame.Flags = flag;
-                Save(relative, relative.W + (where == "side" ? 24 : 6), relative.H + (where == "top" ? 27 : 6), Path.Combine(dir, file + ".png"), 1, ("flagBanner", where));
+                var (fl, ft, fr, fb) = HudFlags.Room(where);
+                Save(relative, relative.W + fl + fr, relative.H + ft + fb, Path.Combine(dir, file + ".png"), 1, ("flagBanner", where), ("header", "lap,best,delta,sof,air,track"), ("footer", "wind,humidity,wetness,cars,csof"));
             }
             race.Frame.Flags = flags;
 

@@ -17,7 +17,8 @@ internal sealed class SetupManagerSection : StackPanel
     private readonly AppServices _app;
     private readonly MainWindow _window;
     private readonly SetupStore _store;
-    private readonly Border _intro = new(), _inbox = new(), _filters = new(), _classes = new(), _explorer = new();
+    private readonly Border _intro = new(), _inbox = new(), _filters = new(), _classes = new(), _explorer = new(), _fuel = new();
+    private string? _fuelCar;
     private readonly StackPanel _carList = new();
     private readonly ScrollViewer _carScroll;
     private readonly TextBox _search;
@@ -82,6 +83,10 @@ internal sealed class SetupManagerSection : StackPanel
         Grid.SetColumn(_explorer, 2);
         split.Children.Add(_explorer);
         stack.Children.Add(split);
+
+        _fuel.Margin = new Thickness(0, 12, 0, 0);
+        Ui.Anchor(_fuel, "simracing.setups.fuel");
+        Children.Add(_fuel);
 
         Focusable = true;
         FocusVisualStyle = null;
@@ -716,6 +721,7 @@ internal sealed class SetupManagerSection : StackPanel
         _crumbs.Clear();
         double offset = _treeScroll?.VerticalOffset ?? 0;
         var car = _loaded ? SelectedCar(VisibleCars()) : null;
+        RenderFuel(car);
         if (car is null)
         {
             _explorer.Child = Pane(Empty(!_loaded ? "Reading your setups…" : _store.Cars.Count == 0 ? "Nothing to show yet" : "Pick a car", "Its setups and folders show here."));
@@ -845,6 +851,14 @@ internal sealed class SetupManagerSection : StackPanel
 
         _explorer.Child = stack;
         _treeScroll.ScrollToVerticalOffset(offset);
+    }
+
+    private void RenderFuel(SetupCar? car)
+    {
+        string? key = car is null ? null : car.Dir + "|" + car.Name;
+        if (key == _fuelCar) return;
+        _fuelCar = key;
+        _fuel.Child = car is null ? null : FuelCalculator.Card(car.Dir, car.Name, S.Fuel, Save);
     }
 
     private static FrameworkElement Spaced(Button button, string? tip)

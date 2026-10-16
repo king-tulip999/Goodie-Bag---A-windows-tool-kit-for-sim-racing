@@ -169,12 +169,12 @@ internal abstract class HudWidget
     protected static bool DrawWaiting(HudPainter p, HudView v, string? title = null)
     {
         if (v.Frame.Status == SimStatus.Connected) return false;
-        p.Panel();
-        var r = p.Bounds.Inflated(-10 * p.Density, -8 * p.Density);
-        if (title is not null)
+        RectangleF r;
+        if (title is not null && p.Bounds.Height >= p.PillHeight + p.PieceGap + 40 * p.Density) r = p.Header(title);
+        else
         {
-            p.Text(title, p.Small, p.P.Faint, new RectangleF(r.X, r.Y, r.Width, p.LineHeight(p.Small) + 2), HAlign.Left, VAlign.Top);
-            r = new RectangleF(r.X, r.Y + p.LineHeight(p.Small) + 2, r.Width, r.Height - p.LineHeight(p.Small) - 2);
+            p.Panel();
+            r = p.Bounds.Inflated(-10 * p.Density, -8 * p.Density);
         }
         string text = v.Frame.Status == SimStatus.Waiting ? "Waiting for a session" : "Waiting for iRacing";
         p.Text(text, p.Body, p.P.Muted, r, HAlign.Center, VAlign.Center);

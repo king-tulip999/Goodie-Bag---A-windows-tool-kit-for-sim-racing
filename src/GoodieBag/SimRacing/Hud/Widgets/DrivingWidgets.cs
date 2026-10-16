@@ -1,5 +1,4 @@
 using System.Drawing;
-using GoodieBag.Config;
 using GoodieBag.SimRacing.FuelEngine;
 using GoodieBag.SimRacing.Race;
 using GoodieBag.SimRacing.Telemetry;
@@ -50,7 +49,7 @@ internal sealed class TimingWidget : HudWidget
         var deltaBlock = wide ? top.Left(top.Width * 0.42f, out var times) : top.Top(Math.Min(top.Height, p.LineHeight(p.Huge) + p.LineHeight(p.Label) + 10), out times);
         if (!wide) times = rest.Top(Math.Min(rest.Height, p.BoxedStatHeight()), out rest);
         var tint = d is null ? p.Raised(0.05) : HudPalette.Mix(p.Raised(0.05), d < 0 ? p.P.Good : p.P.Danger, 0.22);
-        p.Fill(deltaBlock, p.Solid(tint, 130), p.CornerRadius(4));
+        if (d is null) p.Fill(deltaBlock, p.Solid(tint, 130)); else p.Soft(deltaBlock, d < 0 ? p.P.Good : p.P.Danger, 75);
         var inner = deltaBlock.Inflated(-8 * p.Density, -4 * p.Density);
         var label = inner.Top(p.LineHeight(p.Label) + 1, out var number);
         p.Text(p.LabelText(refLabel), p.Label, p.LabelColor, label, HAlign.Left, VAlign.Top);
@@ -129,7 +128,10 @@ internal sealed class TimingWidget : HudWidget
                 bool pb = best[i] is null || st <= best[i]!.Value + 0.0005;
                 bool faster = previous is not null && i < previous.Count && previous[i] is { } ps && st < ps;
                 fill = pb ? p.P.Fastest : faster ? p.P.Good : p.P.Warn;
-                text = HudPalette.On(fill);
+                text = p.P.Heading;
+                p.Chip(box, fill);
+                if (label.Length > 0) p.Text(label, p.SmallBold, text, box, HAlign.Center, VAlign.Center);
+                continue;
             }
             else if (i == tracker.CurrentSector) { fill = HudPalette.Alpha(p.P.AccentSoft, 200); text = p.P.AccentText; }
             p.Fill(box, fill, p.CornerRadius(3));
@@ -192,26 +194,29 @@ internal sealed class FuelWidget : HudWidget
         if (DrawWaiting(p, v, "Fuel")) return;
         var f = v.Frame;
         var r = v.Race;
-        p.Panel();
         var plan = r.Fuel;
         var estimate = r.FuelData.Estimate;
         int measured = estimate.UsedLapCount;
-        float pad = 7 * p.Density;
-        RectangleF area;
+        float pad = 7 * p.Density, partPad = 6 * p.Density, gap = partPad * 2 + p.PieceGap;
+        var bounds = p.Bounds;
+        float top = 0;
         if (v.Options.Bool("title"))
         {
             string sub = measured == 0 ? "measuring…" : $"{measured} clean lap{(measured == 1 ? "" : "s")} · {Confidence(estimate.Reliability)}";
-            area = p.Header("Fuel", r.FuelData.EnergyUnits ? "" : sub);
+            p.TitleBar(new RectangleF(0, 0, bounds.Width, p.PillHeight), "Fuel", r.FuelData.EnergyUnits ? "" : sub);
+            top = p.PillHeight + p.PieceGap;
         }
-        else area = new RectangleF(pad, pad, p.Bounds.Width - pad * 2, p.Bounds.Height - pad * 2);
         if (f.Fuel is not { } level || r.FuelData.EnergyUnits)
         {
-            p.Text(r.FuelData.EnergyUnits ? "This car reports energy (kWh), not fuel" : "This car doesn't report fuel", p.Small, p.P.Faint, area, HAlign.Center, VAlign.Center);
+            var body = new RectangleF(0, top, bounds.Width, bounds.Height - top);
+            p.Panel(body);
+            p.Text(r.FuelData.EnergyUnits ? "This car reports energy (kWh), not fuel" : "This car doesn't report fuel", p.Small, p.P.Faint, body.Inflated(-pad, -pad), HAlign.Center, VAlign.Center);
             return;
         }
         double lowLaps = r.Alerts.Threshold("fuel.low");
         var status = StatusOf(plan, lowLaps);
-        float gap = 6 * p.Density;
+        Color? edge = v.Options.Bool("statusEdge") ? HudPalette.Alpha(status switch { Status.Danger => p.P.Danger, Status.Caution => p.P.Warn, _ => p.P.Good }, 170) : null;
+        var area = new RectangleF(pad, top + partPad, bounds.Width - pad * 2, bounds.Height - top - partPad * 2);
         var parts = v.Options.Columns("parts");
         for (int i = 0; i < parts.Count; i++)
         {
@@ -225,6 +230,9 @@ internal sealed class FuelWidget : HudWidget
             float h = i == parts.Count - 1 && parts[i] is "grid" or "table" ? area.Height : Math.Min(area.Height, Natural(parts[i], p, v));
             var box = area.Top(h, out area);
             p.Item("parts", parts[i], box);
+            var piece = new RectangleF(0, box.Y - partPad, bounds.Width, box.Height + partPad * 2);
+            p.Panel(piece);
+            if (edge is { } c) p.Outline(piece.Inflated(-1, -1), c, 2, p.CornerRadius(4));
             switch (parts[i])
             {
                 case "header": HeaderLine(p, v, box, level, plan); break;
@@ -235,12 +243,6 @@ internal sealed class FuelWidget : HudWidget
                 case "table": TablePart(p, v, box, level, plan); break;
             }
             area = new RectangleF(area.X, area.Y + gap, area.Width, Math.Max(0, area.Height - gap));
-        }
-        if (v.Options.Bool("statusEdge"))
-        {
-            var c = status switch { Status.Danger => p.P.Danger, Status.Caution => p.P.Warn, _ => p.P.Good };
-            var b = p.Bounds;
-            p.Outline(new RectangleF(b.X + 1, b.Y + 1, b.Width - 2, b.Height - 2), HudPalette.Alpha(c, 170), 2, p.CornerRadius(4));
         }
     }
 

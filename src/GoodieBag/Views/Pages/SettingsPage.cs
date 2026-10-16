@@ -324,6 +324,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         Ui.Anchor(custom, "settings.customcolors");
         look.Children.Add(custom);
         look.Children.Add(Ui.Divider());
+        AddTopography(look);
         var setup = Ui.LabeledButton("I.Sliders", "Open setup", () => _window.ShowSetup(firstRun: false));
         setup.ToolTip = "The welcome screen: theme, plugins, start with Windows and update checks in one place";
         var setupRow = Ui.SettingRow("Setup screen", null, setup);
@@ -348,12 +349,62 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         look.Children.Add(Ui.Divider());
 
         string animationNote = SystemParameters.ClientAreaAnimation
-            ? "Page transitions, card entrances, spinning fan icons. Nothing animates while Goodie Bag is in the tray." + (PcClass.Weak ? " This PC gets a lighter version: 30 frames a second, no blur." : "")
+            ? "Page transitions, card entrances, spinning fan icons. Nothing animates while Goodie Bag is in the tray." + (PcClass.Weak ? " This PC gets a lighter version: 30 frames a second, no blur, a still topography background." : "")
             : "Windows' “Animation effects” setting is off, so animations stay off.";
-        var anim = Ui.Switch(U.Animations, v => { U.Animations = v; _app.Save(); NavIcon.RefreshAll(); });
+        var anim = Ui.Switch(U.Animations, v => { U.Animations = v; _app.Save(); NavIcon.RefreshAll(); _window.Topography.Refresh(); });
         anim.IsEnabled = SystemParameters.ClientAreaAnimation;
         look.Children.Add(Ui.SettingRow("Animations", animationNote, anim));
     }
+
+    private FrameworkElement? _topoRow;
+
+    private void AddTopography(StackPanel look)
+    {
+        var topo = _window.Topography;
+        string? note = !TopographyEffect.Available
+            ? "Needs hardware graphics (pixel shader 3.0); the track drawing shows instead."
+            : _app.Light ? "Paused while iRacing runs (lighter drawing); the track drawing shows meanwhile."
+            : PcClass.Weak ? "Holds still on this PC (lighter drawing): moving, it redraws the whole window 30 times a second." : null;
+        var row = Ui.SettingRow("Topography background", note, Ui.Switch(U.TopoBackground, v =>
+        {
+            U.TopoBackground = v;
+            _app.Save();
+            topo.Refresh();
+            Build();
+        }));
+        Ui.Anchor(row, "settings.topo");
+        _topoRow = row;
+        look.Children.Add(row);
+        look.Children.Add(Ui.Divider());
+
+        var reset = Ui.LabeledButton("I.Undo", "Reset to theme", () =>
+        {
+            U.TopoColor = null;
+            _app.Save();
+            topo.Refresh();
+            Build();
+        });
+        reset.IsEnabled = U.TopoColor is not null;
+        var field = ColorField.Build(() => Hex(topo.LineColor), hex =>
+        {
+            U.TopoColor = hex;
+            _app.Save();
+            topo.Refresh();
+            reset.IsEnabled = true;
+            return true;
+        }, "The contour lines' color");
+        var controls = new StackPanel { Orientation = Orientation.Horizontal };
+        controls.Children.Add(field);
+        controls.Children.Add(new Border { Width = 8 });
+        controls.Children.Add(reset);
+        controls.IsEnabled = U.TopoBackground;
+        var colorRow = Ui.SettingRow("Line color", null, controls);
+        Ui.Anchor(colorRow, "settings.topocolor");
+        look.Children.Add(colorRow);
+        look.Children.Add(Ui.Divider());
+    }
+
+    private static string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
 
     private TextBlock? _rateNote;
 
@@ -908,6 +959,21 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
     public IEnumerable<(string Name, Func<Task> Enter)> ScreenshotStates()
     {
+        yield return ("topography", () =>
+        {
+            U.TopoBackground = true;
+            _window.Topography.Refresh();
+            Build();
+            _topoRow?.BringIntoView();
+            return Task.CompletedTask;
+        });
+        yield return ("topography-off", () =>
+        {
+            U.TopoBackground = false;
+            _window.Topography.Refresh();
+            Build();
+            return Task.CompletedTask;
+        });
         yield return ("keybinds", () =>
         {
             if (_keybinds is { Expanded: false }) _keybinds.Toggle();

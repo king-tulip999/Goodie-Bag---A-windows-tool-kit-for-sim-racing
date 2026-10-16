@@ -10,7 +10,7 @@ internal sealed class SimRacingPlugin : Plugin
 {
     public override string Id => PluginIds.SimRacing;
     public override string Name => "Sim Racing Tools";
-    public override string Description => "iRacing Overlay (in-game widgets from iRacing's live telemetry: Relative, Standings, fuel, delta, track map, alerts and more), FOV and triple-screen calculator, iRacing Controller for iRacing's settings (plain-language editing, health check, backups), the iRacing Setup Manager for car setups and launchers for Trading Paints and Garage 61.";
+    public override string Description => "iRacing Overlay (in-game widgets from iRacing's live telemetry: Relative, Standings, fuel, delta, alerts and more), FOV and triple-screen calculator, iRacing Controller for iRacing's settings (plain-language editing, health check, backups), the iRacing Setup Manager for car setups and launchers for Trading Paints and Garage 61.";
     public override string Icon => "I.FormulaWheel";
     public override (string Soft, string Deep) Colors => ("CoralSoft", "CoralDeep");
     public override int Order => 10;

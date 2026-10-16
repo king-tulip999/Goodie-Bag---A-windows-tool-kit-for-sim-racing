@@ -20,6 +20,10 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <!-- optional topography background over the whole window (Views/TopographyLayer.cs, Theme/Shaders/Topography.hlsl);
+                 replaces the track drawing while on -->
+            <Rectangle x:Name="TopoLayer" Grid.RowSpan="2" IsHitTestVisible="False" Visibility="Collapsed" Fill="{DynamicResource Bg}" />
+
             <!-- title bar (draggable; buttons opt out of the caption area) -->
             <DockPanel x:Name="TitleBar" Grid.Row="0" LastChildFill="False">
                 <!-- left: the brand (just the mark, not a button) and, while a newer version is available, the update badge.

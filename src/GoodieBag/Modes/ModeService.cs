@@ -1,7 +1,6 @@
 using System.IO;
 using GoodieBag.Audio;
 using GoodieBag.Config;
-using GoodieBag.Display;
 using GoodieBag.Plugins;
 using GoodieBag.Processes;
 using GoodieBag.Services;

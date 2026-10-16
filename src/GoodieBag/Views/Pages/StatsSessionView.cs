@@ -9,14 +9,16 @@ using GoodieBag.Theme;
 
 namespace GoodieBag.Views.Pages;
 
-internal sealed record SessionDetail(SessionSummary Session, List<LapRow> Laps, HashSet<int> Traced, double? AllTimeBest, SessionConditions? Conditions = null);
+internal sealed record SessionDetail(SessionSummary Session, List<LapRow> Laps, HashSet<int> Traced, double? AllTimeBest, SessionConditions? Conditions = null,
+    double? Tank = null, IReadOnlyList<TyreReading>? Tyres = null);
 
 internal static class StatsSessionView
 {
     public const int MaxLaps = 4;
 
-    public static FrameworkElement Build(SessionDetail d, bool imperial, string noTraceReason, HashSet<int> ticked, Action<IReadOnlyList<int>> analyze)
+    public static FrameworkElement Build(SessionDetail d, Config.SessionStatsSettings settings, string noTraceReason, HashSet<int> ticked, Action<IReadOnlyList<int>> analyze)
     {
+        bool imperial = settings.Imperial;
         var s = d.Session;
         var page = new StackPanel();
 
@@ -83,33 +85,70 @@ internal static class StatsSessionView
         Sync();
         analyzeButton.ToolTip = d.Traced.Count == 0 ? noTraceReason : $"Compare up to {MaxLaps} ticked laps: line, inputs and time gained or lost";
 
-        var table = new Grid();
         var cols = new List<(string Head, bool Right)> { ("", false), ("Lap", true), ("Time", true), ("Δ best", true) };
         for (int k = 0; k < sectors; k++) cols.Add(($"S{k + 1}", true));
         cols.Add(("Fuel", true));
         cols.Add(("Top speed", true));
         cols.Add(("", false));
-        foreach (var _ in cols) table.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        table.ColumnDefinitions[^1].Width = new GridLength(1, GridUnitType.Star);
-        table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        for (int c = 0; c < cols.Count; c++) Cell(table, 0, c, new TextBlock { Text = cols[c].Head, Style = Ui.Res<Style>("Eyebrow") }, cols[c].Right);
+        bool hasTyres = d.Tyres is { Count: > 0 };
+        Grid NewGrid()
+        {
+            var g = new Grid();
+            for (int c = 0; c < cols.Count; c++) g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "LapCol" + c });
+            if (!hasTyres) g.ColumnDefinitions[^1] = new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) };
+            return g;
+        }
+        FrameworkElement Section(Grid left, FrameworkElement? right)
+        {
+            if (!hasTyres) return left;
+            var g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 380 });
+            left.VerticalAlignment = VerticalAlignment.Top;
+            g.Children.Add(left);
+            if (right is not null)
+            {
+                right.Margin = new Thickness(Ui.PanelSpacing, 8, 0, 8);
+                right.MaxWidth = 620;
+                right.HorizontalAlignment = HorizontalAlignment.Left;
+                Grid.SetColumn(right, 1);
+                g.Children.Add(right);
+            }
+            return g;
+        }
+        var lapsTable = new StackPanel();
+        Grid.SetIsSharedSizeScope(lapsTable, true);
+        var headRow = NewGrid();
+        headRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int c = 0; c < cols.Count; c++) Cell(headRow, 0, c, new TextBlock { Text = cols[c].Head, Style = Ui.Res<Style>("Eyebrow") }, cols[c].Right);
+        lapsTable.Children.Add(Section(headRow, null));
         var (pbSoft, pbDeep) = StatsUi.Hue("Gold");
         var (sageSoft, sageDeep) = StatsUi.Hue("Sage");
         var (coralSoft, coralDeep) = StatsUi.Hue("Coral");
-        int row = 0;
-        int? shownRun = null;
         bool runs = laps.Select(l => l.Run ?? 1).Distinct().Count() > 1 || laps.Any(l => l.Setup is not null);
+        var groups = new List<List<LapRow>>();
         foreach (var lap in laps)
         {
-            if (runs && (lap.Run ?? 1) != shownRun)
+            if (groups.Count == 0 || (runs && (lap.Run ?? 1) != (groups[^1][0].Run ?? 1))) groups.Add(new List<LapRow>());
+            groups[^1].Add(lap);
+        }
+        var tyresOf = new Dictionary<int, List<TyreReading>>();
+        foreach (var reading in d.Tyres ?? Array.Empty<TyreReading>())
+        {
+            int gi = runs ? groups.FindLastIndex(g => (g[0].Run ?? 1) == reading.Run) : 0;
+            if (gi < 0) gi = groups.Count - 1;
+            if (!tyresOf.TryGetValue(gi, out var list)) tyresOf[gi] = list = new List<TyreReading>();
+            list.Add(reading);
+        }
+        for (int gi = 0; gi < groups.Count; gi++)
+        {
+            var inRun = groups[gi];
+            if (runs)
             {
-                shownRun = lap.Run ?? 1;
-                row++;
-                table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                var inRun = laps.Where(l => (l.Run ?? 1) == shownRun).ToList();
-                var parts = new List<string> { $"Run {shownRun}", $"{inRun.Count} lap{(inRun.Count == 1 ? "" : "s")}" };
+                int run = inRun[0].Run ?? 1;
+                var parts = new List<string> { $"Run {run}", $"{inRun.Count} lap{(inRun.Count == 1 ? "" : "s")}" };
                 if (inRun.Where(l => l.Clean).ToList() is { Count: > 0 } clean) parts.Add($"average clean {StatFormat.LapTime(clean.Average(l => l.Time))}");
-                var header = new DockPanel { Margin = new Thickness(8, row == 1 ? 10 : 18, 0, 6) };
+                var header = new DockPanel { Margin = new Thickness(10, 7, 10, 7) };
                 var setup = inRun.Select(l => l.Setup).LastOrDefault(x => x is not null);
                 if (setup is not null)
                 {
@@ -121,87 +160,90 @@ internal static class StatsSessionView
                 header.Children.Add(new TextBlock { Text = string.Join(" · ", parts), Style = Ui.Res<Style>("H3"), VerticalAlignment = VerticalAlignment.Center });
                 var runBand = new Tile { Child = header, CornerRadius = ThemeManager.Round(4) };
                 runBand.SetResourceReference(Border.BackgroundProperty, "SurfaceAlt");
-                runBand.Margin = new Thickness(0, row == 1 ? 6 : 14, 0, 2);
-                header.Margin = new Thickness(10, 7, 10, 7);
-                Grid.SetRow(runBand, row);
-                Grid.SetColumnSpan(runBand, cols.Count);
-                table.Children.Add(runBand);
+                runBand.Margin = new Thickness(0, gi == 0 ? 6 : 14, 0, 2);
+                lapsTable.Children.Add(runBand);
             }
-            row++;
-            table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            bool isBest = lap.Clean && lap.Time == sessionBest;
-            bool isPb = lap.Clean && d.AllTimeBest is { } pb && Math.Abs(lap.Time - pb) < 0.0005;
-            var band = new Border();
-            if (isPb) band.SetResourceReference(Border.BackgroundProperty, pbSoft);
-            else if (isBest) band.SetResourceReference(Border.BackgroundProperty, "AccentSoft");
-            var rule = new Border { BorderThickness = new Thickness(0, 1, 0, 0), Child = band };
-            rule.SetResourceReference(Border.BorderBrushProperty, "Line");
-            Grid.SetRow(rule, row);
-            Grid.SetColumnSpan(rule, cols.Count);
-            table.Children.Add(rule);
+            var table = NewGrid();
+            int row = -1;
+            foreach (var lap in inRun)
+            {
+                row++;
+                table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                bool isBest = lap.Clean && lap.Time == sessionBest;
+                bool isPb = lap.Clean && d.AllTimeBest is { } pb && Math.Abs(lap.Time - pb) < 0.0005;
+                var band = new Border();
+                if (isPb) band.SetResourceReference(Border.BackgroundProperty, pbSoft);
+                else if (isBest) band.SetResourceReference(Border.BackgroundProperty, "AccentSoft");
+                var rule = new Border { BorderThickness = new Thickness(0, 1, 0, 0), Child = band };
+                rule.SetResourceReference(Border.BorderBrushProperty, "Line");
+                Grid.SetRow(rule, row);
+                Grid.SetColumnSpan(rule, cols.Count);
+                table.Children.Add(rule);
 
-            int c = 0;
-            bool traced = d.Traced.Contains(lap.Lap);
-            var tick = new CheckBox { IsChecked = ticked.Contains(lap.Lap), IsEnabled = traced, VerticalAlignment = VerticalAlignment.Center };
-            var tickHost = new Border { Child = tick, Background = Brushes.Transparent, ToolTip = traced ? "Tick to analyze (up to 4)" : "No trace for this lap (not in a telemetry file, or not kept)" };
-            int number = lap.Lap;
-            tick.Click += (_, _) =>
-            {
-                if (tick.IsChecked == true)
+                int c = 0;
+                bool traced = d.Traced.Contains(lap.Lap);
+                var tick = new CheckBox { IsChecked = ticked.Contains(lap.Lap), IsEnabled = traced, VerticalAlignment = VerticalAlignment.Center };
+                var tickHost = new Border { Child = tick, Background = Brushes.Transparent, ToolTip = traced ? "Tick to analyze (up to 4)" : "No trace for this lap (not in a telemetry file, or not kept)" };
+                int number = lap.Lap;
+                tick.Click += (_, _) =>
                 {
-                    if (ticked.Count >= MaxLaps) { tick.IsChecked = false; return; }
-                    ticked.Add(number);
-                }
-                else ticked.Remove(number);
-                Sync();
-            };
-            Cell(table, row, c++, tickHost);
-            Cell(table, row, c++, Caption(lap.Lap.ToString(CultureInfo.CurrentCulture)), true);
-            var time = StatsSessions.Time(lap.Time, isPb ? pbDeep : isBest ? "AccentText" : lap.Clean ? "Heading" : "TextMuted");
-            if (isPb) time.ToolTip = "Your all-time best in this car at this track";
-            Cell(table, row, c++, time, true);
-            Cell(table, row, c++, Caption(sessionBest is { } sb && !isBest ? StatFormat.Value(StatKind.LapDelta, lap.Time - sb, false) : "–"), true);
-            for (int k = 0; k < sectors; k++)
-            {
-                double? sector = lap.Sectors is { } list && list.Count == sectors ? list[k] : null;
-                var text = Caption(sector is { } v ? v.ToString("0.000", CultureInfo.CurrentCulture) : "–");
-                System.Windows.Documents.Typography.SetNumeralAlignment(text, FontNumeralAlignment.Tabular);
-                if (sector is { } sv && lap.Clean)
+                    if (tick.IsChecked == true)
+                    {
+                        if (ticked.Count >= MaxLaps) { tick.IsChecked = false; return; }
+                        ticked.Add(number);
+                    }
+                    else ticked.Remove(number);
+                    Sync();
+                };
+                Cell(table, row, c++, tickHost);
+                Cell(table, row, c++, Caption(lap.Lap.ToString(CultureInfo.CurrentCulture)), true);
+                var time = StatsSessions.Time(lap.Time, isPb ? pbDeep : isBest ? "AccentText" : lap.Clean ? "Heading" : "TextMuted");
+                if (isPb) time.ToolTip = "Your all-time best in this car at this track";
+                Cell(table, row, c++, time, true);
+                Cell(table, row, c++, Caption(sessionBest is { } sb && !isBest ? StatFormat.Value(StatKind.LapDelta, lap.Time - sb, false) : "–"), true);
+                for (int k = 0; k < sectors; k++)
                 {
-                    if (bestSector[k] is { } bk && Math.Abs(sv - bk) < 0.0005)
+                    double? sector = lap.Sectors is { } list && list.Count == sectors ? list[k] : null;
+                    var text = Caption(sector is { } v ? v.ToString("0.000", CultureInfo.CurrentCulture) : "–");
+                    System.Windows.Documents.Typography.SetNumeralAlignment(text, FontNumeralAlignment.Tabular);
+                    if (sector is { } sv && lap.Clean)
                     {
-                        text.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
-                        text.FontWeight = FontWeights.SemiBold;
-                        text.ToolTip = "Best sector of the session";
+                        if (bestSector[k] is { } bk && Math.Abs(sv - bk) < 0.0005)
+                        {
+                            text.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
+                            text.FontWeight = FontWeights.SemiBold;
+                            text.ToolTip = "Best sector of the session";
+                        }
+                        else if (bestSoFar[k] is not { } before || sv < before)
+                        {
+                            text.SetResourceReference(TextBlock.ForegroundProperty, sageDeep);
+                            text.ToolTip = "Faster than this sector on every clean lap before it";
+                        }
+                        if (bestSoFar[k] is not { } prev || sv < prev) bestSoFar[k] = sv;
                     }
-                    else if (bestSoFar[k] is not { } before || sv < before)
-                    {
-                        text.SetResourceReference(TextBlock.ForegroundProperty, sageDeep);
-                        text.ToolTip = "Faster than this sector on every clean lap before it";
-                    }
-                    if (bestSoFar[k] is not { } prev || sv < prev) bestSoFar[k] = sv;
+                    Cell(table, row, c++, text, true);
                 }
-                Cell(table, row, c++, text, true);
+                Cell(table, row, c++, Caption(lap.FuelUsed is { } fuel ? StatFormat.Value(StatKind.Fuel, fuel, imperial) : "–"), true);
+                Cell(table, row, c++, Caption(lap.TopSpeed is { } top ? StatFormat.Value(StatKind.Speed, top, imperial) : "–"), true);
+                var flag = new WrapPanel();
+                void Tag(string text, string soft, string deep, string? tip = null)
+                {
+                    var chip = Ui.Chip(text, soft, deep);
+                    chip.Margin = new Thickness(0, 0, 4, 0);
+                    chip.ToolTip = tip;
+                    flag.Children.Add(chip);
+                }
+                if (isPb) Tag("All-time best", pbSoft, pbDeep, "Your all-time best in this car at this track");
+                else if (isBest) Tag("Fastest", "AccentSoft", "AccentText", "The session's fastest clean lap");
+                if (lap.Flags.HasFlag(LapFlags.Incident)) Tag(lap.Incidents is > 0 and var n ? $"Incident {n}x" : "Incident", coralSoft, coralDeep);
+                if (lap.Flags.HasFlag(LapFlags.OffTrack)) Tag("Off track", coralSoft, coralDeep);
+                if (lap.Flags.HasFlag(LapFlags.PitLane)) Tag(lap.Flags.HasFlag(LapFlags.Refuel) ? "Pit stop" : "Pit lane", "SurfaceAlt", "TextMuted", "Out lap, in lap or a stop: never a clean lap");
+                if (!lap.Clean && lap.Flags == LapFlags.None) Tag("Not clean", coralSoft, coralDeep, "An incident, the pit lane or off track on this lap");
+                Cell(table, row, c, flag);
             }
-            Cell(table, row, c++, Caption(lap.FuelUsed is { } fuel ? StatFormat.Value(StatKind.Fuel, fuel, imperial) : "–"), true);
-            Cell(table, row, c++, Caption(lap.TopSpeed is { } top ? StatFormat.Value(StatKind.Speed, top, imperial) : "–"), true);
-            var flag = new WrapPanel();
-            void Tag(string text, string soft, string deep, string? tip = null)
-            {
-                var chip = Ui.Chip(text, soft, deep);
-                chip.Margin = new Thickness(0, 0, 4, 0);
-                chip.ToolTip = tip;
-                flag.Children.Add(chip);
-            }
-            if (isPb) Tag("All-time best", pbSoft, pbDeep, "Your all-time best in this car at this track");
-            else if (isBest) Tag("Fastest", "AccentSoft", "AccentText", "The session's fastest clean lap");
-            if (lap.Flags.HasFlag(LapFlags.Incident)) Tag(lap.Incidents is > 0 and var n ? $"Incident {n}x" : "Incident", coralSoft, coralDeep);
-            if (lap.Flags.HasFlag(LapFlags.OffTrack)) Tag("Off track", coralSoft, coralDeep);
-            if (lap.Flags.HasFlag(LapFlags.PitLane)) Tag(lap.Flags.HasFlag(LapFlags.Refuel) ? "Pit stop" : "Pit lane", "SurfaceAlt", "TextMuted", "Out lap, in lap or a stop: never a clean lap");
-            if (!lap.Clean && lap.Flags == LapFlags.None) Tag("Not clean", coralSoft, coralDeep, "An incident, the pit lane or off track on this lap");
-            Cell(table, row, c, flag);
+            lapsTable.Children.Add(Section(table, tyresOf.TryGetValue(gi, out var readings) ? StatsSessionTools.TyreRun(readings) : null));
         }
-        var tableScroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = table };
+        var tableScroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = lapsTable };
         FrameworkElement lapsBody = tableScroll;
         if (d.Traced.Count == 0)
         {
@@ -213,43 +255,14 @@ internal static class StatsSessionView
         }
         var lapsCard = StatsSections.Section("Laps", "I.Flag", d.Traced.Count > 0 ? $"{d.Traced.Count} with a trace" : "No lap traces", analyzeButton, lapsBody);
         lapsCard.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
-        lapsCard.VerticalAlignment = VerticalAlignment.Top;
-        chartCard.VerticalAlignment = VerticalAlignment.Top;
-        page.Children.Add(SideBySide(lapsCard, chartCard));
-        return page;
-    }
-
-    private const double ChartMinWidth = 420;
-
-    private static Grid SideBySide(FrameworkElement laps, FrameworkElement chart)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
-        row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        row.Children.Add(laps);
-        row.Children.Add(chart);
-        bool? wide = null;
-        var follow = Sticky.Install(chart, row, () => wide == true, Ui.PanelSpacing);
-        void Arrange(double width)
+        page.Children.Add(chartCard);
+        page.Children.Add(lapsCard);
+        if (StatsSessionTools.Sectors(laps) is { } sectorCard)
         {
-            laps.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            bool two = width - laps.DesiredSize.Width - Ui.PanelSpacing >= ChartMinWidth;
-            if (wide == two) return;
-            wide = two;
-            row.ColumnDefinitions[0].Width = two ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
-            row.ColumnDefinitions[1].Width = two ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-            Grid.SetRow(chart, 0);
-            Grid.SetColumn(chart, two ? 1 : 0);
-            Grid.SetRow(laps, two ? 0 : 1);
-            chart.Margin = new Thickness(two ? Ui.PanelSpacing : 0, 0, 0, Ui.PanelSpacing);
-            follow();
+            sectorCard.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
+            page.Children.Add(sectorCard);
         }
-        Arrange(0);
-        row.SizeChanged += (_, e) => { if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1) Arrange(e.NewSize.Width); };
-        row.Loaded += (_, _) => Arrange(row.ActualWidth);
-        return row;
+        return page;
     }
 
     private static string? SimTime(string text) =>

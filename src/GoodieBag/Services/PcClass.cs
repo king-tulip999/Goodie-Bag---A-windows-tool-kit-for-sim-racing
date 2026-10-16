@@ -24,5 +24,5 @@ internal static class PcClass
 
     public static string Describe() =>
         $"render tier {RenderCapability.Tier >> 16}, {Environment.ProcessorCount} logical processors, {GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1 << 20)} MB memory: " +
-        (Weak ? "lighter drawing (30 fps animations, no blur)" : "full drawing");
+        (Weak ? "lighter drawing (30 fps animations, no blur, still topography)" : "full drawing");
 }

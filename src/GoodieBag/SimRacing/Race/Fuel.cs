@@ -110,3 +110,52 @@ internal static class FuelPlanner
         _ => SafetyMode.Balanced,
     };
 }
+
+internal sealed record StintPlan(int RaceLaps, int TotalLaps, int LapsPerStint, int FinalStintLaps, int Stops, double TotalFuel, double FuelPerStint, double FinalStintFuel);
+
+internal static class StintCalculator
+{
+    public static int RaceLaps(double minutes, double lapTime)
+    {
+        if (!(minutes > 0) || !(lapTime > 0) || !double.IsFinite(minutes) || !double.IsFinite(lapTime)) return 0;
+        var estimate = RaceDistanceEstimator.EstimateTimedRace(new TimedRaceInput
+        {
+            SessionTimeRemainingSeconds = minutes * 60,
+            LeaderLapProgress = 0,
+            LeaderLapTimeSeconds = lapTime,
+            PlayerLapProgress = 0,
+            PlayerLapTimeSeconds = lapTime,
+        });
+        return (int)Math.Round(estimate.LapsRemainingExpected);
+    }
+
+    public static StintPlan? TimedPlan(double minutes, double lapTime, double perLap, double? tank, bool extraLap, bool formationLap, double pitLossSeconds)
+    {
+        double loss = double.IsFinite(pitLossSeconds) ? Math.Max(0, pitLossSeconds) : 0;
+        StintPlan? previous = null;
+        for (int stops = 0; stops <= 60; stops++)
+        {
+            var plan = Plan(RaceLaps(minutes - stops * loss / 60, lapTime), perLap, tank, extraLap, formationLap);
+            if (plan is null) return previous;
+            if (plan.Stops == stops) return plan;
+            if (plan.Stops < stops) return previous ?? plan;
+            previous = plan;
+        }
+        return previous;
+    }
+
+    public static StintPlan? Plan(int raceLaps, double perLap, double? tank, bool extraLap, bool formationLap)
+    {
+        if (raceLaps <= 0 || !(perLap > 0.001) || !double.IsFinite(perLap)) return null;
+        int total = raceLaps + (extraLap ? 1 : 0);
+        int needLaps = total + (formationLap ? 1 : 0);
+        int stintLaps = tank is > 0 and var t ? (int)Math.Floor(t / perLap + 1e-9) : needLaps;
+        if (stintLaps <= 0) return null;
+        int stops = (int)Math.Ceiling((double)needLaps / stintLaps - 1e-9) - 1;
+        int finalLaps = needLaps - stops * stintLaps;
+        double Up(double litres) => FuelStrategyCalculator.RoundUpToIncrement(litres, FuelMath.AddStep);
+        int perStint = Math.Min(stintLaps, needLaps);
+        return new StintPlan(raceLaps, total, Math.Min(perStint, total), stops == 0 ? total : finalLaps, stops,
+            Up(needLaps * perLap), Up(perStint * perLap), Up(finalLaps * perLap));
+    }
+}

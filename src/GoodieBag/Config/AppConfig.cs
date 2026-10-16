@@ -193,6 +193,10 @@ public sealed class UiSettings
 
     public bool Animations { get; set; } = true;
 
+    public bool TopoBackground { get; set; } = true;
+
+    public string? TopoColor { get; set; }
+
     public bool TrayTipShown { get; set; }
 
     public bool HidePawnIoPrompt { get; set; }

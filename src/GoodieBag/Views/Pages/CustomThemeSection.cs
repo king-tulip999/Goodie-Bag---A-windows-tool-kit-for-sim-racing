@@ -8,7 +8,6 @@ using GoodieBag.Config;
 using GoodieBag.Controls;
 using GoodieBag.Services;
 using GoodieBag.Theme;
-using WinForms = System.Windows.Forms;
 
 namespace GoodieBag.Views.Pages;
 

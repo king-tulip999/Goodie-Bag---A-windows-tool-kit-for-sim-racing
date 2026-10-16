@@ -50,7 +50,7 @@ internal sealed class StatsStore : IDisposable
         AddColumns("laps", "sectors TEXT", "flags INTEGER", "lap_incidents INTEGER", "run INTEGER", "setup TEXT");
         AddColumns("sessions", "air_temp REAL", "wind_kph REAL", "wind_dir REAL", "humidity REAL", "pressure REAL", "air_density REAL", "skies INTEGER",
             "rain_max REAL", "wetness_max INTEGER", "rubber TEXT NOT NULL DEFAULT ''", "sim_start TEXT NOT NULL DEFAULT ''",
-            "track_id INTEGER", "track_name TEXT NOT NULL DEFAULT ''");
+            "track_id INTEGER", "track_name TEXT NOT NULL DEFAULT ''", "tank_l REAL", "tyre_wear TEXT");
     }
 
     private void AddColumns(string table, params string[] columns)
@@ -118,10 +118,11 @@ internal sealed class StatsStore : IDisposable
             pressure = COALESCE(pressure, ?6), air_density = COALESCE(air_density, ?7), skies = COALESCE(skies, ?8),
             rain_max = COALESCE(rain_max, ?9), wetness_max = COALESCE(wetness_max, ?10),
             rubber = CASE WHEN rubber = '' THEN ?11 ELSE rubber END, sim_start = CASE WHEN sim_start = '' THEN ?12 ELSE sim_start END,
-            track_id = COALESCE(track_id, ?13), track_name = CASE WHEN track_name = '' THEN ?14 ELSE track_name END
+            track_id = COALESCE(track_id, ?13), track_name = CASE WHEN track_name = '' THEN ?14 ELSE track_name END,
+            tank_l = COALESCE(tank_l, ?15), tyre_wear = COALESCE(tyre_wear, ?16)
             WHERE id = ?1
             """, existing.Id, r.AirTemp, r.WindKph, r.WindDir, r.Humidity, r.Pressure, r.AirDensity, r.Skies, r.RainMax, r.WetnessMax,
-            r.Rubber, r.SimStart, r.TrackId, r.TrackName);
+            r.Rubber, r.SimStart, r.TrackId, r.TrackName, r.TankL, TyreWear.Text(r.Tyres));
         return true;
     }
 
@@ -187,7 +188,7 @@ internal sealed class StatsStore : IDisposable
                 InsertLaps(target.Id, newLaps, null);
                 return;
             }
-            MergeTotals(target.Id, Since(row, target.Last), row.Laps - (target.Last?.Laps ?? 0));
+            MergeTotals(target.Id, Since(row, target.Last), row.Laps - (target.Last?.Laps ?? 0), target.LapOffset);
             target.Last = row.Copy();
             InsertLaps(target.Id, newLaps, target.LapOffset, target.RunOffset);
         });
@@ -209,6 +210,7 @@ internal sealed class StatsStore : IDisposable
         d.DistanceKm -= last.DistanceKm;
         d.PitStops -= last.PitStops;
         d.PitS -= last.PitS;
+        d.Tyres = now.Tyres?.Skip(last.Tyres?.Count ?? 0).ToList();
         return d;
     }
 
@@ -228,7 +230,8 @@ internal sealed class StatsStore : IDisposable
         dynamic_weather, category, laps, incidents, start_pos, finish_pos, finished, ir_start, sr_start, ir_delta, sr_delta,
         league_id, subsession, session_num, season_id, race_week, official, drive_s, garage_s, longest_stint_s, rain_s, night_s,
         track_temp_min, track_temp_max, distance_km, pit_stops, pit_s, source,
-        air_temp, wind_kph, wind_dir, humidity, pressure, air_density, skies, rain_max, wetness_max, rubber, sim_start, track_id, track_name
+        air_temp, wind_kph, wind_dir, humidity, pressure, air_density, skies, rain_max, wetness_max, rubber, sim_start, track_id, track_name,
+        tank_l, tyre_wear
         """;
 
     private static object?[] Values(SessionRow r) => new object?[]
@@ -238,6 +241,7 @@ internal sealed class StatsStore : IDisposable
         r.LeagueId, r.SubSession, r.SessionNum, r.SeasonId, r.RaceWeek, r.Official, r.DriveS, r.GarageS, r.LongestStintS, r.RainS, r.NightS,
         r.TrackTempMin, r.TrackTempMax, r.DistanceKm, r.PitStops, r.PitS, r.Source,
         r.AirTemp, r.WindKph, r.WindDir, r.Humidity, r.Pressure, r.AirDensity, r.Skies, r.RainMax, r.WetnessMax, r.Rubber, r.SimStart, r.TrackId, r.TrackName,
+        r.TankL, TyreWear.Text(r.Tyres),
     };
 
     private long InsertRow(SessionRow r)
@@ -282,12 +286,12 @@ internal sealed class StatsStore : IDisposable
     {
         int offset = Convert.ToInt32(_db.Scalar("SELECT COALESCE(MAX(lap), 0) FROM laps WHERE session_id = ?1", id) ?? 0L);
         int runs = Convert.ToInt32(_db.Scalar("SELECT COALESCE(MAX(run), 0) FROM laps WHERE session_id = ?1", id) ?? 0L);
-        MergeTotals(id, r, laps.Count);
+        MergeTotals(id, r, laps.Count, offset);
         InsertLaps(id, laps, offset, runs);
         return offset;
     }
 
-    private void MergeTotals(long id, SessionRow r, int lapCount)
+    private void MergeTotals(long id, SessionRow r, int lapCount, int lapOffset = 0)
     {
         _db.Run("""
             UPDATE sessions SET start_utc = MIN(start_utc, ?2), end_utc = MAX(end_utc, ?3), laps = laps + ?4, incidents = MAX(COALESCE(incidents, 0), COALESCE(?5, 0)),
@@ -301,12 +305,14 @@ internal sealed class StatsStore : IDisposable
             pressure = COALESCE(pressure, ?23), air_density = COALESCE(air_density, ?24), skies = COALESCE(skies, ?25),
             rain_max = MAX(COALESCE(rain_max, ?26), COALESCE(?26, rain_max)), wetness_max = MAX(COALESCE(wetness_max, ?27), COALESCE(?27, wetness_max)),
             rubber = CASE WHEN rubber = '' THEN ?28 ELSE rubber END, sim_start = CASE WHEN sim_start = '' THEN ?29 ELSE sim_start END,
-            track_id = COALESCE(track_id, ?30), track_name = CASE WHEN track_name = '' THEN ?31 ELSE track_name END
+            track_id = COALESCE(track_id, ?30), track_name = CASE WHEN track_name = '' THEN ?31 ELSE track_name END,
+            tank_l = COALESCE(tank_l, ?32),
+            tyre_wear = CASE WHEN ?33 IS NULL THEN tyre_wear WHEN tyre_wear IS NULL THEN ?33 ELSE tyre_wear || ';' || ?33 END
             WHERE id = ?1
             """, id, Unix(r.StartUtc), Unix(r.EndUtc), lapCount, r.Incidents, r.StartPos, r.FinishPos, r.Finished,
             r.DriveS, r.GarageS, r.LongestStintS, r.RainS, r.NightS, r.TrackTempMin, r.TrackTempMax, r.DistanceKm, r.PitStops, r.PitS,
             r.AirTemp, r.WindKph, r.WindDir, r.Humidity, r.Pressure, r.AirDensity, r.Skies, r.RainMax, r.WetnessMax, r.Rubber, r.SimStart,
-            r.TrackId, r.TrackName);
+            r.TrackId, r.TrackName, r.TankL, TyreWear.Text(r.Tyres, lapOffset));
     }
 
     private void LinkRatings(SessionRow r)
@@ -389,6 +395,10 @@ internal sealed class StatsStore : IDisposable
         return new SessionConditions(D(r[0]), D(r[1]), D(r[2]), D(r[3]), D(r[4]), D(r[5]), D(r[6]), D(r[7]), I(r[8]), D(r[9]), I(r[10]),
             r[11] as string ?? "", r[12] as string ?? "", Convert.ToInt64(r[13]) != 0);
     }
+
+    public (double? Tank, List<TyreReading> Tyres) CarExtras(long session) =>
+        _db.Query("SELECT tank_l, tyre_wear FROM sessions WHERE id = ?1", session) is { Count: > 0 } r
+            ? (D(r[0][0]), TyreWear.Parse(r[0][1] as string)) : (null, new List<TyreReading>());
 
     public double? BestLap(string car, string track, string config) =>
         D(_db.Scalar("SELECT MIN(l.time) FROM laps l JOIN sessions s ON s.id = l.session_id WHERE l.clean = 1 AND s.car = ?1 AND s.track = ?2 AND s.track_config = ?3", car, track, config));

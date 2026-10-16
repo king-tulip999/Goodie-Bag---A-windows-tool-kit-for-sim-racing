@@ -34,6 +34,9 @@ public sealed class SessionStatsSettings
 
     public bool ReplayShowReference { get; set; } = true;
 
+    public bool AnalysisWind { get; set; } = true;
+
+
     public static readonly int[] KeepDayChoices = { 30, 90, 182, 365, 730, 0 };
     public static readonly int[] LapChoices = { 0, 10, 3, 1 };
     public static readonly string[] Lanes = { "delta", "speed", "pedals", "steering", "gear", "rpm", "latg" };

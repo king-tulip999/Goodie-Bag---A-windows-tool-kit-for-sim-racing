@@ -57,6 +57,35 @@
     <Resource Include="Assets\GrrLogo.png" />
   </ItemGroup>
 
+  <!-- Topography background: the pixel shader is compiled by fxc.exe from the Windows 10 / 11 SDK on every build that
+       changes it (newest SDK found, or pass -p:FxcPath=...), then embedded. -->
+  <PropertyGroup>
+    <_KitsRoot>$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots', 'KitsRoot10', null, RegistryView.Registry32, RegistryView.Default))</_KitsRoot>
+    <_KitsRoot Condition="'$(_KitsRoot)' == ''">$(MSBuildProgramFiles32)\Windows Kits\10\</_KitsRoot>
+    <_ShaderOut>$(BaseIntermediateOutputPath)Shaders\</_ShaderOut>
+  </PropertyGroup>
+  <ItemGroup>
+    <ShaderSource Include="Theme\Shaders\*.hlsl" />
+  </ItemGroup>
+  <Target Name="FindFxc" Condition="'$(FxcPath)' == ''">
+    <ItemGroup>
+      <_FxcFound Include="$(_KitsRoot)bin\10.*\x64\fxc.exe" />
+    </ItemGroup>
+    <PropertyGroup>
+      <FxcPath Condition="'@(_FxcFound)' != ''">%(_FxcFound.FullPath)</FxcPath>
+    </PropertyGroup>
+  </Target>
+  <Target Name="CompileShaders" BeforeTargets="PrepareForBuild" DependsOnTargets="FindFxc" Inputs="@(ShaderSource)" Outputs="@(ShaderSource->'$(_ShaderOut)%(Filename).ps')">
+    <Error Condition="'$(FxcPath)' == '' Or !Exists('$(FxcPath)')" Text="fxc.exe not found: install the Windows SDK (winget install Microsoft.WindowsSDK.10.0.26100) or pass -p:FxcPath=&lt;path to fxc.exe&gt;." />
+    <MakeDir Directories="$(_ShaderOut)" />
+    <Exec Command="&quot;$(FxcPath)&quot; /nologo /T ps_3_0 /E main /O3 /Fo &quot;$(_ShaderOut)%(ShaderSource.Filename).ps&quot; &quot;%(ShaderSource.FullPath)&quot;" />
+  </Target>
+  <Target Name="EmbedShaders" BeforeTargets="PrepareForBuild" AfterTargets="CompileShaders">
+    <ItemGroup>
+      <EmbeddedResource Include="@(ShaderSource->'$(_ShaderOut)%(Filename).ps')" LogicalName="%(Filename).ps" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- CPU / GPU / RAM / storage / network sensors and fan control. CPU temps and motherboard fans also need PawnIO.
          Also brings System.Management (WMI), used for RAM module speed. -->

@@ -589,8 +589,10 @@ internal sealed class HardwareService : IDisposable
 
     private const int SlowUpdateMs = 250;
     private const int SlowIntervalMs = 3000;
+    private const int PromoteAfter = 5;
     private readonly HashSet<IHardware> _slow = new();
-    private Task? _slowRead;
+    private readonly Dictionary<IHardware, (int Fast, int Demoted)> _slowState = new();
+    private Task<(IHardware Hw, double Ms)[]>? _slowRead;
     private IHardware[] _slowReading = [];
     private long _slowNextMs;
 
@@ -621,8 +623,14 @@ internal sealed class HardwareService : IDisposable
             if (ms > SlowUpdateMs && !HasControls(hw))
             {
                 _slow.Add(hw);
-                LogOnce("slow " + hw.HardwareType, new TimeoutException($"{hw.Name} ({hw.HardwareType}) took {ms:0} ms to update; it's now read in the background every {SlowIntervalMs / 1000} s."));
+                _slowState[hw] = (0, _slowState.GetValueOrDefault(hw).Demoted + 1);
+                LogOnce("slow " + hw.HardwareType, new TimeoutException($"{hw.Name} ({hw.HardwareType}) took {ms:0} ms to update; it's read in the background every {SlowIntervalMs / 1000} s until it's quick again."));
             }
+        }
+        if (_slowRead is { IsCompletedSuccessfully: true } read)
+        {
+            _slowRead = null;
+            foreach (var (hw, ms) in read.Result) Promote(hw, ms);
         }
         long now = Environment.TickCount64;
         if (_slow.Count == 0 || now < _slowNextMs || _slowRead is { IsCompleted: false }) return;
@@ -630,13 +638,32 @@ internal sealed class HardwareService : IDisposable
         var slow = _slowReading = _slow.ToArray();
         _slowRead = Task.Run(() =>
         {
-            foreach (var hw in slow)
+            var times = new (IHardware, double)[slow.Length];
+            for (int i = 0; i < slow.Length; i++)
             {
-                try { Update(hw); }
-                catch (Exception ex) { LogOnce("update " + hw.HardwareType, ex); }
+                long start = Stopwatch.GetTimestamp();
+                try { Update(slow[i]); }
+                catch (Exception ex) { LogOnce("update " + slow[i].HardwareType, ex); }
+                times[i] = (slow[i], Stopwatch.GetElapsedTime(start).TotalMilliseconds);
             }
+            return times;
         });
     }
+
+    private void Promote(IHardware hw, double ms)
+    {
+        if (!_slow.Contains(hw)) return;
+        var (fast, demoted) = _slowState.GetValueOrDefault(hw);
+        fast = ms <= SlowUpdateMs ? fast + 1 : 0;
+        if (fast >= SlowReadsBeforePromotion(demoted))
+        {
+            _slow.Remove(hw);
+            fast = 0;
+        }
+        _slowState[hw] = (fast, demoted);
+    }
+
+    internal static int SlowReadsBeforePromotion(int demoted) => PromoteAfter << Math.Clamp(demoted - 1, 0, 4);
 
     private volatile Computer? _extra;
     private volatile Computer? _extraToClose;
@@ -755,6 +782,7 @@ internal sealed class HardwareService : IDisposable
     private void InvalidateSensorCache()
     {
         _slow.Clear();
+        _slowState.Clear();
         _snapshotSensors = null;
         _tempSensors = null;
     }

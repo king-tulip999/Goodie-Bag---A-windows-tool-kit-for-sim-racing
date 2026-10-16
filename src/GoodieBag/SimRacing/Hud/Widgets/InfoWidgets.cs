@@ -20,7 +20,6 @@ internal sealed class SessionWidget : HudWidget
     public override void Draw(HudPainter p, HudView v)
     {
         var f = v.Frame;
-        p.Panel();
         if (f.Status != SimStatus.Connected)
         {
             var a = p.Header("Session");
@@ -154,8 +153,7 @@ internal sealed class AlertsWidget : HudWidget
             _ => (p.P.Surface, p.P.Accent, p.P.Text, "●"),
         };
         if (dim) { fill = HudPalette.Alpha(fill, 120); text = p.P.Muted; }
-        p.Fill(r, fill, 4);
-        p.Fill(new RectangleF(r.X, r.Y, 4, r.Height), edge, 2);
+        p.Soft(r, edge, dim ? 45 : 80);
         var iconBox = new RectangleF(r.X + 8, r.Y, p.LineHeight(title), r.Height);
         p.Text(icon, title, edge, iconBox, HAlign.Center, VAlign.Center, false);
         var body = new RectangleF(iconBox.Right + 6, r.Y + 3, r.Width - iconBox.Width - 18, r.Height - 6);
@@ -188,7 +186,6 @@ internal sealed class TyresWidget : HudWidget
     {
         if (DrawWaiting(p, v, "Tires")) return;
         var f = v.Frame;
-        p.Panel();
         var area = p.Header("Tires", "from the pit box");
         if (f.TyreColdPressure.All(x => x is null) && f.TyreTempMiddle.All(x => x is null) && f.TyreWearMiddle.All(x => x is null))
         {
@@ -240,8 +237,8 @@ internal sealed class TyresWidget : HudWidget
                 {
                     var cell = new RectangleF(row.X + k * cw, row.Y + 1, cw - gap, row.Height - 2);
                     var c = t[k] is not { } temp ? HudPalette.Alpha(p.P.LineStrong, 80) : temp < low ? p.P.Slate : temp > high ? p.P.Danger : p.P.Good;
-                    p.Fill(cell, c, p.CornerRadius(2));
-                    p.Text(t[k] is { } tt ? RaceFormat.Temp(tt, v.Units).TrimEnd('C', 'F', '°') : RaceFormat.Missing, p.Small, HudPalette.On(c), cell, HAlign.Center, VAlign.Center);
+                    p.Chip(cell, c);
+                    p.Text(t[k] is { } tt ? RaceFormat.Temp(tt, v.Units).TrimEnd('C', 'F', '°') : RaceFormat.Missing, p.Small, p.P.Heading, cell, HAlign.Center, VAlign.Center);
                 }
             }
             if (showWear)
@@ -261,111 +258,116 @@ internal sealed class WeatherWidget : HudWidget
 {
     public static IReadOnlyList<HudOption> Options { get; } = new[]
     {
-        HudOption.Bool("trend", "Trends (last 10 min)", true),
         HudOption.Choice("temp", "Temperatures in", "units", new HudChoice("units", "Overlay units"), new HudChoice("c", "°C"), new HudChoice("f", "°F"), new HudChoice("both", "°C and °F")),
-        HudOption.Bool("wind", "Wind", true),
-        HudOption.Bool("arrow", "Wind dial", true, "A compass with an arrow showing where the wind blows"),
-        HudOption.Choice("windStyle", "Wind dial style", "dial", new HudChoice("dial", "Compass with an arrow"),
-            new HudChoice("ring", "Ring with the speed", "A ring open where the wind blows, the speed inside, in red for a headwind, amber across, green behind")),
-        HudOption.Bool("turn", "Dial turns with the car", true, "On: up = straight ahead (a headwind points down at you). Off: up = north."),
-        HudOption.Bool("wet", "Rain and wetness", true),
-        HudOption.Bool("wetOnly", "Rain and wetness only when wet", false, "Hidden while it's dry and not raining"),
+        HudOption.Bool("wind", "Wind", true, "A ring open where the wind blows, the speed inside: red for a headwind, amber across, green behind"),
+        HudOption.Bool("turn", "Ring turns with the car", true, "On: up = straight ahead. Off: up = north."),
     };
 
-    private readonly List<(string Label, string Value, Color? Color)> _rows = new();
+    private readonly (string Label, string Value)[] _cells = new (string, string)[3];
 
     public override void Draw(HudPainter p, HudView v)
     {
         if (DrawWaiting(p, v, "Weather")) return;
         var f = v.Frame;
         var u = v.Units;
-        p.Panel();
-        var area = p.Header("Weather", f.DeclaredWet == true ? "DECLARED WET" : null, p.P.WarnText);
+        float d = p.Density;
         string temp = v.Options.Choice("temp");
         bool fahrenheit = temp == "f" || temp == "units" && u == HudUnits.Imperial;
         string Temp(double? c) => temp == "both" && c is { } x && double.IsFinite(x)
-            ? $"{x:0}°C / {x * 9 / 5 + 32:0}°F"
+            ? $"{x:0}° / {x * 9 / 5 + 32:0}°"
             : RaceFormat.Temp(c, fahrenheit ? HudUnits.Imperial : HudUnits.Metric);
-        string Trend(double? d)
+        var bounds = p.Bounds;
+        float pill = p.PillHeight + 4 * d;
+        var body = bounds;
+        if (bounds.Height >= pill + p.PieceGap + 44 * d)
         {
-            if (d is not { } x || Math.Abs(x) < 0.3 || temp == "both") return "";
-            double shown = fahrenheit ? x * 9 / 5 : x;
-            return shown > 0 ? $"▲{Math.Abs(shown):0.0}  " : $"▼{Math.Abs(shown):0.0}  ";
+            var hr = new RectangleF(bounds.X, bounds.Y, bounds.Width, pill);
+            Sky(p, v, hr);
+            body = new RectangleF(bounds.X, hr.Bottom + p.PieceGap, bounds.Width, bounds.Height - pill - p.PieceGap);
         }
-        bool trend = v.Options.Bool("trend");
-        _rows.Clear();
-        _rows.Add(("TRACK", (trend ? Trend(v.Race.WeatherTrend(w => w.Track)) : "") + Temp(f.TrackTemp), null));
-        _rows.Add(("AIR", (trend ? Trend(v.Race.WeatherTrend(w => w.Air)) : "") + Temp(f.AirTemp), null));
-        bool wind = v.Options.Bool("wind");
-        bool turn = v.Options.Bool("turn");
-        double? to = f.WindDir is { } from ? from + Math.PI : null;
-        if (wind)
+        p.Panel(body);
+        var area = body.Inflated(-10 * d, -6 * d);
+        if (v.Options.Bool("wind") && area.Width >= 230 * d) Wind(p, v, area.Right(Math.Min(area.Width * 0.47f, area.Height + 96 * d), out area));
+        _cells[0] = ("AIR", Temp(f.AirTemp));
+        _cells[1] = ("TRACK", Temp(f.TrackTemp));
+        _cells[2] = ("HUMIDITY", f.Humidity is { } h ? $"{h * 100:0}%" : RaceFormat.Missing);
+        float cw = area.Width / _cells.Length;
+        var font = p.Big;
+        foreach (var (_, value) in _cells)
+            if (p.Measure(value, font) > cw - 4) { font = p.Bold; break; }
+        float vh = p.LineHeight(font), lh = p.LineHeight(p.Label);
+        float top = area.Y + (area.Height - vh - lh) / 2;
+        for (int i = 0; i < _cells.Length; i++)
         {
-            _rows.Add(("WIND", f.WindSpeed is { } ws ? $"{RaceFormat.SpeedValue(ws, u):0} {RaceFormat.SpeedUnit(u)}  {RaceFormat.Compass(to)}" : RaceFormat.Missing, null));
-            _rows.Add(("HUMIDITY", f.Humidity is { } h ? $"{h * 100:0}%" : RaceFormat.Missing, null));
-        }
-        bool wet = f.Precipitation is > 0 || f.TrackWetness is > 1 || f.DeclaredWet == true;
-        if (v.Options.Bool("wet") && (wet || !v.Options.Bool("wetOnly")))
-        {
-            _rows.Add(("RAIN", f.Precipitation is { } r ? $"{r * 100:0}%" : RaceFormat.Missing, f.Precipitation is > 0 ? p.P.AccentText : null));
-            _rows.Add(("TRACK IS", RaceFormat.Wetness(f.TrackWetness), f.TrackWetness is > 1 ? p.P.WarnText : null));
-        }
-        float rowH = p.LineHeight(p.Bold) + 5 * p.Density, gap = 2 * p.Density;
-        int fit = Math.Max(1, Math.Min(_rows.Count, (int)((area.Height + gap) / (rowH + gap))));
-        float listH = Math.Min(area.Height, fit * (rowH + gap) - gap);
-        if (wind && v.Options.Bool("arrow") && to is { } toward && (f.YawNorth is not null || !turn) && area.Width > 190 * p.Density)
-        {
-            float size = Math.Min(listH, 110 * p.Density);
-            var dial = area.Right(size + 8 * p.Density, out area);
-            var dialBox = new RectangleF(dial.Right - size, dial.Y + (listH - size) / 2, size, size);
-            if (v.Options.Choice("windStyle") == "ring") WindRing.Draw(p, dialBox, f.WindSpeed, toward, turn ? f.YawNorth!.Value : 0, "headtail", u, false);
-            else WindDial(p, dialBox, toward, turn ? f.YawNorth!.Value : 0, f.WindSpeed);
-        }
-        float y = area.Y;
-        for (int i = 0; i < fit; i++)
-        {
-            var row = new RectangleF(area.X, y, area.Width, rowH);
-            p.Fill(row, p.Solid(p.Raised(p.P.Dark ? 0.06 : 0.045), 110), p.CornerRadius(2));
-            var inner = row.Inflated(-7 * p.Density, 0);
-            string label = p.LabelText(_rows[i].Label);
-            float lw = p.Measure(label, p.Label) + 8;
-            p.Text(label, p.Label, p.LabelColor, inner.Left(lw, out var value), HAlign.Left, VAlign.Center, false);
-            p.Text(_rows[i].Value, p.Bold, _rows[i].Color ?? p.P.Heading, value, HAlign.Right, VAlign.Center);
-            y += rowH + gap;
+            float x = area.X + cw * i;
+            p.Text(_cells[i].Value, font, p.P.Heading, new RectangleF(x, top, cw, vh), HAlign.Left, VAlign.Center);
+            p.Text(_cells[i].Label, p.Label, p.LabelColor, new RectangleF(x, top + vh, cw, lh), HAlign.Left, VAlign.Top, false);
         }
     }
 
-    private readonly PointF[] _head = new PointF[3];
-    private static readonly string[] Points = { "N", "E", "S", "W" };
-
-    private void WindDial(HudPainter p, RectangleF box, double towardRad, double headingRad, double? speed)
+    private static void Sky(HudPainter p, HudView v, RectangleF r)
     {
-        p.Tile(box);
-        float cx = box.X + box.Width / 2, cy = box.Y + box.Height / 2, r = box.Width / 2 - 6 * p.Density;
-        p.G.DrawEllipse(p.Pen(HudPalette.Alpha(p.P.LineStrong, 140), 1.5f), cx - r, cy - r, r * 2, r * 2);
-        float letter = p.LineHeight(p.Label), lr = r - letter * 0.6f;
-        for (int k = 0; k < 4; k++)
+        var f = v.Frame;
+        float d = p.Density;
+        p.Panel(r);
+        var inner = r.Inflated(-10 * d, 0);
+        float s = inner.Height * 0.7f;
+        var icon = new RectangleF(inner.X, inner.Y + (inner.Height - s) / 2, s * 1.2f, s);
+        string sky = f.Session.Skies;
+        Icon(p, icon, sky, f.Precipitation is > 0);
+        bool wet = f.Precipitation is > 0 || f.TrackWetness is > 1 || f.DeclaredWet == true;
+        string state = (f.DeclaredWet == true ? "DECLARED WET · " : "") + RaceFormat.Wetness(f.TrackWetness).ToUpperInvariant() + (f.Precipitation is { } rain ? $" · RAIN {rain * 100:0}%" : "");
+        string skyText = sky.Length > 0 ? sky : RaceFormat.Missing;
+        float skyX = icon.Right + 8 * d;
+        float stateW = Math.Min(p.Measure(state, p.Label) + 4, inner.Right - skyX - p.Measure(skyText, p.Bold) - 12 * d);
+        if (stateW < 40 * d) stateW = 0;
+        else p.Text(state, p.Label, wet ? p.P.WarnText : p.P.Muted, new RectangleF(inner.Right - stateW, inner.Y, stateW, inner.Height), HAlign.Right, VAlign.Center);
+        p.Text(skyText, p.Bold, p.P.Heading, new RectangleF(skyX, inner.Y, Math.Max(0, inner.Right - stateW - skyX), inner.Height), HAlign.Left, VAlign.Center);
+    }
+
+    private static void Icon(HudPainter p, RectangleF r, string sky, bool raining)
+    {
+        float s = r.Height;
+        bool clear = sky.Contains("clear", StringComparison.OrdinalIgnoreCase);
+        bool sun = clear || sky.Contains("partly", StringComparison.OrdinalIgnoreCase);
+        if (sun) p.G.FillEllipse(p.Brush(p.P.WarnText), clear ? r.X + s * 0.15f : r.X + s * 0.55f, clear ? r.Y + s * 0.1f : r.Y, clear ? s * 0.8f : s * 0.6f, clear ? s * 0.8f : s * 0.6f);
+        if (clear) return;
+        var c = raining ? p.P.Muted : p.P.Heading;
+        p.G.FillEllipse(p.Brush(c), r.X, r.Y + s * 0.42f, s * 0.55f, s * 0.55f);
+        p.G.FillEllipse(p.Brush(c), r.X + s * 0.25f, r.Y + s * 0.22f, s * 0.62f, s * 0.62f);
+        p.G.FillEllipse(p.Brush(c), r.X + s * 0.62f, r.Y + s * 0.45f, s * 0.52f, s * 0.52f);
+        p.G.FillRectangle(p.Brush(c), r.X + s * 0.27f, r.Y + s * 0.6f, s * 0.62f, s * 0.37f);
+        if (!raining) return;
+        var pen = p.Pen(p.P.AccentText, Math.Max(1.2f, s * 0.08f));
+        for (int k = 0; k < 3; k++)
         {
-            double a = k * Math.PI / 2 - headingRad;
-            float lx = cx + (float)Math.Sin(a) * lr, ly = cy - (float)Math.Cos(a) * lr;
-            p.Text(Points[k], p.Label, k == 0 ? p.P.AccentText : p.LabelColor, new RectangleF(lx - letter / 2, ly - letter / 2, letter, letter), HAlign.Center, VAlign.Center, false);
+            float x = r.X + s * (0.3f + k * 0.25f);
+            p.G.DrawLine(pen, x, r.Bottom + s * 0.02f, x - s * 0.08f, r.Bottom + s * 0.2f);
         }
-        float nose = 4 * p.Density;
-        _head[0] = new PointF(cx, cy - r + nose * 1.3f);
-        _head[1] = new PointF(cx - nose, cy - r - 1);
-        _head[2] = new PointF(cx + nose, cy - r - 1);
-        p.G.FillPolygon(p.Brush(p.P.Muted), _head);
-        double angle = towardRad - headingRad;
-        float dx = (float)Math.Sin(angle), dy = (float)-Math.Cos(angle);
-        float len = lr - letter * 0.75f;
-        PointF tip = new(cx + dx * len, cy + dy * len), tail = new(cx - dx * len, cy - dy * len);
-        var color = speed is > 0.5 ? p.P.AccentText : p.P.Faint;
-        p.Line(tail.X, tail.Y, tip.X, tip.Y, color, 2.4f * p.Density);
-        float wing = 7 * p.Density;
-        _head[0] = new PointF(tip.X + dx * 2, tip.Y + dy * 2);
-        _head[1] = new PointF(tip.X - dx * wing - dy * wing * 0.7f, tip.Y - dy * wing + dx * wing * 0.7f);
-        _head[2] = new PointF(tip.X - dx * wing + dy * wing * 0.7f, tip.Y - dy * wing - dx * wing * 0.7f);
-        p.G.FillPolygon(p.Brush(color), _head);
+    }
+
+    private static void Wind(HudPainter p, HudView v, RectangleF r)
+    {
+        var f = v.Frame;
+        float d = p.Density;
+        p.Divider(r.X, r.Y + 4 * d, r.Bottom - 4 * d);
+        float size = Math.Min(r.Height + 6 * d, 74 * d);
+        var ring = new RectangleF(r.X + 8 * d, r.Y + (r.Height - size) / 2, size, size);
+        double? toward = f.WindDir is { } from ? from + Math.PI : null;
+        double heading = v.Options.Bool("turn") && f.YawNorth is { } yaw ? yaw : 0;
+        WindRing.Draw(p, ring, f.WindSpeed, toward, heading, "headtail", v.Units, false);
+        var text = new RectangleF(ring.Right + 8 * d, r.Y, r.Right - ring.Right - 8 * d, r.Height);
+        var (word, color) = (toward is { } t ? WindRing.Relation(f.WindSpeed, t, heading) : WindRelation.Calm) switch
+        {
+            WindRelation.Head => ("HEADWIND", p.P.DangerText),
+            WindRelation.Cross => ("CROSSWIND", p.P.WarnText),
+            WindRelation.Tail => ("TAILWIND", p.P.GoodText),
+            _ => ("CALM", p.P.Muted),
+        };
+        float wh = p.LineHeight(p.SmallBold), lh = p.LineHeight(p.Label);
+        float top = text.Y + (text.Height - wh - lh - 2) / 2;
+        p.Text(word, p.SmallBold, color, new RectangleF(text.X, top, text.Width, wh), HAlign.Left, VAlign.Center);
+        p.Text(RaceFormat.SpeedUnit(v.Units).ToUpperInvariant() + " · " + RaceFormat.Compass(toward), p.Label, p.LabelColor, new RectangleF(text.X, top + wh + 2, text.Width, lh), HAlign.Left, VAlign.Top, false);
     }
 }
 
@@ -441,7 +443,7 @@ internal sealed class WindWidget : HudWidget
         if (DrawWaiting(p, v)) return;
         var f = v.Frame;
         var o = v.Options;
-        p.Panel();
+        if (!o.Bool("title")) p.Panel();
         var area = o.Bool("title") ? p.Header("Wind") : p.Bounds.Inflated(-6 * p.Density, -6 * p.Density);
         bool turn = o.Bool("turn");
         double? toward = f.WindDir is { } from ? from + Math.PI : null;
@@ -464,7 +466,6 @@ internal sealed class LapsWidget : HudWidget
     {
         if (DrawWaiting(p, v, "Laps")) return;
         var laps = v.Race.Laps.Laps;
-        p.Panel();
         var stats = LapMath.Stats(laps, v.Options.Int("window"));
         var area = p.Header("Laps", laps.Count == 0 ? "none yet" : $"{laps.Count} this session");
         if (v.Options.Bool("stats") && stats is not null && area.Height > p.StripHeight * 3)
@@ -480,7 +481,7 @@ internal sealed class LapsWidget : HudWidget
         {
             var band = area.Top(bandH, out area);
             area = new RectangleF(area.X, area.Y + 4, area.Width, area.Height - 4);
-            p.Fill(band, p.Solid(HudPalette.Mix(p.Raised(0.06), p.P.Fastest, 0.42), 170), p.CornerRadius(3));
+            p.Soft(band, p.P.Fastest, 90);
             var inner = band.Inflated(-7 * p.Density, 0);
             double? optimal = LapMath.Theoretical(LapMath.BestSectors(laps, v.Race.Laps.SectorCount));
             bool both = optimal is not null && inner.Width > 220 * p.Density;
@@ -554,9 +555,8 @@ internal sealed class EventsWidget : HudWidget
     public override void Draw(HudPainter p, HudView v)
     {
         if (DrawWaiting(p, v, "Race events")) return;
-        p.Panel();
         var events = v.Race.Events;
-        var area = p.HeaderBand("Race events");
+        var area = p.Header("Race events");
         if (events.Count == 0) { p.Text("Nothing yet", p.Small, p.P.Faint, area, HAlign.Center, VAlign.Center); return; }
         float rowH = p.LineHeight(p.Small) * 1.55f * p.Density, y = area.Y;
         float timeW = p.Measure("00:00:00", p.Small) + 8 * p.Density;

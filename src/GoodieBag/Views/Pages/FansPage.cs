@@ -32,6 +32,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
     private (TextBlock Text, FanCurve Curve)? _liveMix;
     private readonly List<Action> _openLimits = new();
     private readonly List<Popup> _limitPopups = new();
+    private string? _reopenLimits;
     private Tile? _detecting;
     private bool _showHidden;
     private bool _lastEmergency;
@@ -611,11 +612,23 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         };
         _openLimits.Add(() => drop.IsOpen = true);
         _limitPopups.Add(drop);
+        if (_reopenLimits == fan.ControlId)
+        {
+            _reopenLimits = null;
+            Dispatcher.BeginInvoke(() => { if (toggle.IsLoaded) drop.IsOpen = true; }, DispatcherPriority.Loaded);
+        }
 
         more.Children.Add(Row("Minimum", Ui.SliderWithValue(0, 100, hw.MinPercent, "{0:0}%", v => { hw.MinPercent = (int)v; _app.FanSettingsChanged(); }, 140)));
         more.Children.Add(Row("Maximum", Ui.SliderWithValue(20, 100, hw.MaxPercent, "{0:0}%", v => { hw.MaxPercent = (int)v; _app.FanSettingsChanged(); }, 140)));
         var pump = new CheckBox { Content = "This is a pump (keep at 60% or more)", IsChecked = hw.IsPump, Margin = new Thickness(0, 6, 0, 0) };
-        pump.Click += (_, _) => { hw.IsPump = pump.IsChecked == true; _app.FanSettingsChanged(); _fanSignature = ""; };
+        pump.Click += (_, _) =>
+        {
+            hw.IsPump = pump.IsChecked == true;
+            _app.FanSettingsChanged();
+            _reopenLimits = fan.ControlId;
+            _fanSignature = "";
+            Tick();
+        };
         more.Children.Add(pump);
         bool canStop = FanController.StopTested(hw);
         var stop = new CheckBox

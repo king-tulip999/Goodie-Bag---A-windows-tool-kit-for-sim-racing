@@ -78,52 +78,48 @@ internal static class HudFlags
     }
 
     public static readonly HudOption BannerOption = HudOption.Choice("flagBanner", "Flag banner", "off",
-        new HudChoice("off", "Off"), new HudChoice("top", "On top"), new HudChoice("side", "On the side")) with
+        new HudChoice("off", "Off"), new HudChoice("top", "On")) with
     {
-        Help = "A frame in the flag's color with its name while a flag is out. Room for it is kept, so the table never moves.",
+        Help = "A bar above the widget with the flag and its name while a flag is out. Room for it is kept, so the table never moves.",
     };
 
-    private const float Band = 24, Edge = 3;
+    private const float Band = 24, BandGap = 5;
+
+    public const string OldSide = "side";
+
+    public static readonly (float L, float T, float R, float B) OldSideRoom = (3, 3, Band, 3);
 
     public static (float L, float T, float R, float B) Room(string where) => where switch
     {
-        "top" => (Edge, Band, Edge, Edge),
-        "side" => (Edge, Edge, Band, Edge),
+        "top" => (0, Band + BandGap, 0, 0),
         _ => (0, 0, 0, 0),
     };
 
-    private static (Color Fill, Color Text, Color Edge, string Label) Look(FlagKind k) => k switch
+    private static (Color Fill, Color Text, string Label) Look(FlagKind k) => k switch
     {
-        FlagKind.Disqualified => (HudPalette.FlagBlack, HudPalette.FlagWhite, HudPalette.FlagWhite, "DISQUALIFIED"),
-        FlagKind.Black => (HudPalette.FlagBlack, HudPalette.FlagWhite, HudPalette.FlagWhite, "BLACK FLAG"),
-        FlagKind.Meatball => (HudPalette.FlagBlack, Meatball, Meatball, "REPAIR FLAG"),
-        FlagKind.Red => (HudPalette.FlagRed, Color.White, HudPalette.FlagRed, "RED FLAG"),
-        FlagKind.Caution => (HudPalette.FlagYellow, HudPalette.FlagBlack, HudPalette.FlagYellow, "FULL COURSE YELLOW"),
-        FlagKind.Yellow => (HudPalette.FlagYellow, HudPalette.FlagBlack, HudPalette.FlagYellow, "YELLOW FLAG"),
-        FlagKind.Debris => (HudPalette.FlagYellow, HudPalette.FlagBlack, HudPalette.FlagYellow, "DEBRIS FLAG"),
-        FlagKind.Blue => (HudPalette.FlagBlue, Color.White, HudPalette.FlagBlue, "BLUE FLAG"),
-        FlagKind.White => (HudPalette.FlagWhite, HudPalette.FlagBlack, HudPalette.FlagWhite, "WHITE FLAG"),
-        FlagKind.Checkered => (HudPalette.FlagWhite, HudPalette.FlagBlack, HudPalette.FlagWhite, "CHECKERED FLAG"),
-        _ => (HudPalette.FlagGreen, Color.White, HudPalette.FlagGreen, "GREEN FLAG"),
+        FlagKind.Disqualified => (HudPalette.FlagBlack, HudPalette.FlagWhite, "DISQUALIFIED"),
+        FlagKind.Black => (HudPalette.FlagBlack, HudPalette.FlagWhite, "BLACK FLAG"),
+        FlagKind.Meatball => (HudPalette.FlagBlack, Meatball, "REPAIR FLAG"),
+        FlagKind.Red => (HudPalette.FlagRed, Color.White, "RED FLAG"),
+        FlagKind.Caution => (HudPalette.FlagYellow, HudPalette.FlagBlack, "FULL COURSE YELLOW"),
+        FlagKind.Yellow => (HudPalette.FlagYellow, HudPalette.FlagBlack, "YELLOW FLAG"),
+        FlagKind.Debris => (HudPalette.FlagYellow, HudPalette.FlagBlack, "DEBRIS FLAG"),
+        FlagKind.Blue => (HudPalette.FlagBlue, Color.White, "BLUE FLAG"),
+        FlagKind.White => (HudPalette.FlagWhite, HudPalette.FlagBlack, "WHITE FLAG"),
+        FlagKind.Checkered => (HudPalette.FlagWhite, HudPalette.FlagBlack, "CHECKERED FLAG"),
+        _ => (HudPalette.FlagGreen, Color.White, "GREEN FLAG"),
     };
 
-    public static void DrawBanner(HudPainter p, RectangleF outer, FlagKind kind, string where)
+    public static void DrawBanner(HudPainter p, RectangleF outer, FlagKind kind, string where, float rightSpare = 0)
     {
-        if (kind == FlagKind.None || where is not ("top" or "side")) return;
-        var (fill, text, edge, label) = Look(kind);
+        if (kind == FlagKind.None || where != "top") return;
+        var (fill, text, label) = Look(kind);
         outer = p.Snap(outer);
-        p.Outline(outer.Inflated(-Edge / 2, -Edge / 2), edge, Edge);
-        bool side = where == "side";
-        var band = side ? RectangleF.FromLTRB(outer.Right - Band, outer.Top, outer.Right, outer.Bottom) : RectangleF.FromLTRB(outer.Left, outer.Top, outer.Right, outer.Top + Band);
-        p.Fill(band, fill);
+        var band = p.Snap(RectangleF.FromLTRB(outer.Left, outer.Top, outer.Right - rightSpare, outer.Top + Band));
+        p.Fill(band, fill, p.CornerRadius(4));
         var g = p.G;
         var state = g.Save();
-        if (side)
-        {
-            g.TranslateTransform(band.Right, band.Top);
-            g.RotateTransform(90);
-            band = new RectangleF(0, 0, band.Height, band.Width);
-        }
+        g.SetClip(band, CombineMode.Intersect);
         Ends(p, band, kind);
         var font = p.Font(12.5f, true);
         float flagH = band.Height * 0.56f, flagW = flagH * 1.5f, gap = 7;

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -22,7 +21,7 @@ internal sealed class ReplayCar
     public required double[] X { get; init; }
     public required double[] Y { get; init; }
     public required double[] Headings { get; init; }
-    public double Distance, Px, Py, Heading;
+    public double Distance, Px, Py, Heading, Yaw;
     public LapTrace Trace => Line.Trace;
 }
 
@@ -40,6 +39,7 @@ internal sealed class LapReplayView : Grid
     private readonly ReplayStage _stage = null!;
     private readonly ReplayMiniMap _mini = null!;
     private readonly ReplayScrubber _scrubber = null!;
+    private readonly ReplayWind? _wind;
     private readonly Button _play = null!;
     private readonly TextBlock _clock = new(), _gapSeconds = new(), _gapMetres = new(), _sectorName = new(), _sectorGap = new();
     private readonly SectorTable? _table;
@@ -47,6 +47,7 @@ internal sealed class LapReplayView : Grid
     private readonly Tile _stageTile = null!;
     private readonly Tile _barTile = null!;
     private ScrollViewer? _page;
+    private readonly ReplayCardRow? _cardRow;
     private ReplayCar _follow = null!;
     private double _time;
     private bool _playing, _hooked;
@@ -76,8 +77,7 @@ internal sealed class LapReplayView : Grid
         Focusable = true;
         FocusVisualStyle = null;
 
-        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int r = 0; r < 3; r++) RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         _stage = new ReplayStage(_cars, s, settings, () => _follow);
         if (data.Map is { } map)
@@ -88,30 +88,55 @@ internal sealed class LapReplayView : Grid
         _stage.ZoomStep += delta => SetZoom(_settings.ReplayZoom + delta);
         var overlay = new Grid { Margin = new Thickness(14) };
 
-        var cards = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Orientation = Orientation.Horizontal };
+        var cards = new ReplayCardRow { Margin = new Thickness(0, 0, 0, 12) };
         foreach (var car in _cars.OrderBy(c => c.Line.Reference ? 1 : 0))
         {
             var card = new ReplayCard(car, settings.Imperial, () => Follow(car));
-            card.Margin = new Thickness(8, 0, 0, 8);
             _cards.Add(card);
             cards.Children.Add(card);
         }
         var track = _cars.FirstOrDefault(c => c.Line.Reference) ?? _follow;
         _mini = new ReplayMiniMap((track.X, track.Y), track.Trace.StepM, _sectorStarts) { Width = 230, Height = 150 };
-        _sectorName.Style = Ui.Res<Style>("Caption");
+        _sectorName.Style = Ui.Res<Style>("Body");
+        _sectorName.FontWeight = FontWeights.SemiBold;
+        _sectorName.HorizontalAlignment = HorizontalAlignment.Center;
         _sectorGap.Style = Ui.Res<Style>("Body");
         _sectorGap.FontWeight = FontWeights.SemiBold;
-        _sectorGap.HorizontalAlignment = HorizontalAlignment.Right;
+        _sectorGap.HorizontalAlignment = HorizontalAlignment.Center;
         Typography.SetNumeralAlignment(_sectorGap, FontNumeralAlignment.Tabular);
         var miniFoot = new Grid { Margin = new Thickness(0, 8, 0, 0) };
-        miniFoot.Children.Add(_sectorName);
-        miniFoot.Children.Add(_sectorGap);
-        var miniCard = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 10, 12, 10), HorizontalAlignment = HorizontalAlignment.Right, Child = new StackPanel { Children = { _mini, miniFoot } } };
-        miniCard.ToolTip = "Time gained or lost on the reference since this sector began";
-        var topRight = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(120, 0, 0, 0) };
-        topRight.Children.Add(cards);
-        topRight.Children.Add(miniCard);
-        overlay.Children.Add(topRight);
+        miniFoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        miniFoot.ColumnDefinitions.Add(new ColumnDefinition());
+        miniFoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var sectorText = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { _sectorName, _sectorGap } };
+        sectorText.ToolTip = "Time gained or lost on the reference since this sector began";
+        Grid.SetColumn(sectorText, 1);
+        miniFoot.Children.Add(sectorText);
+        if (_sectorStarts.Length > 1)
+        {
+            var prev = Ui.IconButton("I.ChevronLeft", "Previous sector", () => StepSector(-1), "QuietIconButton");
+            var next = Ui.IconButton("I.ChevronRight", "Next sector", () => StepSector(1), "QuietIconButton");
+            Grid.SetColumn(next, 2);
+            miniFoot.Children.Add(prev);
+            miniFoot.Children.Add(next);
+        }
+        var miniCard = new Tile
+        {
+            Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 10, 12, 10), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+            Child = new StackPanel { Children = { _mini, miniFoot } },
+        };
+        _cardRow = cards;
+        Children.Add(cards);
+        overlay.Children.Add(miniCard);
+
+        var topLeft = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+        overlay.Children.Add(topLeft);
+        if (_cars.Any(c => c.Line.Wind is not null))
+        {
+            _wind = new ReplayWind(_cars, settings.Imperial) { HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 10) };
+            _wind.Visibility = settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
+            topLeft.Children.Add(_wind);
+        }
 
         if (data.SectorStarts.Count > 1)
         {
@@ -128,7 +153,7 @@ internal sealed class LapReplayView : Grid
         _zoom.ToolTip = "Zoom (the wheel over the track too); all the way out = the whole lap";
         var turn = Ui.LabeledButton("I.Rotate", "Turn with car", () => { });
         Ui.SetToggled(turn, settings.ReplayTurn);
-        turn.Click += (_, _) => { settings.ReplayTurn = !settings.ReplayTurn; Ui.SetToggled(turn, settings.ReplayTurn); _stage.Update(); _save(); };
+        turn.Click += (_, _) => { settings.ReplayTurn = !settings.ReplayTurn; Ui.SetToggled(turn, settings.ReplayTurn); _stage.Update(); _wind?.Turn(_stage.Rotation); _save(); };
         turn.ToolTip = "Keep the followed car pointing up (off = north up)";
         turn.Margin = new Thickness(10, 0, 0, 0);
         var zoomRow = new StackPanel { Orientation = Orientation.Horizontal };
@@ -136,27 +161,57 @@ internal sealed class LapReplayView : Grid
         zoomRow.Children.Add(_zoom);
         zoomRow.Children.Add(Ui.IconButton("I.Plus", "Zoom in", () => SetZoom(_settings.ReplayZoom + 0.1), "QuietIconButton"));
         zoomRow.Children.Add(turn);
-        overlay.Children.Add(new Tile
+        if (_wind is not null)
         {
-            Style = Ui.Res<Style>("Card"), Padding = new Thickness(8, 6, 8, 6), Child = zoomRow,
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
-        });
+            var windButton = Ui.LabeledButton("I.Wind", "Wind", () => { });
+            Ui.SetToggled(windButton, settings.AnalysisWind);
+            windButton.ToolTip = "Wind speed and direction on each lap";
+            windButton.Margin = new Thickness(6, 0, 0, 0);
+            windButton.Click += (_, _) =>
+            {
+                settings.AnalysisWind = !settings.AnalysisWind;
+                Ui.SetToggled(windButton, settings.AnalysisWind);
+                _wind.Visibility = settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
+                _save();
+            };
+            zoomRow.Children.Add(windButton);
+        }
+        zoomRow.VerticalAlignment = VerticalAlignment.Center;
+        zoomRow.Margin = new Thickness(18, 0, 0, 0);
 
-        var legend = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        var legend = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
+        var colors = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(-12, 0, 0, 0) };
         foreach (var (label, key) in new[] { ("Throttle", StatsUi.Hue("Sage").Deep), ("Coasting", "Heading"), ("Brake", "Danger") })
         {
             var sw = new Border { Width = 14, Height = 3, Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
             sw.SetResourceReference(Border.BackgroundProperty, key);
-            legend.Children.Add(sw);
-            legend.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center });
+            colors.Children.Add(sw);
+            colors.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center });
         }
-        legend.ToolTip = "The followed lap's line; the other laps are dotted in their colors";
-        overlay.Children.Add(legend);
+        colors.ToolTip = "The followed lap's line; the other laps are dotted in their colors";
+        legend.Children.Add(colors);
+        topLeft.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 8, 12, 8), HorizontalAlignment = HorizontalAlignment.Left, Child = legend });
 
         var stageHost = new Grid { ClipToBounds = true, Children = { _stage, overlay } };
-        _stageTile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(0), Height = 560, Child = stageHost, Margin = new Thickness(0, 0, 0, 12) };
-        var stageTile = _stageTile;
-        Children.Add(stageTile);
+        void Avoid()
+        {
+            _stage.Avoid.Clear();
+            foreach (FrameworkElement part in overlay.Children)
+            {
+                if (part.Visibility != Visibility.Visible || part.ActualWidth < 1 || !part.IsDescendantOf(stageHost)) continue;
+                var at = part.TransformToAncestor(stageHost).TransformBounds(new Rect(part.RenderSize));
+                at.Inflate(6, 6);
+                _stage.Avoid.Add(at);
+            }
+            _stage.Update();
+        }
+        foreach (FrameworkElement part in overlay.Children) part.SizeChanged += (_, _) => Avoid();
+        stageHost.SizeChanged += (_, _) => Avoid();
+        _stageTile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(0), Height = 560, Child = stageHost };
+
+        _stageTile.Margin = new Thickness(0, 0, 0, 12);
+        SetRow(_stageTile, 1);
+        Children.Add(_stageTile);
 
         _scrubber = new ReplayScrubber(_follow.Trace.LapTime > 0 ? _sectorStarts.Skip(1).Select(d => _follow.Trace.TimeAt(d) / _follow.Trace.LapTime).ToArray() : Array.Empty<double>())
         {
@@ -178,7 +233,7 @@ internal sealed class LapReplayView : Grid
         speed.ToolTip = "Playback speed";
         speed.Margin = new Thickness(10, 0, 0, 0);
         speed.VerticalAlignment = VerticalAlignment.Center;
-        var left = new StackPanel { Orientation = Orientation.Horizontal, Children = { _play, _clock, speed } };
+        var left = new WrapPanel { Orientation = Orientation.Horizontal, Children = { _play, _clock, speed, zoomRow } };
 
         foreach (var t in new[] { _gapSeconds, _gapMetres })
         {
@@ -212,7 +267,7 @@ internal sealed class LapReplayView : Grid
         bar.Children.Add(_scrubber);
         bar.Children.Add(Ui.SplitRow(left, right, 16));
         _barTile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(20, 14, 20, 14), Child = bar };
-        SetRow(_barTile, 1);
+        SetRow(_barTile, 2);
         Children.Add(_barTile);
 
         PreviewMouseDown += (_, e) => { if (e.OriginalSource is not TextBox && !IsKeyboardFocusWithin) Focus(); };
@@ -231,7 +286,7 @@ internal sealed class LapReplayView : Grid
             Dispatcher.InvokeAsync(() => FitStage(null, null), System.Windows.Threading.DispatcherPriority.Loaded);
             Place(force: true);
         };
-        _stage.SizeChanged += (_, _) => _stage.Update();
+        _stage.SizeChanged += (_, _) => { _stage.Update(); _wind?.Turn(_stage.Rotation); };
         Place(force: true);
     }
 
@@ -259,7 +314,7 @@ internal sealed class LapReplayView : Grid
         if (_page is null || !_stageTile.IsLoaded) return;
         var toPage = _stageTile.TransformToAncestor(_page);
         double unit = Math.Max(0.1, toPage.Transform(new Point(0, 100)).Y - toPage.Transform(new Point(0, 0)).Y) / 100;
-        double room = _page.ViewportHeight / unit - _barTile.ActualHeight - _stageTile.Margin.Bottom - 28;
+        double room = _page.ViewportHeight / unit - _barTile.ActualHeight - _stageTile.Margin.Bottom - 28 - (_cardRow?.ActualHeight ?? 0);
         _stageTile.Height = Math.Clamp(room, MinStage, MaxStage);
     }
 
@@ -274,9 +329,21 @@ internal sealed class LapReplayView : Grid
             case Key.Right: Seek(_time + step); break;
             case Key.Home: Seek(0); break;
             case Key.End: Seek(_follow.Trace.LapTime); break;
+            case Key.PageUp: StepSector(-1); break;
+            case Key.PageDown: StepSector(1); break;
             default: return;
         }
         e.Handled = true;
+    }
+
+    private void StepSector(int by)
+    {
+        if (_sectorStarts.Length < 2) return;
+        int at = LapReplay.SectorAt(_sectorStarts, _follow.Distance);
+        double into = _time - _follow.Trace.TimeAt(_sectorStarts[at]);
+        int target = by < 0 && into > 1.5 ? at : Math.Clamp(at + by, 0, _sectorStarts.Length - 1);
+        Pause();
+        Seek(_follow.Trace.TimeAt(_sectorStarts[target]) + 0.001);
     }
 
     private void Toggle()
@@ -341,6 +408,7 @@ internal sealed class LapReplayView : Grid
         if (Math.Abs(_zoom.Value - z) > 1e-9) { _zoom.Value = z; return; }
         _settings.ReplayZoom = z;
         _stage.Update();
+        _wind?.Turn(_stage.Rotation);
         _save();
     }
 
@@ -355,6 +423,7 @@ internal sealed class LapReplayView : Grid
             car.Px = LapReplay.At(car.X, t.StepM, car.Distance);
             car.Py = LapReplay.At(car.Y, t.StepM, car.Distance);
             car.Heading = LapReplay.HeadingAt(car.Headings, t.StepM, car.Distance);
+            car.Yaw = t.At(TraceChannel.Yaw, car.Distance) ?? car.Heading;
         }
         _memory.Distance = _follow.Distance;
         _stage.Update();
@@ -370,6 +439,7 @@ internal sealed class LapReplayView : Grid
     {
         _clock.Text = StatFormat.LapTime(_time) + " / " + StatFormat.LapTime(_follow.Trace.LapTime);
         foreach (var card in _cards) card.Update(card.Car == _follow, _settings.ReplayShowReference || !card.Car.Line.Reference);
+        _wind?.Turn(_stage.Rotation);
         var compared = _follow.Line.Reference ? _cars.FirstOrDefault(c => !c.Line.Reference) : _follow;
         int sector = LapReplay.SectorAt(_sectorStarts, _follow.Distance);
         if (sector != _sector)
@@ -411,6 +481,80 @@ internal sealed class LapReplayView : Grid
     }
 }
 
+internal sealed class ReplayWind : Tile
+{
+    private readonly List<(RotateTransform Turn, double To)> _arrows = new();
+    private readonly RotateTransform _north = new();
+    private double _rotation = double.NaN;
+
+    public ReplayWind(List<ReplayCar> cars, bool imperial)
+    {
+        Style = Ui.Res<Style>("Card");
+        Padding = new Thickness(12, 8, 12, 8);
+        IsHitTestVisible = false;
+        var rows = new Grid();
+        foreach (var width in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
+            rows.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
+        rows.RowDefinitions.Add(new RowDefinition());
+        var title = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        title.Children.Add(new TextBlock { Text = "Wind", Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        var north = new Grid { Width = 18, Height = 18, Margin = new Thickness(10, 0, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _north, ToolTip = "North" };
+        var needle = new Icon { Data = Geometry.Parse("M12 3l4 9h-8z"), Width = 18, Height = 18, StrokeThickness = 1.6 };
+        needle.SetResourceReference(Icon.ForegroundProperty, "TextMuted");
+        var n = new TextBlock { Text = "N", Style = Ui.Res<Style>("Caption"), FontSize = 8.5, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom };
+        north.Children.Add(needle);
+        north.Children.Add(n);
+        title.Children.Add(north);
+        Cell(rows, title, 0, 0, 4);
+        int row = 1;
+        foreach (var car in cars)
+        {
+            var line = car.Line;
+            if (line.Wind is not { } wind) continue;
+            rows.RowDefinitions.Add(new RowDefinition());
+            var swatch = new Border { Width = 4, Height = 16, Margin = new Thickness(0, 2, 8, 2), VerticalAlignment = VerticalAlignment.Center };
+            swatch.SetResourceReference(Border.BackgroundProperty, line.BrushKey);
+            if (line.Reference) swatch.Opacity = 0.6;
+            double to = (wind.From + Math.PI) * 180 / Math.PI;
+            var turn = new RotateTransform(to);
+            _arrows.Add((turn, to));
+            var arrow = new Icon
+            {
+                Data = Geometry.Parse("M12 20V4M6 10l6-6 6 6"), Width = 16, Height = 16, StrokeThickness = 2.2, Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = turn,
+            };
+            arrow.SetResourceReference(Icon.ForegroundProperty, line.BrushKey);
+            double speed = imperial ? wind.Kph / 1.609344 : wind.Kph;
+            var value = new TextBlock { Text = $"{line.Short}  {speed:0} {(imperial ? "mph" : "km/h")}", Style = Ui.Res<Style>("Body"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            var point = new TextBlock { Text = SimRacing.Race.RaceFormat.Compass(wind.From + Math.PI), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center };
+            point.ToolTip = "Where the wind blows to";
+            Cell(rows, swatch, row, 0);
+            Cell(rows, arrow, row, 1);
+            Cell(rows, value, row, 2);
+            Cell(rows, point, row, 3);
+            row++;
+        }
+        Child = rows;
+    }
+
+    private static void Cell(Grid grid, FrameworkElement e, int row, int column, int span = 1)
+    {
+        Grid.SetRow(e, row);
+        Grid.SetColumn(e, column);
+        Grid.SetColumnSpan(e, span);
+        grid.Children.Add(e);
+    }
+
+    public void Turn(double rotation)
+    {
+        double deg = rotation * 180 / Math.PI;
+        if (Math.Abs(deg - _rotation) < 0.5) return;
+        _rotation = deg;
+        _north.Angle = deg;
+        foreach (var (turn, to) in _arrows) turn.Angle = to + deg;
+    }
+}
+
 internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 {
     public const double TrackWidth = 14;
@@ -423,16 +567,32 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
     private readonly VisualCollection _visuals;
     private readonly DrawingVisual _world = new();
     private readonly MatrixTransform _camera = new();
-    private readonly DrawingVisual[] _carVisuals;
-    private readonly MatrixTransform[] _carMatrix;
+    private readonly DrawingVisual[] _carVisuals, _labelVisuals;
+    private readonly MatrixTransform[] _carMatrix, _labelMatrix;
+    private readonly Point[] _labelAt;
     private readonly StreamGeometry[] _paths;
     private StreamGeometry _ticks;
+    private (StreamGeometry Base, StreamGeometry Squares) _checker;
     private TrackOutline? _outline;
-    private StreamGeometry? _surface, _pitFill, _pitLines, _start;
+    private StreamGeometry? _surface, _pitFill, _pitLines;
     private readonly double _midX, _midY, _spanX, _spanY;
     private double _builtScale = -1;
     private ReplayCar? _builtFollow;
     private bool _builtRef;
+    private readonly List<NoteMark> _notes = new();
+    private readonly List<Rect> _taken = new();
+
+    public List<Rect> Avoid { get; } = new();
+    private ReplayCar? _notesFor;
+
+    private sealed class NoteMark
+    {
+        public required DrawingVisual Marker, Callout;
+        public required MatrixTransform MarkerAt, CalloutAt;
+        public required Point World;
+        public required double Distance;
+        public required Size Box;
+    }
 
     public event Action<double>? ZoomStep;
 
@@ -448,31 +608,76 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
         _paths = cars.Select(c => Path(c.X, c.Y)).ToArray();
         _carVisuals = cars.Select(_ => new DrawingVisual()).ToArray();
         _carMatrix = cars.Select(_ => new MatrixTransform()).ToArray();
+        var track = Track;
+        double step = _s.Reference.Trace.StepM;
+        _labelAt = _s.SectorDistances.Select(d => LabelPoint(track, step, d, TrackWidth)).ToArray();
+        _labelVisuals = _labelAt.Select(_ => new DrawingVisual()).ToArray();
+        _labelMatrix = _labelAt.Select(_ => new MatrixTransform()).ToArray();
+        for (int i = 0; i < _labelVisuals.Length; i++)
+        {
+            _labelVisuals[i].Transform = _labelMatrix[i];
+            _visuals.Add(_labelVisuals[i]);
+        }
         for (int i = 0; i < cars.Count; i++)
         {
             _carVisuals[i].Transform = _carMatrix[i];
             _visuals.Add(_carVisuals[i]);
         }
-        var track = Track;
         double minX = track.X.Min(), maxX = track.X.Max(), minY = track.Y.Min(), maxY = track.Y.Max();
         (_midX, _midY, _spanX, _spanY) = ((minX + maxX) / 2, (minY + maxY) / 2, Math.Max(50, maxX - minX), Math.Max(50, maxY - minY));
-        _ticks = Ticks(track, _s.Reference.Trace.StepM, TrackWidth);
+        _ticks = Ticks(track, step, TrackWidth);
+        _checker = Checker(track, step, TrackWidth);
+    }
+
+    public double Rotation { get; private set; }
+
+    private static Point LabelPoint(ReplayCar track, double step, double d, double width)
+    {
+        double x = LapReplay.At(track.X, step, d), y = LapReplay.At(track.Y, step, d), h = LapReplay.HeadingAt(track.Headings, step, d);
+        double off = width / 2 + 9;
+        return new Point(x - Math.Sin(h) * off, y + Math.Cos(h) * off);
+    }
+
+    private static (StreamGeometry, StreamGeometry) Checker(ReplayCar track, double step, double width)
+    {
+        double x = LapReplay.At(track.X, step, 0), y = LapReplay.At(track.Y, step, 0), h = LapReplay.HeadingAt(track.Headings, step, 0);
+        double fx = Math.Cos(h), fy = Math.Sin(h), nx = -Math.Sin(h), ny = Math.Cos(h);
+        const int Across = 8, Along = 2;
+        double cell = width / Across;
+        Point At(double a, double b) => new(x + nx * (a - width / 2) + fx * (b - cell * Along / 2), y + ny * (a - width / 2) + fy * (b - cell * Along / 2));
+        var all = new StreamGeometry();
+        using (var g = all.Open())
+        {
+            g.BeginFigure(At(0, 0), true, true);
+            g.LineTo(At(width, 0), false, false);
+            g.LineTo(At(width, cell * Along), false, false);
+            g.LineTo(At(0, cell * Along), false, false);
+        }
+        all.Freeze();
+        var squares = new StreamGeometry();
+        using (var g = squares.Open())
+            for (int i = 0; i < Across; i++)
+                for (int j = 0; j < Along; j++)
+                {
+                    if ((i + j) % 2 != 0) continue;
+                    g.BeginFigure(At(i * cell, j * cell), true, true);
+                    g.LineTo(At((i + 1) * cell, j * cell), false, false);
+                    g.LineTo(At((i + 1) * cell, (j + 1) * cell), false, false);
+                    g.LineTo(At(i * cell, (j + 1) * cell), false, false);
+                }
+        squares.Freeze();
+        return (all, squares);
     }
 
     public void SetOutline(TrackOutline outline)
     {
         _outline = outline;
-        _surface = Shapes(outline.Surface.Select(f => (f.X, f.Y, true)), FillRule.EvenOdd);
+        _surface = Shapes(TrackFit.Wound(outline.Surface).Select(f => (f.X, f.Y, true)), FillRule.Nonzero);
         _pitFill = Shapes(outline.Pit.Where(p => p.Filled), FillRule.Nonzero);
         _pitLines = Shapes(outline.Pit.Where(p => !p.Filled), FillRule.Nonzero);
-        _start = null;
-        if (outline.StartLine is { } sf)
-        {
-            _start = new StreamGeometry();
-            using (var g = _start.Open()) { g.BeginFigure(new Point(sf.X1, sf.Y1), false, false); g.LineTo(new Point(sf.X2, sf.Y2), true, false); }
-            _start.Freeze();
-        }
         _ticks = Ticks(Track, _s.Reference.Trace.StepM, outline.Width);
+        _checker = Checker(Track, _s.Reference.Trace.StepM, outline.Width);
+        for (int i = 0; i < _labelAt.Length; i++) _labelAt[i] = LabelPoint(Track, _s.Reference.Trace.StepM, _s.SectorDistances[i], outline.Width);
         _builtScale = -1;
         Update();
     }
@@ -523,6 +728,7 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
         double k = Math.Clamp(zoom / 0.15, 0, 1);
         double cx = _midX + (follow.Px - _midX) * k, cy = _midY + (follow.Py - _midY) * k;
         double rot = _settings.ReplayTurn ? Math.IEEERemainder(follow.Heading - Math.PI / 2, Math.Tau) * k : 0;
+        Rotation = rot;
         var m = Matrix.Identity;
         m.Translate(-cx, -cy);
         m.Scale(scale, -scale);
@@ -537,9 +743,40 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
             _carVisuals[i].Opacity = shown ? 1 : 0;
             var p = m.Transform(new Point(car.Px, car.Py));
             var cm = Matrix.Identity;
-            cm.Rotate((rot - car.Heading + Math.PI / 2) * 180 / Math.PI);
+            cm.Rotate((rot - car.Yaw + Math.PI / 2) * 180 / Math.PI);
             cm.Translate(p.X, p.Y);
             _carMatrix[i].Matrix = cm;
+        }
+        for (int i = 0; i < _labelAt.Length; i++)
+        {
+            var p = m.Transform(_labelAt[i]);
+            _labelMatrix[i].Matrix = new Matrix(1, 0, 0, 1, p.X, p.Y);
+        }
+        PlaceNotes(m, follow);
+    }
+
+    private void PlaceNotes(Matrix m, ReplayCar follow)
+    {
+        _taken.Clear();
+        _taken.AddRange(Avoid);
+        int n = _notes.Count, first = 0;
+        while (first < n && _notes[first].Distance < follow.Distance - 30) first++;
+        var view = new Rect(4, 4, ActualWidth - 8, ActualHeight - 8);
+        for (int k = 0; k < n; k++)
+        {
+            var note = _notes[(first + k) % n];
+            var p = m.Transform(note.World);
+            double x = Math.Round(p.X), y = Math.Round(p.Y);
+            note.MarkerAt.Matrix = new Matrix(1, 0, 0, 1, x, y);
+            note.Marker.Opacity = view.Contains(p) ? 1 : 0;
+            var box = new Rect(x + 12, y - 12, note.Box.Width, note.Box.Height);
+            if (box.Right > view.Right) box.X = x - 12 - box.Width;
+            if (box.Bottom > view.Bottom) box.Y = y + 12 - box.Height;
+            bool show = view.Contains(p) && view.Contains(box);
+            foreach (var r in _taken) if (show && r.IntersectsWith(box)) show = false;
+            if (show) _taken.Add(box);
+            note.Callout.Opacity = show ? 1 : 0;
+            note.CalloutAt.Matrix = new Matrix(1, 0, 0, 1, box.X, box.Y);
         }
     }
 
@@ -548,6 +785,7 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
         _builtScale = scale;
         _builtFollow = follow;
         _builtRef = _settings.ReplayShowReference;
+        if (_notesFor != follow) MakeNotes(follow);
         double px = 1 / scale;
         using (var dc = _world.RenderOpen())
         {
@@ -566,12 +804,6 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
                     dc.DrawGeometry(null, pit, _pitLines);
                 }
                 dc.DrawGeometry(Ui.Res<Brush>("SurfaceAlt"), rim, _surface);
-                if (_start is not null)
-                {
-                    var sf = new Pen(Ui.Res<Brush>("Heading"), 3 * px);
-                    sf.Freeze();
-                    dc.DrawGeometry(null, sf, _start);
-                }
             }
             else
             {
@@ -586,6 +818,8 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
             var tick = new Pen(Ui.Res<Brush>("TextMuted"), 2 * px);
             tick.Freeze();
             dc.DrawGeometry(null, tick, _ticks);
+            dc.DrawGeometry(Ui.Res<Brush>("Bg"), null, _checker.Base);
+            dc.DrawGeometry(Ui.Res<Brush>("Heading"), null, _checker.Squares);
             for (int i = 0; i < _cars.Count; i++)
             {
                 var car = _cars[i];
@@ -596,15 +830,94 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
             }
             DrawPedals(dc, follow, 3.5 * px);
         }
-        double carPx = Math.Clamp(4.6 * scale, 22, 84);
+        double carPx = Math.Clamp(CarShape.ShownLength * scale, 30, 170);
         for (int i = 0; i < _cars.Count; i++)
         {
-            using var dc = _carVisuals[i].RenderOpen();
-            CarShape.Draw(dc, Ui.Res<Brush>(_cars[i].Line.BrushKey), carPx, _cars[i] == follow);
+            var brush = Ui.Res<Brush>(_cars[i].Line.BrushKey);
+            using (var dc = _carVisuals[i].RenderOpen()) CarShape.Draw(dc, brush, carPx, _cars[i] == follow);
+        }
+        for (int i = 0; i < _labelVisuals.Length; i++)
+        {
+            using var dc = _labelVisuals[i].RenderOpen();
+            var text = LapAnalysisView.Text(this, "S" + (i + 2), Ui.Res<Brush>("Heading"), 12, bold: true);
+            var box = new Rect(-text.Width / 2 - 5, -text.Height / 2 - 2, text.Width + 10, text.Height + 4);
+            dc.DrawRectangle(Ui.Res<Brush>("Surface"), new Pen(Ui.Res<Brush>("LineStrong"), 1), box);
+            dc.DrawText(text, new Point(-text.Width / 2, -text.Height / 2));
         }
         int at = _cars.IndexOf(follow);
         _visuals.Remove(_carVisuals[at]);
         _visuals.Add(_carVisuals[at]);
+        foreach (var note in _notes)
+        {
+            _visuals.Remove(note.Callout);
+            _visuals.Add(note.Callout);
+        }
+    }
+
+    private static string NoteBrush(NoteKind kind) => kind switch
+    {
+        NoteKind.Brake => "Danger", NoteKind.Throttle => StatsUi.Hue("Sage").Deep, _ => StatsUi.Hue("Orange").Deep,
+    };
+
+    private void MakeNotes(ReplayCar follow)
+    {
+        _notesFor = follow;
+        foreach (var old in _notes) { _visuals.Remove(old.Marker); _visuals.Remove(old.Callout); }
+        _notes.Clear();
+        var track = Track;
+        var you = follow == track ? _cars.FirstOrDefault(c => c != track) : follow;
+        if (you is null) return;
+        var mine = you.Trace;
+        var reference = _s.Reference.Trace;
+        var found = LapReplay.Notes(mine[TraceChannel.Brake], mine[TraceChannel.Throttle], mine.StepM, mine.LengthM,
+            reference[TraceChannel.Brake], reference[TraceChannel.Throttle], reference.StepM, reference.LengthM,
+            speed: mine[TraceChannel.Speed], refSpeed: reference[TraceChannel.Speed]);
+        double step = track.Trace.StepM;
+        int at = 1;
+        foreach (var note in found)
+        {
+            double d = note.Distance;
+            var world = new Point(LapReplay.At(track.X, step, d), LapReplay.At(track.Y, step, d));
+            var brush = Ui.Res<Brush>(NoteBrush(note.Kind));
+            var marker = new DrawingVisual();
+            var markerAt = new MatrixTransform();
+            marker.Transform = markerAt;
+            using (var dc = marker.RenderOpen())
+            {
+                var edge = new Pen(Ui.Res<Brush>("Bg"), 2);
+                if (note.Kind == NoteKind.MinSpeed)
+                {
+                    var diamond = new StreamGeometry();
+                    using (var g = diamond.Open())
+                    {
+                        g.BeginFigure(new Point(0, -6.5), true, true);
+                        g.LineTo(new Point(6.5, 0), true, true);
+                        g.LineTo(new Point(0, 6.5), true, true);
+                        g.LineTo(new Point(-6.5, 0), true, true);
+                    }
+                    diamond.Freeze();
+                    dc.DrawGeometry(brush, edge, diamond);
+                }
+                else dc.DrawEllipse(brush, edge, new Point(0, 0), 5.5, 5.5);
+            }
+            var callout = new DrawingVisual();
+            var calloutAt = new MatrixTransform();
+            callout.Transform = calloutAt;
+            Size box;
+            using (var dc = callout.RenderOpen())
+            {
+                var title = LapAnalysisView.Text(this, note.Title, brush, 11, bold: true);
+                var body = LapAnalysisView.Text(this, note.Text(_s.Imperial), Ui.Res<Brush>("Heading"), 13);
+                box = new Size(Math.Ceiling(Math.Max(title.Width, body.Width) + 24), Math.Ceiling(title.Height + body.Height + 18));
+                dc.DrawRectangle(Ui.Res<Brush>("Surface"), new Pen(Ui.Res<Brush>("LineStrong"), 1), new Rect(0.5, 0.5, box.Width - 1, box.Height - 1));
+                dc.DrawRectangle(brush, null, new Rect(0, 0, 3, box.Height));
+                dc.DrawText(title, new Point(13, 8));
+                dc.DrawText(body, new Point(13, 8 + title.Height + 2));
+            }
+            _visuals.Insert(at++, marker);
+            _notes.Add(new NoteMark { Marker = marker, Callout = callout, MarkerAt = markerAt, CalloutAt = calloutAt, World = world, Distance = d, Box = box });
+        }
+        foreach (var note in _notes) _visuals.Add(note.Callout);
     }
 
     private static void DrawPedals(DrawingContext dc, ReplayCar car, double width)
@@ -676,6 +989,8 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 
 internal static class CarShape
 {
+    public const double ShownLength = 10;
+
     private static readonly Geometry Body = Geometry.Parse(
         "M-0.06,-0.5 L0.06,-0.5 L0.17,-0.42 L0.2,-0.28 L0.2,-0.12 L0.22,0.02 L0.22,0.3 L0.2,0.42 L0.1,0.47 L-0.1,0.47 L-0.2,0.42 L-0.22,0.3 L-0.22,0.02 L-0.2,-0.12 L-0.2,-0.28 L-0.17,-0.42 Z");
     private static readonly Geometry Cabin = Geometry.Parse("M-0.12,-0.12 L0.12,-0.12 L0.14,0.02 L0.13,0.16 L-0.13,0.16 L-0.14,0.02 Z M-0.1,0.16 L-0.08,0.26 L0.08,0.26 L0.1,0.16");
@@ -711,13 +1026,58 @@ internal static class CarShape
     }
 }
 
+internal sealed class ReplayCardRow : Panel
+{
+    private const double MinCard = 330, MaxCard = 560, Gap = 12;
+
+    private (int PerRow, double Width) Fit(double width)
+    {
+        int n = Math.Max(1, InternalChildren.Count);
+        if (double.IsInfinity(width)) return (n, MaxCard);
+        int perRow = Math.Clamp((int)((width + Gap) / (MinCard + Gap)), 1, n);
+        return (perRow, Math.Min(MaxCard, (width - Gap * (perRow - 1)) / perRow));
+    }
+
+    protected override Size MeasureOverride(Size available)
+    {
+        var (perRow, w) = Fit(available.Width);
+        double height = 0, row = 0;
+        for (int i = 0; i < InternalChildren.Count; i++)
+        {
+            InternalChildren[i].Measure(new Size(w, double.PositiveInfinity));
+            row = Math.Max(row, InternalChildren[i].DesiredSize.Height);
+            if (i % perRow == perRow - 1 || i == InternalChildren.Count - 1) { height += row + (height > 0 ? Gap : 0); row = 0; }
+        }
+        return new Size(double.IsInfinity(available.Width) ? perRow * w + Gap * (perRow - 1) : available.Width, height);
+    }
+
+    protected override Size ArrangeOverride(Size final)
+    {
+        var (perRow, w) = Fit(final.Width);
+        double y = 0;
+        for (int start = 0; start < InternalChildren.Count; start += perRow)
+        {
+            int count = Math.Min(perRow, InternalChildren.Count - start);
+            double rowHeight = 0;
+            for (int k = 0; k < count; k++) rowHeight = Math.Max(rowHeight, InternalChildren[start + k].DesiredSize.Height);
+            double x = (final.Width - (count * w + Gap * (count - 1))) / 2;
+            for (int k = 0; k < count; k++) InternalChildren[start + k].Arrange(new Rect(x + k * (w + Gap), y, w, rowHeight));
+            y += rowHeight + Gap;
+        }
+        return final;
+    }
+}
+
 internal sealed class ReplayCard : Tile
 {
+    private const double ValueSize = 19;
     private readonly bool _imperial;
     private readonly ScaleTransform _throttle = new(0, 1), _brake = new(0, 1);
-    private readonly TextBlock _speed = new(), _gear = new(), _rpm = new();
-    private int _lastSpeed = int.MinValue, _lastGear = int.MinValue, _lastRpm = int.MinValue;
-    private bool? _followed, _shown;
+    private readonly RotateTransform _wheel = new();
+    private readonly TextBlock _speed = new(), _gear = new(), _rpm = new(), _steer = new(), _throttleText = new(), _brakeText = new();
+    private readonly FrameworkElement _boost;
+    private int _lastSpeed = int.MinValue, _lastGear = int.MinValue, _lastRpm = int.MinValue, _lastSteer = int.MinValue, _lastThrottle = int.MinValue, _lastBrake = int.MinValue;
+    private bool? _followed, _shown, _boosting;
 
     public ReplayCar Car { get; }
 
@@ -726,59 +1086,100 @@ internal sealed class ReplayCard : Tile
         Car = car;
         _imperial = imperial;
         Style = Ui.Res<Style>("Card");
-        Padding = new Thickness(12, 8, 12, 8);
-        Width = 204;
+        Padding = new Thickness(16, 12, 16, 14);
         Cursor = Cursors.Hand;
         ToolTip = "Follow this car";
         MouseLeftButtonUp += (_, e) => { follow(); e.Handled = true; };
 
         var swatch = new Border { Width = 4, Margin = new Thickness(0, 0, 10, 0) };
         swatch.SetResourceReference(Border.BackgroundProperty, car.Line.BrushKey);
-        var name = new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Driver : car.Line.Short, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
-        var sub = new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Short : "", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+        var name = new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Driver : car.Line.Short, Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+        var sub = new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Short : "", Style = Ui.Res<Style>("Caption"), FontSize = 12, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
         if (car.Line.Reference) sub.Text = sub.Text.Length > 0 ? sub.Text + " · reference" : "Reference";
         sub.ToolTip = sub.Text;
-        var time = new TextBlock { Text = StatFormat.LapTime(car.Trace.LapTime), Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Top };
+        var time = new TextBlock { Text = StatFormat.LapTime(car.Trace.LapTime), Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Top };
         Typography.SetNumeralAlignment(time, FontNumeralAlignment.Tabular);
+        var boost = Ui.Chip("P2P", StatsUi.Hue("Coral").Soft, StatsUi.Hue("Coral").Deep);
+        boost.Margin = new Thickness(0, 0, 8, 0);
+        boost.VerticalAlignment = VerticalAlignment.Top;
+        boost.Visibility = Visibility.Collapsed;
+        boost.ToolTip = "Push-to-pass in use";
+        _boost = boost;
+        var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Children = { boost, time } };
         var head = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(swatch, Dock.Left);
-        DockPanel.SetDock(time, Dock.Right);
+        DockPanel.SetDock(right, Dock.Right);
         head.Children.Add(swatch);
-        head.Children.Add(time);
+        head.Children.Add(right);
         head.Children.Add(new StackPanel { Children = { name, sub } });
 
-        var pedals = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        var pedals = new Grid { Margin = new Thickness(0, 10, 0, 0) };
         pedals.ColumnDefinitions.Add(new ColumnDefinition());
-        pedals.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        pedals.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         pedals.ColumnDefinitions.Add(new ColumnDefinition());
-        pedals.Children.Add(Bar("Throttle", StatsUi.Hue("Sage").Deep, _throttle));
-        var brakeBar = Bar("Brake", "Danger", _brake);
+        pedals.Children.Add(Bar("Throttle", StatsUi.Hue("Sage").Deep, _throttle, _throttleText));
+        var brakeBar = Bar("Brake", "Danger", _brake, _brakeText);
         Grid.SetColumn(brakeBar, 2);
         pedals.Children.Add(brakeBar);
 
-        var values = new UniformGrid { Columns = 3, Margin = new Thickness(0, 8, 0, 0) };
-        values.Children.Add(Value(_speed, imperial ? "mph" : "km/h"));
-        values.Children.Add(Value(_gear, "Gear"));
-        values.Children.Add(Value(_rpm, "RPM"));
+        var values = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+        for (int c = 0; c < 3; c++) values.ColumnDefinitions.Add(new ColumnDefinition());
+        values.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        values.Children.Add(Value(_speed, imperial ? "mph" : "km/h", "speed"));
+        values.Children.Add(Value(_gear, "Gear", "gear"));
+        values.Children.Add(Value(_rpm, "RPM", "rpm"));
+        var steer = Value(_steer, "Steering angle", "steering");
+        _steer.MinWidth = 58;
+        steer.ToolTip = "Steering wheel angle in degrees; the wheel shows which way";
+        if (car.Trace[TraceChannel.Steering] is not null)
+        {
+            var wheel = new Icon { Data = Ui.Res<Geometry>("I.Wheel"), Width = 40, Height = 40, StrokeThickness = 2.4, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _wheel };
+            wheel.SetResourceReference(Icon.ForegroundProperty, LapAnalysisView.LaneHue("steering"));
+            steer = new DockPanel { Children = { wheel, steer }, ToolTip = steer.ToolTip };
+            DockPanel.SetDock(wheel, Dock.Left);
+        }
+        values.Children.Add(steer);
+        for (int c = 0; c < values.Children.Count; c++) Grid.SetColumn(values.Children[c], c);
         Child = new StackPanel { Children = { head, pedals, values } };
     }
 
-    private static FrameworkElement Bar(string label, string brush, ScaleTransform scale)
+    private static FrameworkElement Bar(string label, string brush, ScaleTransform scale, TextBlock percent)
     {
-        var fill = new Border { Height = 4, RenderTransform = scale, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var fill = new Border { Height = 6, RenderTransform = scale, HorizontalAlignment = HorizontalAlignment.Stretch };
         fill.SetResourceReference(Border.BackgroundProperty, brush);
-        var track = new Border { Height = 4, Child = fill, Margin = new Thickness(0, 4, 0, 0) };
+        var track = new Border { Height = 6, Child = fill, Margin = new Thickness(0, 5, 0, 0) };
         track.SetResourceReference(Border.BackgroundProperty, "SurfaceAlt");
-        return new StackPanel { Children = { new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), FontSize = 11 }, track } };
+        percent.Style = Ui.Res<Style>("Body");
+        percent.FontSize = 13;
+        percent.FontWeight = FontWeights.SemiBold;
+        percent.Text = "–";
+        percent.MinWidth = 40;
+        percent.TextAlignment = TextAlignment.Right;
+        percent.SetResourceReference(TextBlock.ForegroundProperty, brush);
+        Typography.SetNumeralAlignment(percent, FontNumeralAlignment.Tabular);
+        var top = new DockPanel();
+        DockPanel.SetDock(percent, Dock.Right);
+        top.Children.Add(percent);
+        top.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+        return new StackPanel { Children = { top, track } };
     }
 
-    private static FrameworkElement Value(TextBlock value, string label)
+    private static FrameworkElement Value(TextBlock value, string label, string lane)
     {
         value.Style = Ui.Res<Style>("Body");
+        value.SetResourceReference(TextBlock.ForegroundProperty, LapAnalysisView.LaneHue(lane));
+        value.FontSize = ValueSize;
         value.FontWeight = FontWeights.SemiBold;
         value.Text = "–";
         Typography.SetNumeralAlignment(value, FontNumeralAlignment.Tabular);
-        return new StackPanel { Children = { value, new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), FontSize = 11 } } };
+        return new StackPanel { Children = { value, new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), FontSize = 12 } } };
+    }
+
+    private static void Set(TextBlock text, ref int last, int value, Func<int, string> format)
+    {
+        if (value == last) return;
+        last = value;
+        text.Text = value == int.MinValue ? "–" : format(value);
     }
 
     public void Update(bool followed, bool shown)
@@ -792,14 +1193,20 @@ internal sealed class ReplayCard : Tile
         if (_shown != shown) { _shown = shown; Opacity = shown ? 1 : 0.5; }
         var t = Car.Trace;
         double d = Car.Distance;
-        _throttle.ScaleX = t.At(TraceChannel.Throttle, d) ?? 0;
-        _brake.ScaleX = t.At(TraceChannel.Brake, d) ?? 0;
-        int speed = t.At(TraceChannel.Speed, d) is { } v ? (int)Math.Round(v * (_imperial ? 2.236936 : 3.6)) : int.MinValue;
-        if (speed != _lastSpeed) { _lastSpeed = speed; _speed.Text = speed == int.MinValue ? "–" : speed.ToString(CultureInfo.CurrentCulture); }
-        int gear = t.At(TraceChannel.Gear, d) is { } g ? (int)Math.Round(g) : int.MinValue;
-        if (gear != _lastGear) { _lastGear = gear; _gear.Text = gear == int.MinValue ? "–" : LapAnalysisView.Format("gear", gear); }
-        int rpm = t.At(TraceChannel.Rpm, d) is { } r ? (int)Math.Round(r / 10) * 10 : int.MinValue;
-        if (rpm != _lastRpm) { _lastRpm = rpm; _rpm.Text = rpm == int.MinValue ? "–" : rpm.ToString(CultureInfo.CurrentCulture); }
+        double? throttle = t.At(TraceChannel.Throttle, d), brake = t.At(TraceChannel.Brake, d);
+        _throttle.ScaleX = Math.Clamp(throttle ?? 0, 0, 1);
+        _brake.ScaleX = Math.Clamp(brake ?? 0, 0, 1);
+        var culture = CultureInfo.CurrentCulture;
+        Set(_throttleText, ref _lastThrottle, throttle is { } th ? (int)Math.Round(Math.Clamp(th, 0, 1) * 100) : int.MinValue, v => v.ToString(culture) + "%");
+        Set(_brakeText, ref _lastBrake, brake is { } br ? (int)Math.Round(Math.Clamp(br, 0, 1) * 100) : int.MinValue, v => v.ToString(culture) + "%");
+        Set(_speed, ref _lastSpeed, t.At(TraceChannel.Speed, d) is { } v ? (int)Math.Round(v * (_imperial ? 2.236936 : 3.6)) : int.MinValue, x => x.ToString(culture));
+        Set(_gear, ref _lastGear, t.At(TraceChannel.Gear, d) is { } g ? (int)Math.Round(g) : int.MinValue, x => LapAnalysisView.Format("gear", x));
+        Set(_rpm, ref _lastRpm, t.At(TraceChannel.Rpm, d) is { } r ? (int)Math.Round(r / 10) * 10 : int.MinValue, x => x.ToString(culture));
+        int steer = t.At(TraceChannel.Steering, d) is { } a ? (int)Math.Round(-a * 180 / Math.PI) : int.MinValue;
+        if (steer != _lastSteer && steer != int.MinValue) _wheel.Angle = steer;
+        Set(_steer, ref _lastSteer, steer, x => Math.Abs(x).ToString(culture) + "°");
+        bool boosting = Car.Line.BoostAt(d);
+        if (_boosting != boosting) { _boosting = boosting; _boost.Visibility = boosting ? Visibility.Visible : Visibility.Collapsed; }
     }
 }
 

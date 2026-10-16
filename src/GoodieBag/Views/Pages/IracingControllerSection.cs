@@ -1103,7 +1103,7 @@ internal sealed class IracingControllerSection : StackPanel
             title.Children.Add(chip);
         }
         text.Children.Add(title);
-        text.Children.Add(new TextBlock { Text = $"{Dates.DateTime(b.Created)} · {b.Files.Count} files", Style = Ui.Res<Style>("Caption") });
+        text.Children.Add(new TextBlock { Text = $"{Dates.DateTime(b.Created)} · {SetupTree.Plural(b.Files.Count, "file")}", Style = Ui.Res<Style>("Caption") });
         grid.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         buttons.Children.Add(Ui.LabeledButton("I.Eye", "Compare", () => _ = Compare(b), "GhostButton"));
@@ -1123,7 +1123,7 @@ internal sealed class IracingControllerSection : StackPanel
         try
         {
             var b = _ws.Store.Create("Taken by hand", IracingPaths.BackupFiles(folder), folder, BackupKind.Manual, name);
-            _app.Notify($"Backup #{b.Number} taken", $"{b.Files.Count} files.", NoticeKind.Success);
+            _app.Notify($"Backup #{b.Number} taken", $"{SetupTree.Plural(b.Files.Count, "file")}.", NoticeKind.Success);
         }
         catch (Exception ex)
         {
@@ -1180,7 +1180,7 @@ internal sealed class IracingControllerSection : StackPanel
             return;
         }
         if (!await ConfirmDropPending()) return;
-        if (!await _window.Confirm($"Restore backup #{b.Number}?", $"Puts back {b.Files.Count} files from {Dates.DateTime(b.Created)}. Your current files are backed up first, so this can be undone.", "Restore"))
+        if (!await _window.Confirm($"Restore backup #{b.Number}?", $"Puts back {SetupTree.Plural(b.Files.Count, "file")} from {Dates.DateTime(b.Created)}. Your current files are backed up first, so this can be undone.", "Restore"))
             return;
         if (_ws.SimRunning)
         {

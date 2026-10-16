@@ -76,7 +76,7 @@ public sealed class RaceHudSettings
 
     public static string SessionKind(string session) => string.Equals(session, "Warmup", StringComparison.OrdinalIgnoreCase) ? "Practice" : session;
 
-    public static readonly string[] RemovedKinds = { "radar", "blindspot", "spotter", "h2h", "pit", "inputs", "flags", "dash" };
+    public static readonly string[] RemovedKinds = { "radar", "blindspot", "spotter", "h2h", "pit", "inputs", "flags", "dash", "trackmap" };
 
     public string? ToggleHotkey { get; set; }
     public string? EditHotkey { get; set; }
@@ -183,6 +183,7 @@ public sealed class RaceHudSettings
             {
                 w.Kind ??= "";
                 if (string.IsNullOrWhiteSpace(w.Id) || !ids.Add(w.Id)) { w.Id = HudWidgetConfig.NewId(w.Kind); ids.Add(w.Id); }
+                SideBannerToTop(w);
                 w.Clamp();
             }
         }
@@ -210,6 +211,16 @@ public sealed class RaceHudSettings
         KnownClasses = Clean(KnownClasses);
         KnownCars = Clean(KnownCars);
         KnownTracks = Clean(KnownTracks);
+    }
+
+    internal static void SideBannerToTop(HudWidgetConfig w)
+    {
+        if (w.Options is null || !w.Options.TryGetValue(SimRacing.Hud.HudFlags.BannerOption.Key, out var where) || where != SimRacing.Hud.HudFlags.OldSide) return;
+        var old = SimRacing.Hud.HudFlags.OldSideRoom;
+        var (l, t, r, b) = SimRacing.Hud.HudFlags.Room("top");
+        w.Options[SimRacing.Hud.HudFlags.BannerOption.Key] = "top";
+        w.W = Math.Max(1, w.W + l + r - old.L - old.R);
+        w.H = Math.Max(1, w.H + t + b - old.T - old.B);
     }
 
     private static string UniqueNameAmong(HashSet<string> taken, string wanted)
@@ -405,12 +416,12 @@ public sealed class HudAlertSetting
 
 public sealed class HudCustomColors
 {
-    public string Background { get; set; } = "#0F172A";
-    public string Surface { get; set; } = "#1E293B";
-    public string Text { get; set; } = "#F1F5F9";
+    public string Background { get; set; } = "#0A0A0B";
+    public string Surface { get; set; } = "#1C1C1F";
+    public string Text { get; set; } = "#F2F2F3";
     public string Heading { get; set; } = "#FFFFFF";
-    public string Muted { get; set; } = "#94A3B8";
-    public string Lines { get; set; } = "#475569";
+    public string Muted { get; set; } = "#9C9CA2";
+    public string Lines { get; set; } = "#45454B";
     public string Accent { get; set; } = "#3B82F6";
     public string YourRow { get; set; } = "#EAB308";
     public string YourRowText { get; set; } = "#FCD34D";

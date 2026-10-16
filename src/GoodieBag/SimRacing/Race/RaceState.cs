@@ -196,29 +196,6 @@ internal sealed class RaceState
         }
     }
 
-    public const int WeatherSamples = 240;
-    private readonly List<(double Time, double? Track, double? Air, int? Wetness, double? Rain)> _weather = new();
-
-    public IReadOnlyList<(double Time, double? Track, double? Air, int? Wetness, double? Rain)> Weather => _weather;
-
-    private void TrackWeather(TelemetryFrame f)
-    {
-        if (f.SessionTime is not { } t || _weather.Count > 0 && t - _weather[^1].Time < 30 && t >= _weather[^1].Time) return;
-        if (_weather.Count > 0 && t < _weather[^1].Time) _weather.Clear();
-        _weather.Add((t, f.TrackTemp, f.AirTemp, f.TrackWetness, f.Precipitation));
-        if (_weather.Count > WeatherSamples) _weather.RemoveAt(0);
-    }
-
-    public double? WeatherTrend(Func<(double Time, double? Track, double? Air, int? Wetness, double? Rain), double?> read, double minutes = 10)
-    {
-        if (_weather.Count < 2 || read(_weather[^1]) is not { } now) return null;
-        double since = _weather[^1].Time - minutes * 60;
-        for (int i = _weather.Count - 2; i >= 0; i--)
-            if (_weather[i].Time <= since || i == 0)
-                return _weather[^1].Time - _weather[i].Time >= minutes * 30 && read(_weather[i]) is { } then ? now - then : null;
-        return null;
-    }
-
     public string SessionLabel => Frame.CurrentSession?.Name is { Length: > 0 } n ? n : Frame.SessionKind.ToString();
 
     private int _split = -1;
@@ -295,7 +272,6 @@ internal sealed class RaceState
             TrackFlags(f);
             TrackPositions(f);
         }
-        TrackWeather(f);
         var call = _spotter.Next(f.Sides);
         if (call != SpotterCall.None)
         {
@@ -327,7 +303,6 @@ internal sealed class RaceState
         Array.Clear(_carLapCount);
         Array.Clear(_carLastSeen);
         Array.Copy(f.CarOnPitRoad, _carWasPit, TelemetryFrame.MaxCars);
-        _weather.Clear();
         _standingsSeq = -1;
         _lastIncidents = -1;
         _lastClassPos = 0;

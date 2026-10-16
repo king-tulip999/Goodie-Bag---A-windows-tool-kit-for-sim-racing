@@ -31,6 +31,10 @@ internal sealed class AnalysisLine
     public double[]? Delta { get; set; }
     public (double[] X, double[] Y)? Line { get; set; }
     public Dictionary<string, (double[]? A, double[]? B)> Lanes { get; } = new();
+    public List<(double From, double To)> PushToPass { get; } = new();
+    public (double Kph, double From)? Wind { get; set; }
+
+    public bool BoostAt(double d) => PushToPass.Any(s => d >= s.From && d <= s.To);
 }
 
 internal sealed class AnalysisState
@@ -80,7 +84,7 @@ internal static class LapAnalysisView
 
     private static readonly Dictionary<string, string> LaneNames = new()
     {
-        ["delta"] = "Delta", ["speed"] = "Speed", ["pedals"] = "Throttle / brake", ["steering"] = "Steering", ["gear"] = "Gear", ["rpm"] = "RPM", ["latg"] = "Lateral g",
+        ["delta"] = "Time delta", ["speed"] = "Speed", ["pedals"] = "Throttle / brake", ["steering"] = "Steering angle", ["gear"] = "Gear", ["rpm"] = "RPM", ["latg"] = "Lateral g",
     };
 
     public static FrameworkElement Build(AnalysisData data, Config.SessionStatsSettings settings, string reference, AnalysisActions actions, ReplayMemory memory,
@@ -142,11 +146,25 @@ internal static class LapAnalysisView
         var lanesButton = Ui.LabeledButton("I.Sliders", "Lanes", () => { });
         lanesButton.Click += (_, _) => OpenLanes(lanesButton, settings, lanesChanged);
 
+        var windy = s.Lines.Any(l => l.Wind is not null);
+        var windBox = WindBox(s);
+        windBox.Visibility = windy && settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
+        var windButton = Ui.LabeledButton("I.Wind", "Wind", () => { });
+        windButton.ToolTip = "Wind speed and direction on each lap, on the map";
+        Ui.SetToggled(windButton, settings.AnalysisWind);
+        windButton.Click += (_, _) =>
+        {
+            settings.AnalysisWind = !settings.AnalysisWind;
+            Ui.SetToggled(windButton, settings.AnalysisWind);
+            windBox.Visibility = settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
+            actions.Save();
+        };
         var refRow = Labeled("Reference", refPick);
         if (deleteShared is not null) refRow.Children.Add(deleteShared);
         var right = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        foreach (var e in new FrameworkElement[] { refRow, import, mapMode, reset, lanesButton })
+        foreach (var e in new FrameworkElement[] { refRow, import, mapMode, windButton, reset, lanesButton })
         {
+            if (e == windButton && !windy) continue;
             e.Margin = new Thickness(10, 2, 0, 2);
             e.VerticalAlignment = VerticalAlignment.Center;
             right.Children.Add(e);
@@ -156,7 +174,7 @@ internal static class LapAnalysisView
 
         var map = new LapMap(s) { Height = 460 };
         var mapCursor = new MapCursor(s, map) { IsHitTestVisible = false };
-        var mapHost = new Grid { ClipToBounds = true, Children = { map, mapCursor } };
+        var mapHost = new Grid { ClipToBounds = true, Children = { map, mapCursor, windBox } };
         var lanes = (settings.AnalysisLanes ?? Config.SessionStatsSettings.DefaultLanes.ToList()).Where(LaneNames.ContainsKey).ToList();
         if (lanes.Count == 0) lanes.Add("speed");
         var chart = new TraceChart(s, lanes);
@@ -164,12 +182,59 @@ internal static class LapAnalysisView
         var chartHost = new Grid { Children = { chart, chartCursor } };
 
         var mapCard = Card(StatsSections.Chart("Line", s.Lines.Any(l => l.Line is not null) ? "Where each lap drove; the wide band is the reference's" : null, mapHost));
-        var chartCard = Card(StatsSections.Chart("Telemetry", "Drag across to zoom, double-click for the whole lap", chartHost));
+        var chartCard = Card(StatsSections.Chart("Telemetry", "Drag across to zoom, double-click for the whole lap"
+            + (s.Lines.Any(l => l.PushToPass.Count > 0) ? "; strips along the bottom of each lane = push-to-pass in use" : ""), chartHost));
         var telemetry = StatsLayout.Pair(mapCard, chartCard, 1100, 2, 3, Ui.PanelSpacing)!;
         page.Children.Add(telemetry);
         page.Children.Add(new LapReplayView(data, s, settings, memory, actions.Save));
         s.ResetZoom();
         return page;
+    }
+
+    private static FrameworkElement WindBox(AnalysisState s)
+    {
+        var rows = new Grid();
+        foreach (var width in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
+            rows.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
+        rows.RowDefinitions.Add(new RowDefinition());
+        rows.Children.Add(Cell(new TextBlock { Text = "Wind", Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) }, 0, 0, 4));
+        int row = 1;
+        foreach (var line in s.Lines)
+        {
+            if (line.Wind is not { } wind) continue;
+            rows.RowDefinitions.Add(new RowDefinition());
+            var swatch = new Border { Width = 4, Height = 16, Margin = new Thickness(0, 2, 8, 2), VerticalAlignment = VerticalAlignment.Center };
+            swatch.SetResourceReference(Border.BackgroundProperty, line.BrushKey);
+            if (line.Reference) swatch.Opacity = 0.6;
+            double to = wind.From + Math.PI;
+            var arrow = new Icon
+            {
+                Data = Geometry.Parse("M12 20V4M6 10l6-6 6 6"), Width = 16, Height = 16, StrokeThickness = 2.2, Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(to * 180 / Math.PI),
+            };
+            arrow.SetResourceReference(Icon.ForegroundProperty, line.BrushKey);
+            double speed = s.Imperial ? wind.Kph / 1.609344 : wind.Kph;
+            var value = new TextBlock { Text = $"{line.Short}  {speed:0} {(s.Imperial ? "mph" : "km/h")}", Style = Ui.Res<Style>("Body"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            var point = new TextBlock { Text = SimRacing.Race.RaceFormat.Compass(to), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center };
+            rows.Children.Add(Cell(swatch, row, 0));
+            rows.Children.Add(Cell(arrow, row, 1));
+            rows.Children.Add(Cell(value, row, 2));
+            rows.Children.Add(Cell(point, row, 3));
+            row++;
+        }
+        return new Tile
+        {
+            Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 4, 4, 0),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Child = rows,
+        };
+
+        static UIElement Cell(FrameworkElement e, int row, int column, int span = 1)
+        {
+            Grid.SetRow(e, row);
+            Grid.SetColumn(e, column);
+            Grid.SetColumnSpan(e, span);
+            return e;
+        }
     }
 
     internal static string SharedLabel(SharedLapInfo lap, string car) =>
@@ -281,10 +346,12 @@ internal static class LapAnalysisView
             line.Lanes["delta"] = (line.Delta, null);
             line.Lanes["speed"] = (Scaled(t[TraceChannel.Speed], speedK), null);
             line.Lanes["pedals"] = (Scaled(t[TraceChannel.Throttle], 100), Scaled(t[TraceChannel.Brake], 100));
-            line.Lanes["steering"] = (Scaled(t[TraceChannel.Steering], 180 / Math.PI), null);
+            line.Lanes["steering"] = (Scaled(t[TraceChannel.Steering], -180 / Math.PI), null);
             line.Lanes["gear"] = (t[TraceChannel.Gear], null);
             line.Lanes["rpm"] = (t[TraceChannel.Rpm], null);
             line.Lanes["latg"] = (Scaled(t[TraceChannel.LatAccel], 1 / 9.80665), null);
+            line.PushToPass.AddRange(BoostSpans(t));
+            line.Wind = t.WindOfLap();
         }
         s.Lines.Remove(refLine);
         s.Lines.Insert(0, refLine);
@@ -293,10 +360,35 @@ internal static class LapAnalysisView
 
     private static double[]? Scaled(double[]? values, double k) => values?.Select(v => v * k).ToArray();
 
+    internal static List<(double From, double To)> BoostSpans(LapTrace t)
+    {
+        var spans = new List<(double, double)>();
+        if (t[TraceChannel.PushToPass] is not { } p) return spans;
+        int start = -1;
+        for (int i = 0; i <= p.Length; i++)
+        {
+            bool on = i < p.Length && p[i] > 0.5;
+            if (on && start < 0) start = i;
+            else if (!on && start >= 0) { spans.Add((t.Distance(start), t.Distance(i - 1))); start = -1; }
+        }
+        return spans;
+    }
+
     internal static string LaneLabel(string id, bool imperial) => id switch
     {
-        "delta" => "Delta s", "speed" => imperial ? "Speed mph" : "Speed km/h", "pedals" => "Throttle / brake %", "steering" => "Steering °",
+        "delta" => "Time delta (seconds)", "speed" => imperial ? "Speed (mph)" : "Speed (km/h)", "pedals" => "Throttle / brake (%)", "steering" => "Steering angle (degrees)",
         _ => LaneNames.TryGetValue(id, out var n) ? n : id,
+    };
+
+    internal static string LaneHue(string lane) => lane switch
+    {
+        "delta" => "AccentText",
+        "speed" => StatsUi.Hue("Slate").Deep,
+        "pedals" => StatsUi.Hue("Sage").Deep,
+        "steering" => StatsUi.Hue("Plum").Deep,
+        "gear" => StatsUi.Hue("Gold").Deep,
+        "rpm" => StatsUi.Hue("Coral").Deep,
+        _ => StatsUi.Hue("Slate").Deep,
     };
 
     internal static string Format(string lane, double v) => lane switch
@@ -555,7 +647,9 @@ internal sealed class TraceChart : FrameworkElement
 
     public AnalysisState State => _s;
 
-    public static double LaneHeight(string lane) => lane switch { "gear" => 64, "delta" => 110, "speed" => 130, "pedals" => 104, _ => 92 };
+    public const double BoostStrip = 4;
+
+    public static double LaneHeight(string lane) => lane switch { "gear" => 72, "delta" => 118, "speed" => 138, "pedals" => 112, _ => 100 };
 
     public double PlotWidth => Math.Max(1, ActualWidth - Left - Right);
 
@@ -625,16 +719,17 @@ internal sealed class TraceChart : FrameworkElement
         var strong = new Pen(Ui.Res<Brush>("LineStrong"), 1);
         strong.Freeze();
         var muted = Ui.Res<Brush>("TextMuted");
+        var boost = _s.Lines.Where(l => l.PushToPass.Count > 0).Select(l => (LapAnalysisView.Brush(l.BrushKey), l.PushToPass)).ToList();
         double top = 0;
         foreach (var lane in Lanes)
         {
-            double h = LaneHeight(lane), plotTop = top + 18, plotH = h - 26;
+            double h = LaneHeight(lane), plotTop = top + 26, plotH = h - 34;
             var (lo, hi) = Range(lane);
             Layout[lane] = (plotTop, plotH, lo, hi);
             double Y(double v) => plotTop + plotH * (hi - v) / Math.Max(1e-9, hi - lo);
-            dc.DrawText(LapAnalysisView.Text(this, LapAnalysisView.LaneLabel(lane, _s.Imperial), muted, 10.5, bold: true), new Point(0, top + 2));
-            var hiText = LapAnalysisView.Text(this, LapAnalysisView.Format(lane, hi), muted, 10);
-            var loText = LapAnalysisView.Text(this, LapAnalysisView.Format(lane, lo), muted, 10);
+            dc.DrawText(LapAnalysisView.Text(this, LapAnalysisView.LaneLabel(lane, _s.Imperial), Ui.Res<Brush>(LapAnalysisView.LaneHue(lane)), 12.5, bold: true), new Point(0, top + 1));
+            var hiText = LapAnalysisView.Text(this, LapAnalysisView.Format(lane, hi), muted, 11.5);
+            var loText = LapAnalysisView.Text(this, LapAnalysisView.Format(lane, lo), muted, 11.5);
             dc.DrawText(hiText, new Point(Left - 8 - hiText.Width, plotTop - hiText.Height / 2));
             dc.DrawText(loText, new Point(Left - 8 - loText.Width, plotTop + plotH - loText.Height / 2));
             dc.DrawLine(grid, new Point(Left, Math.Round(plotTop) + 0.5), new Point(ActualWidth - Right, Math.Round(plotTop) + 0.5));
@@ -642,6 +737,12 @@ internal sealed class TraceChart : FrameworkElement
             if (lane is "delta" or "steering" or "latg" && lo < 0 && hi > 0) dc.DrawLine(strong, new Point(Left, Math.Round(Y(0)) + 0.5), new Point(ActualWidth - Right, Math.Round(Y(0)) + 0.5));
 
             dc.PushClip(new RectangleGeometry(new Rect(Left, plotTop - 2, PlotWidth, plotH + 4)));
+            for (int k = 0; k < boost.Count; k++)
+                foreach (var (from, to) in boost[k].PushToPass)
+                {
+                    double a = X(from), b = X(to);
+                    if (b >= Left && a <= ActualWidth - Right) dc.DrawRectangle(boost[k].Item1, null, new Rect(a, plotTop + plotH - BoostStrip * (k + 1), Math.Max(1, b - a), BoostStrip - 1));
+                }
             foreach (var line in _s.Lines)
             {
                 if (!line.Lanes.TryGetValue(lane, out var series)) continue;
@@ -659,7 +760,7 @@ internal sealed class TraceChart : FrameworkElement
             if (d <= _s.D0 || d >= _s.D1) continue;
             double x = Math.Round(X(d)) + 0.5;
             dc.DrawLine(sectorPen, new Point(x, 14), new Point(x, top));
-            dc.DrawText(LapAnalysisView.Text(this, "S" + (k + 2), muted, 10, bold: true), new Point(x + 4, 2));
+            dc.DrawText(LapAnalysisView.Text(this, "S" + (k + 2), muted, 11.5, bold: true), new Point(x + 4, 1));
         }
         dc.DrawLine(strong, new Point(Left, top + 0.5), new Point(ActualWidth - Right, top + 0.5));
         double span = _s.D1 - _s.D0;
@@ -669,7 +770,7 @@ internal sealed class TraceChart : FrameworkElement
         {
             double x = X(d);
             dc.DrawLine(strong, new Point(x, top), new Point(x, top + 4));
-            var label = LapAnalysisView.Text(this, LapAnalysisView.DistanceText(d, _s.Imperial), muted, 10);
+            var label = LapAnalysisView.Text(this, LapAnalysisView.DistanceText(d, _s.Imperial), muted, 11.5);
             if (x - label.Width / 2 >= Left - 4 && x + label.Width / 2 <= ActualWidth) dc.DrawText(label, new Point(x - label.Width / 2, top + 6));
         }
     }
@@ -788,16 +889,17 @@ internal sealed class ChartCursor : FrameworkElement
                 int i = Math.Clamp((int)Math.Round(d / line.Trace.StepM), 0, values.Length - 1);
                 string text = LapAnalysisView.Format(lane, values[i]);
                 if (series.B is { } b && i < b.Length) text += " / " + LapAnalysisView.Format(lane, b[i]);
-                parts.Add(LapAnalysisView.Text(this, text, Ui.Res<Brush>(line.BrushKey), 11, bold: true));
+                if (line.BoostAt(d)) text += "  P2P";
+                parts.Add(LapAnalysisView.Text(this, text, Ui.Res<Brush>(line.BrushKey), 15.5, bold: true));
             }
             if (parts.Count == 0) continue;
-            double w = parts.Sum(p => p.Width) + 10 * (parts.Count - 1) + 12, h = parts.Max(p => p.Height) + 4;
+            double w = parts.Sum(p => p.Width) + 14 * (parts.Count - 1) + 16, h = parts.Max(p => p.Height) + 4;
             double left = x + 8 + w > ActualWidth ? x - 8 - w : x + 8;
-            dc.DrawRectangle(panel, null, new Rect(left, top - 16, w, h));
-            double at = left + 6;
-            foreach (var p in parts) { dc.DrawText(p, new Point(at, top - 14)); at += p.Width + 10; }
+            dc.DrawRectangle(panel, new Pen(Ui.Res<Brush>("LineStrong"), 1), new Rect(left, top - h - 1, w, h));
+            double at = left + 8;
+            foreach (var p in parts) { dc.DrawText(p, new Point(at, top - h + 1)); at += p.Width + 14; }
         }
-        var dist = LapAnalysisView.Text(this, LapAnalysisView.DistanceText(d, _s.Imperial), Ui.Res<Brush>("Heading"), 10.5, bold: true);
+        var dist = LapAnalysisView.Text(this, LapAnalysisView.DistanceText(d, _s.Imperial), Ui.Res<Brush>("Heading"), 12, bold: true);
         double dl = Math.Clamp(x - dist.Width / 2 - 4, 0, Math.Max(0, ActualWidth - dist.Width - 8));
         dc.DrawRectangle(panel, null, new Rect(dl, bottom + 3, dist.Width + 8, dist.Height + 2));
         dc.DrawText(dist, new Point(dl + 4, bottom + 4));

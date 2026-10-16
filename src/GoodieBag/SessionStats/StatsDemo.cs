@@ -1,4 +1,3 @@
-using GoodieBag.SimRacing.Hud.Widgets;
 using GoodieBag.SimRacing.TrackMaps;
 
 namespace GoodieBag.SessionStats;
@@ -7,10 +6,10 @@ internal static class StatsDemo
 {
     public const int LeagueId = 4242;
 
-    private static readonly (string Car, string Class, double Pace)[] Cars =
+    private static readonly (string Car, string Class, double Pace, double Tank)[] Cars =
     {
-        ("Porsche 911 GT3 R (992)", "GT3", 1.0), ("Ferrari 296 GT3", "GT3", 1.003), ("Global Mazda MX-5 Cup", "MX-5", 1.22),
-        ("Super Formula SF23", "SF23", 0.86), ("Dallara IR18", "IR18", 0.84),
+        ("Porsche 911 GT3 R (992)", "GT3", 1.0, 120), ("Ferrari 296 GT3", "GT3", 1.003, 104), ("Global Mazda MX-5 Cup", "MX-5", 1.22, 40),
+        ("Super Formula SF23", "SF23", 0.86, 95), ("Dallara IR18", "IR18", 0.84, 70),
     };
 
     private static readonly (string Track, string Config, double Km, double Lap)[] Tracks =
@@ -73,12 +72,39 @@ internal static class StatsDemo
                 Humidity = wet ? 0.9 : 0.4 + more.NextDouble() * 0.4, Pressure = 100_400 + more.Next(-900, 900), AirDensity = 1.15 + more.NextDouble() * 0.06,
                 Skies = wet ? 3 : more.Next(0, 3), RainMax = wet ? 0.35 : 0, WetnessMax = wet ? 4 : 1,
                 Rubber = kind == "Race" ? "moderately high usage" : "moderate usage", SimStart = $"{start:yyyy-MM-dd} {13 + more.Next(0, 5):00}:{more.Next(0, 4) * 15:00}",
+                TankL = car.Tank, Tyres = DemoTyres(more, lapCount, pitLap),
                 PitStops = kind == "Race" && lapCount > 18 ? 1 : 0, PitS = kind == "Race" && lapCount > 18 ? 38 + rnd.NextDouble() * 12 : 0,
             };
             store.Save(row, laps);
             if (row.Official) { ir += rnd.Next(-45, 70); sr = Math.Clamp(sr + (incidents < 4 ? 0.12 : -0.2), 1, 4.99); }
         }
         AddTraces(store, rnd);
+    }
+
+    private static List<TyreReading>? DemoTyres(Random rnd, int laps, int pitLap)
+    {
+        var list = new List<TyreReading>();
+        var tracker = new TyreWearTracker();
+        var now = Enumerable.Repeat(1.0, TyreReading.Values).ToArray();
+        tracker.Feed(now, 0, 1);
+        var rate = Enumerable.Range(0, TyreReading.Values).Select(i => 0.0025 + (i / 3 % 2 == 1 ? 0.0012 : 0) + (i % 3 == 0 ? 0.0008 : 0) + rnd.NextDouble() * 0.0006).ToArray();
+        void Drive(int count) { for (int i = 0; i < now.Length; i++) now[i] = Math.Max(0, now[i] - rate[i] * count); }
+        if (pitLap > 0)
+        {
+            Drive(pitLap);
+            if (tracker.Feed(now, pitLap, 1) is { } first) list.Add(first);
+            Array.Fill(now, 1.0);
+            tracker.Feed(now, pitLap, 2);
+            for (int i = 0; i < rate.Length; i++) rate[i] *= 1.12 + rnd.NextDouble() * 0.1;
+            Drive(laps - pitLap);
+            if (tracker.Feed(now, laps, 2) is { } second) list.Add(second);
+        }
+        else
+        {
+            Drive(laps);
+            if (tracker.Feed(now, laps, 1) is { } only) list.Add(only);
+        }
+        return list.Count > 0 ? list : null;
     }
 
     private static readonly double[] SectorShares = { 0.33, 0.35, 0.32 };
@@ -95,7 +121,7 @@ internal static class StatsDemo
     private static void AddTraces(StatsStore store, Random rnd)
     {
         if (store.Traces is not { } traces) return;
-        var map = TrackMapLibrary.ByKey(TrackMapWidget.SampleKey).GetAwaiter().GetResult();
+        var map = TrackMapLibrary.ByKey(TrackMapLibrary.SampleKey).GetAwaiter().GetResult();
         if (map is null) return;
         var spa = Tracks[0];
         var course = Course(map, spa.Km * 1000);
@@ -126,16 +152,10 @@ internal static class StatsDemo
     {
         int n = (int)length + 1;
         double scale = length / map.Length;
-        var x = new double[n];
-        var y = new double[n];
-        for (int i = 0; i < n; i++)
-        {
-            var p = map.At(i / length);
-            x[i] = p.X * scale;
-            y[i] = -p.Y * scale;
-        }
-        x = Smoothed(x, 12);
-        y = Smoothed(y, 12);
+        var (sx, sy) = TrackFit.Spline(map.Centerline.Select(p => p.X * scale).ToArray(), map.Centerline.Select(p => -p.Y * scale).ToArray(), closed: true, step: 1);
+        var (x, y) = Resample(sx, sy, n);
+        x = Smoothed(x, 6);
+        y = Smoothed(y, 6);
         var heading = new double[n];
         for (int i = 0; i < n; i++)
         {
@@ -171,9 +191,35 @@ internal static class StatsDemo
         return new CourseShape(x, y, curvature, v);
     }
 
+    private static (double[] X, double[] Y) Resample(double[] x, double[] y, int n)
+    {
+        int m = x.Length;
+        var along = new double[m + 1];
+        for (int i = 1; i <= m; i++)
+        {
+            int a = i - 1, b = i % m;
+            along[i] = along[i - 1] + Math.Sqrt((x[b] - x[a]) * (x[b] - x[a]) + (y[b] - y[a]) * (y[b] - y[a]));
+        }
+        var ox = new double[n];
+        var oy = new double[n];
+        int j = 0;
+        for (int i = 0; i < n; i++)
+        {
+            double d = along[m] * i / n;
+            while (j < m - 1 && along[j + 1] < d) j++;
+            double seg = along[j + 1] - along[j], f = seg > 0 ? (d - along[j]) / seg : 0;
+            int b = (j + 1) % m;
+            ox[i] = x[j] + (x[b] - x[j]) * f;
+            oy[i] = y[j] + (y[b] - y[j]) * f;
+        }
+        return (ox, oy);
+    }
+
     internal static LapTrace Drive(CourseShape course, double lapTime, Random rnd, double wander)
     {
         int n = course.X.Length;
+        double windKph = 8 + rnd.NextDouble() * 14, windFrom = 3.6 + rnd.NextDouble() * 1.2;
+        bool usesP2P = rnd.NextDouble() < 0.6;
         double phaseA = rnd.NextDouble() * Math.Tau, phaseB = rnd.NextDouble() * Math.Tau, lineA = rnd.NextDouble() * Math.Tau;
         var speed = new double[n];
         for (int i = 0; i < n; i++)
@@ -195,9 +241,25 @@ internal static class StatsDemo
         var lon = new double[n];
         var xs = new double[n];
         var ys = new double[n];
+        var p2p = new double[n];
+        var wind = new double[n];
+        var windDir = new double[n];
         double[] shifts = { 0, 17, 27, 37, 47, 59, 75 };
+        var offset = new double[n];
+        for (int i = 0; i < n; i++)
+            offset[i] = wander * Math.Sin(Math.Tau * 9 * i / n + lineA) - Math.Clamp(course.Curvature[i] * 400, -3, 3);
+        offset = Smoothed(offset, 25);
+        if (usesP2P)
+            for (int i = 0, run = 0; i < n; i++)
+            {
+                run = Math.Abs(course.Curvature[i]) < 0.0015 ? run + 1 : 0;
+                if (run != 700) continue;
+                for (int k = i - 550; k < i - 150; k++) p2p[k] = 1;
+            }
         for (int i = 0; i < n; i++)
         {
+            wind[i] = windKph / 3.6 * (1 + 0.08 * Math.Sin(Math.Tau * 2 * i / n + phaseA));
+            windDir[i] = windFrom + 0.1 * Math.Sin(Math.Tau * i / n + phaseB);
             int next = Math.Min(n - 1, i + 12), prev = Math.Max(0, i - 12);
             double accel = speed[i] * (speed[next] - speed[prev]) / Math.Max(1, next - prev);
             lon[i] = accel;
@@ -211,9 +273,16 @@ internal static class StatsDemo
             rpm[i] = 3800 + 3600 * Math.Clamp((speed[i] - shifts[g - 1]) / (shifts[g] - shifts[g - 1]), 0, 1);
             int a = (i - 3 + n) % n, b = (i + 3) % n;
             double hx = course.X[b] - course.X[a], hy = course.Y[b] - course.Y[a], len = Math.Max(1e-6, Math.Sqrt(hx * hx + hy * hy));
-            double offset = wander * Math.Sin(Math.Tau * 9 * i / n + lineA) - Math.Clamp(course.Curvature[i] * 400, -3, 3);
-            xs[i] = course.X[i] - hy / len * offset;
-            ys[i] = course.Y[i] + hx / len * offset;
+            xs[i] = course.X[i] - hy / len * offset[i];
+            ys[i] = course.Y[i] + hx / len * offset[i];
+        }
+        var heading = LapReplay.Headings(xs, ys, 4);
+        var yaw = new double[n];
+        double slide = 0.4 + rnd.NextDouble() * 0.8;
+        for (int i = 0; i < n; i++)
+        {
+            double h = heading[i] + 0.0028 * slide * lat[i] * (throttle[i] > 0.8 ? 1.6 : 1);
+            yaw[i] = h - Math.Floor(h / Math.Tau) * Math.Tau;
         }
         var trace = new LapTrace(1, n - 1, time[^1], 50.4372, 5.9714, n);
         trace[TraceChannel.Time] = time;
@@ -227,6 +296,10 @@ internal static class StatsDemo
         trace[TraceChannel.LongAccel] = lon;
         trace[TraceChannel.X] = xs;
         trace[TraceChannel.Y] = ys;
+        trace[TraceChannel.PushToPass] = p2p;
+        trace[TraceChannel.Wind] = wind;
+        trace[TraceChannel.WindDir] = windDir;
+        trace[TraceChannel.Yaw] = yaw;
         return trace;
     }
 

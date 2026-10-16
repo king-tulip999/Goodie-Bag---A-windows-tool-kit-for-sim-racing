@@ -76,6 +76,7 @@ internal static class GrrTheme
         ["Apricot"] = Hex("#E8B931"), ["ApricotSoft"] = Hex("#2B2B15"), ["ApricotDeep"] = Hex("#F2D06B"),
         ["Coral"] = Hex("#F0524F"), ["CoralSoft"] = Hex("#2C1F18"), ["CoralDeep"] = Hex("#F79A98"),
         ["Slate"] = Hex("#4CC9E0"), ["SlateSoft"] = Hex("#102026"), ["SlateDeep"] = Hex("#8FDFF0"),
+        ["TopoLine"] = Hex("#3FD66E"),
         ["Plum"] = Hex("#8CFF33"), ["PlumSoft"] = Hex("#192A10"), ["PlumDeep"] = Hex("#8CFF33"),
         ["Knob"] = Hex("#8E988F"), ["SwitchTrack"] = Hex("#0B100C"), ["SwitchTrackHover"] = Hex("#162016"),
         ["MeterTrack"] = Hex("#1B241D"), ["GridLine"] = Hex("#1B241D"),

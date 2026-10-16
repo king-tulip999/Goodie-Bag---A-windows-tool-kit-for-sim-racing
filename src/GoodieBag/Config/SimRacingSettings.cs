@@ -175,6 +175,8 @@ public sealed class SetupManagerSettings
 
     public List<string> HiddenClasses { get; set; } = new();
 
+    public FuelCalcSettings Fuel { get; set; } = new();
+
     public bool IsClassHidden(string cls) => Has(HiddenClasses, cls);
 
     public void SetClassHidden(string cls, bool hidden)
@@ -209,6 +211,59 @@ public sealed class SetupManagerSettings
             if (key is not null && list is not null) orders[key] = list.Where(x => x is not null).ToList();
         Orders = orders;
         Sort ??= "class";
+        (Fuel ??= new()).Normalize();
+    }
+}
+
+public sealed class FuelCalcSettings
+{
+    public bool ByLaps { get; set; }
+
+    public double Minutes { get; set; } = 45;
+
+    public int Laps { get; set; } = 20;
+
+    public bool ExtraLap { get; set; }
+
+    public bool FormationLap { get; set; }
+
+    public double PitLoss { get; set; } = 40;
+
+    public bool Gallons { get; set; }
+
+    public Dictionary<string, CarFuel> Cars { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public CarFuel For(string car)
+    {
+        if (!Cars.TryGetValue(car, out var fuel)) Cars[car] = fuel = new CarFuel();
+        return fuel;
+    }
+
+    public void Normalize()
+    {
+        Minutes = double.IsFinite(Minutes) ? Math.Clamp(Minutes, 1, 1440) : 45;
+        Laps = Math.Clamp(Laps, 1, 2000);
+        PitLoss = double.IsFinite(PitLoss) ? Math.Clamp(PitLoss, 0, 600) : 40;
+        var cars = new Dictionary<string, CarFuel>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (dir, fuel) in Cars ?? new())
+            if (dir is not null && fuel is not null) { fuel.Normalize(); cars[dir] = fuel; }
+        Cars = cars;
+    }
+}
+
+public sealed class CarFuel
+{
+    public double LapTime { get; set; } = 90;
+
+    public double PerLap { get; set; } = 2.5;
+
+    public double Tank { get; set; } = 100;
+
+    public void Normalize()
+    {
+        LapTime = double.IsFinite(LapTime) ? Math.Clamp(LapTime, 10, 3599) : 90;
+        PerLap = double.IsFinite(PerLap) ? Math.Clamp(PerLap, 0.01, 50) : 2.5;
+        Tank = double.IsFinite(Tank) ? Math.Clamp(Tank, 1, 1000) : 100;
     }
 }
 

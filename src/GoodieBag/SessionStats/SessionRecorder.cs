@@ -27,8 +27,15 @@ internal sealed class SessionRow
     public string TrackName = "";
     public string Source = "live";
     public Dictionary<int, LapTrace>? Traces;
+    public double? TankL;
+    public List<TyreReading>? Tyres;
 
-    public SessionRow Copy() => (SessionRow)MemberwiseClone();
+    public SessionRow Copy()
+    {
+        var copy = (SessionRow)MemberwiseClone();
+        copy.Tyres = Tyres?.ToList();
+        return copy;
+    }
 }
 
 internal sealed record LapRow(int Lap, double Time, bool Clean, double? TopSpeed, double? FuelUsed, double? FullThrottle, double? Brake, int Shifts, double? PeakLatG,
@@ -63,6 +70,8 @@ internal sealed class SessionRecorder
     private bool _onPitRoad, _sawStall, _wasDriving;
     private int _run, _lapRun;
     private int? _lapsAtCheckered;
+    private readonly TyreWearTracker _tyres = new();
+    private readonly double[] _wear = new double[TyreReading.Values];
 
     public Func<bool>? Tracing { get; init; }
 
@@ -133,6 +142,7 @@ internal sealed class SessionRecorder
         else _stint = 0;
 
         PitVisit(f, row, driving);
+        Wear(f, row);
         if (f.Incidents is { } inc) row.Incidents = inc;
         if (row.SessionType == nameof(SessionKind.Race)) RacePositions(f, row);
         Lap(f, row, driving, dt);
@@ -152,6 +162,7 @@ internal sealed class SessionRecorder
         _onPitRoad = _wasDriving = false;
         _run = 0;
         _lapsAtCheckered = null;
+        _tyres.Reset();
         if (row is null) return null;
         var laps = _laps.ToList();
         _laps.Clear();
@@ -175,6 +186,7 @@ internal sealed class SessionRecorder
             DynamicWeather = info.WeatherType.Contains("dynamic", StringComparison.OrdinalIgnoreCase) || info.WeatherType.Contains("realistic", StringComparison.OrdinalIgnoreCase),
             IrStart = player.IRating, SrStart = SafetyRating(player.License),
             LeagueId = info.LeagueId ?? 0, SubSession = info.SubSessionId ?? 0, SessionNum = f.SessionNum,
+            TankL = info.FuelMaxLiters is { } tank ? tank * (info.MaxFuelPct ?? 1) : null,
             SeasonId = info.SeasonId ?? 0, RaceWeek = info.Official ? info.RaceWeek : null, Official = info.Official,
         };
         _laps.Clear();
@@ -200,6 +212,18 @@ internal sealed class SessionRecorder
     {
         int space = license.LastIndexOf(' ');
         return space > 0 && double.TryParse(license[(space + 1)..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sr) ? sr : null;
+    }
+
+    private void Wear(TelemetryFrame f, SessionRow row)
+    {
+        for (int c = 0; c < 4; c++)
+        {
+            if (f.TyreWearInner[c] is not { } l || f.TyreWearMiddle[c] is not { } m || f.TyreWearOuter[c] is not { } r) return;
+            _wear[c * 3] = l;
+            _wear[c * 3 + 1] = m;
+            _wear[c * 3 + 2] = r;
+        }
+        if (_tyres.Feed(_wear, _laps.Count, Math.Max(1, _run)) is { } reading) (row.Tyres ??= new()).Add(reading);
     }
 
     private void PitVisit(TelemetryFrame f, SessionRow row, bool driving)
@@ -297,7 +321,8 @@ internal sealed class SessionRecorder
             else _x = _y = double.NaN;
             if (_lapStart is not null)
                 _trace.Add(new TraceBuilder.Sample(f.LapDist ?? pct * (row.TrackKm ?? 0) * 1000, pct, t, f.Speed ?? 0, f.Throttle ?? 0, f.Brake ?? 0, f.Clutch,
-                    f.Steering ?? 0, f.Gear ?? 0, f.Rpm ?? 0, f.LatAccel ?? 0, f.LongAccel ?? 0, f.RawValue("Lat") ?? 0, f.RawValue("Lon") ?? 0, _x, _y));
+                    f.Steering ?? 0, f.Gear ?? 0, f.Rpm ?? 0, f.LatAccel ?? 0, f.LongAccel ?? 0, f.RawValue("Lat") ?? 0, f.RawValue("Lon") ?? 0, _x, _y,
+                    f.PushToPassActive, f.WindSpeed, f.WindDir, f.YawNorth is { } north ? Math.PI / 2 - north : null));
         }
         _prevPct = pct;
         _prevTime = t;

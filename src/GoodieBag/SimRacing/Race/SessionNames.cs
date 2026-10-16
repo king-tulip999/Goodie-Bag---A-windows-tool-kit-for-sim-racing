@@ -1,4 +1,3 @@
-using GoodieBag.Config;
 using GoodieBag.SimRacing.Setups;
 
 namespace GoodieBag.SimRacing.Race;

@@ -288,15 +288,24 @@ public partial class App : Application
             "Goodie Bag", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
+    private const long LogLimit = 1 << 20;
+    private static readonly object LogGate = new();
+
     internal static void LogError(Exception ex)
     {
-        try
+        lock (LogGate)
         {
-            Directory.CreateDirectory(ConfigStore.Folder);
-            File.AppendAllText(Path.Combine(ConfigStore.Folder, "error.log"), $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n\n");
-        }
-        catch
-        {
+            try
+            {
+                Directory.CreateDirectory(ConfigStore.Folder);
+                string path = Path.Combine(ConfigStore.Folder, "error.log");
+                var info = new FileInfo(path);
+                if (info.Exists && info.Length > LogLimit) File.Move(path, Path.Combine(ConfigStore.Folder, "error.old.log"), overwrite: true);
+                File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n\n");
+            }
+            catch
+            {
+            }
         }
     }
 

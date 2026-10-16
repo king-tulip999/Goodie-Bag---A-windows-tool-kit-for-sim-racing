@@ -24,7 +24,6 @@ internal static class HudPresets
                 W("timing", HudAnchor.BottomRight, -452, -8, 380, 140, options: new[] { ("fields", "last,current,best,predicted") }),
                 W("fuel", HudAnchor.BottomRight, 0, -8, 440, 280, options: new[] { ("statusEdge", "false"), ("parts", "header,gauge,grid,plan,figures"), ("head", "togo,nextpit,stops,pitby,add"), ("gridCols", "use,laps,refuel,finish"), ("top", "level,laps,togo,perlap") }),
                 W("relative", HudAnchor.BottomLeft, 20, -28, 500, 300, options: new[] { ("columns", "cpos,pos,gap,name,out,num"), ("header", "session,remain,pos,last,best"), ("footer", "lap,clock,wetness,track,air") }),
-                W("trackmap", HudAnchor.Top, -501.2, 20, 349.6, 292, options: new[] { ("show", "pit,sf,sectors,turns,pitcars"), ("follow", "true"), ("rotate", "true"), ("zoom", "175"), ("labels", "cpos") }),
             },
         },
     };

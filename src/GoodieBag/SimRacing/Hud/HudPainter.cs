@@ -3,7 +3,6 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using GoodieBag.Config;
 using GoodieBag.SimRacing.Telemetry;
-using GoodieBag.Theme;
 
 namespace GoodieBag.SimRacing.Hud;
 
@@ -69,8 +68,8 @@ internal sealed class HudPalette
     public static HudPalette Default => _default ??= new HudPalette
     {
         Dark = true,
-        Bg = Hex(0x0F172A), Surface = Hex(0x1E293B), SurfaceAlt = Hex(0x273449), Text = Hex(0xF1F5F9), Heading = Hex(0xFFFFFF),
-        Muted = Hex(0x94A3B8), Faint = Hex(0x64748B), Line = Hex(0x334155), LineStrong = Hex(0x475569),
+        Bg = Hex(0x0A0A0B), Surface = Hex(0x1C1C1F), SurfaceAlt = Hex(0x26262A), Text = Hex(0xF2F2F3), Heading = Hex(0xFFFFFF),
+        Muted = Hex(0x9C9CA2), Faint = Hex(0x68686E), Line = Hex(0x2E2E33), LineStrong = Hex(0x45454B),
         Accent = Hex(0x3B82F6), AccentText = Hex(0x60A5FA), AccentSoft = Hex(0x1E3A5F), OnAccent = Color.White,
         Good = Hex(0x22C55E), GoodText = Hex(0x4ADE80), GoodSoft = Hex(0x14532D), Warn = Hex(0xF59E0B), WarnText = Hex(0xFBBF24), WarnSoft = Hex(0x713F12),
         Danger = Hex(0xEF4444), DangerText = Hex(0xF87171), DangerSoft = Hex(0x7F1D1D), Gold = Hex(0xFACC15), Slate = Hex(0x64748B), Plum = Hex(0xA855F7),
@@ -100,7 +99,7 @@ internal sealed class HudPainter : IDisposable
     private readonly Dictionary<(Font, string), float> _widths = new();
     private readonly StringFormat[] _formats = new StringFormat[18];
     private GraphicsPath? _panelPath;
-    private (SizeF Size, float Radius) _panelKey;
+    private (RectangleF Rect, float Radius) _panelKey;
     private readonly Bitmap _measureBitmap = new(1, 1);
     private readonly Graphics _measure;
     private float _textScale = 1;
@@ -326,11 +325,11 @@ internal sealed class HudPainter : IDisposable
         int alpha = PanelAlpha;
         float radius = Math.Min(Look.Corner, 4);
         r = Snap(r);
-        if (_panelPath is null || _panelKey != (r.Size, radius))
+        if (_panelPath is null || _panelKey != (r, radius))
         {
             _panelPath?.Dispose();
             _panelPath = Rounded(new RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1), radius);
-            _panelKey = (r.Size, radius);
+            _panelKey = (r, radius);
         }
         if (alpha > 0) G.FillPath(Brush(HudPalette.Alpha(PanelColor, alpha)), _panelPath);
         if (Look.Outline)
@@ -519,11 +518,10 @@ internal sealed class HudPainter : IDisposable
 
     public float ValueStatHeight(Font? valueFont = null) => LineHeight((valueFont ?? Big)) + LineHeight(Label) + 3;
 
-    public void Strip(RectangleF r, IReadOnlyList<(string Label, string Value, Color? Color)> items, string? key = null, IReadOnlyList<string>? ids = null, int? opacity = null)
+    public void Strip(RectangleF r, IReadOnlyList<(string Label, string Value, Color? Color)> items, string? key = null, IReadOnlyList<string>? ids = null)
     {
         if (items.Count == 0) return;
-        Fill(r, BandColor(opacity), CornerRadius(3));
-        var inner = r.Inflated(-6 * Density, 0);
+        var inner = r.Inflated(-8 * Density, 0);
         var valueFont = SmallBold;
         var labelFont = LabelFont(11.5f);
         float baseline = r.Y + (r.Height - TextHeight(valueFont)) / 2 + Ascent(valueFont);
@@ -564,32 +562,66 @@ internal sealed class HudPainter : IDisposable
 
     public float StripHeight => LineHeight(SmallBold) + 7 * Density;
 
+    public float PillHeight => StripHeight + 4 * Density;
+
+    public float PieceGap => 5 * Density;
+
     public Color BandColor(int? opacity = null) => HudPalette.Alpha(P.Bg, (int)Math.Round((opacity ?? 70) * 2.55));
+
+    public void Soft(RectangleF r, Color c, int alpha = 80, bool stripe = true)
+    {
+        Fill(r, Solid(Raised(P.Dark ? 0.04 : 0.03), 150));
+        Fade(r, c, alpha);
+        if (stripe) Fill(new RectangleF(r.X, r.Y, 3, r.Height), c);
+    }
+
+    private readonly Dictionary<int, LinearGradientBrush> _fades = new();
+
+    public void Fade(RectangleF r, Color c, int alpha)
+    {
+        if (r.Width <= 0 || r.Height <= 0) return;
+        int key = HudPalette.Alpha(c, alpha).ToArgb();
+        if (!_fades.TryGetValue(key, out var brush))
+        {
+            if (_fades.Count >= 64)
+            {
+                foreach (var old in _fades.Values) old.Dispose();
+                _fades.Clear();
+            }
+            brush = new LinearGradientBrush(new PointF(0, 0), new PointF(1, 0), HudPalette.Alpha(c, alpha), HudPalette.Alpha(c, 0));
+            _fades[key] = brush;
+        }
+        r = Snap(r);
+        brush.ResetTransform();
+        brush.TranslateTransform(r.X - 1, 0);
+        brush.ScaleTransform(r.Width + 2, 1);
+        G.FillRectangle(brush, r);
+    }
+
+    public void Chip(RectangleF r, Color c)
+    {
+        Fill(r, HudPalette.Alpha(c, 55));
+        Fill(new RectangleF(r.X, r.Bottom - 2, r.Width, 2), c);
+    }
+
+    public void TitleBar(RectangleF r, string title, string? right = null, Color? rightColor = null)
+    {
+        Panel(r);
+        var inner = r.Inflated(-8 * Density, 0);
+        var font = LabelFont(11f);
+        string text = title.ToUpperInvariant();
+        float titleW = Math.Min(Measure(text, font) + 4, inner.Width * (right is null ? 1 : 0.62f));
+        Text(text, font, P.Heading, new RectangleF(inner.X, inner.Y, titleW, inner.Height), HAlign.Left, VAlign.Center);
+        if (right is not null) Text(right, Small, rightColor ?? P.Muted, new RectangleF(inner.X + titleW + 6, inner.Y, inner.Width - titleW - 6, inner.Height), HAlign.Right, VAlign.Center);
+    }
 
     public RectangleF Header(string title, string? right = null, Color? rightColor = null)
     {
-        float pad = 8 * Density, h = LineHeight(SmallBold) + 6 * Density;
-        var r = new RectangleF(pad, pad * 0.6f, Bounds.Width - pad * 2, h);
-        var (font, color) = (LabelFont(11f), P.Muted);
-        string text = title.ToUpperInvariant();
-        float titleW = Math.Min(Measure(text, font) + 4, r.Width * (right is null ? 1 : 0.62f));
-        Text(text, font, color, new RectangleF(r.X, r.Y, titleW, r.Height), HAlign.Left, VAlign.Center);
-        if (right is not null) Text(right, Small, rightColor ?? P.Muted, new RectangleF(r.X + titleW + 6, r.Y, r.Width - titleW - 6, r.Height), HAlign.Right, VAlign.Center);
-        return new RectangleF(pad, r.Bottom + 2, Bounds.Width - pad * 2, Bounds.Height - r.Bottom - 2 - pad * 0.6f);
-    }
-
-    public RectangleF HeaderBand(string title, string? right = null)
-    {
-        float pad = 6 * Density;
-        var band = new RectangleF(pad, pad, Bounds.Width - pad * 2, StripHeight);
-        Fill(band, BandColor(), CornerRadius(3));
-        var inner = band.Inflated(-7 * Density, 0);
-        var (font, color) = (LabelFont(11f), P.Heading);
-        string text = title.ToUpperInvariant();
-        float titleW = Math.Min(Measure(text, font) + 4, inner.Width * (right is null ? 1 : 0.62f));
-        Text(text, font, color, new RectangleF(inner.X, inner.Y, titleW, inner.Height), HAlign.Left, VAlign.Center);
-        if (right is not null) Text(right, Small, P.Muted, new RectangleF(inner.X + titleW + 6, inner.Y, inner.Width - titleW - 6, inner.Height), HAlign.Right, VAlign.Center);
-        return new RectangleF(pad, band.Bottom + 4 * Density, Bounds.Width - pad * 2, Bounds.Height - band.Bottom - 4 * Density - pad);
+        float sepH = PieceGap, pillH = PillHeight, padH = 8 * Density;
+        TitleBar(new RectangleF(0, 0, Bounds.Width, pillH), title, right, rightColor);
+        var body = new RectangleF(0, pillH + sepH, Bounds.Width, Bounds.Height - pillH - sepH);
+        Panel(body);
+        return body.Inflated(-padH, -6 * Density);
     }
 
     public void AccentRule(float x1, float x2, float y) => Line(x1, y, x2, y, HudPalette.Alpha(P.Accent, P.Dark ? 70 : 90), 1);
@@ -670,6 +702,7 @@ internal sealed class HudPainter : IDisposable
         foreach (var p in _pens.Values) p.Dispose();
         foreach (var f in _formats) f?.Dispose();
         _panelPath?.Dispose();
+        foreach (var f in _fades.Values) f.Dispose();
         foreach (var s in _shapes.Values) s.Dispose();
         _measure.Dispose();
         _measureBitmap.Dispose();

@@ -7,7 +7,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using GoodieBag.Controls;
 using GoodieBag.Plugins;
@@ -20,6 +19,9 @@ namespace GoodieBag.Views;
 public partial class MainWindow : Window
 {
     private readonly AppServices _app;
+
+    internal TopographyLayer Topography { get; }
+
     internal AppServices Services => _app;
     private const string PageConsumer = "Open page";
     private readonly Dictionary<string, string> _nav = new();
@@ -42,6 +44,7 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => RememberBounds();
         StateChanged += (_, _) => RememberBounds();
 
+        Topography = new TopographyLayer(_app, this, TopoLayer, TrackDecor);
         BuildNav();
         FitBrand();
         ApplyThemeIcon();
@@ -65,6 +68,7 @@ public partial class MainWindow : Window
             ApplyBackdrop();
             (PresentationSource.FromVisual(this) as HwndSource)?.AddHook(WatchSizeMove);
             ApplyLight();
+            Topography.Refresh();
         };
         _app.LightChanged += ApplyLight;
         Closing += OnClosing;

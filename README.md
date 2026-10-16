@@ -4,23 +4,75 @@
 
 I got sick of switching monitors, audio, fan curves and overlays by hand every time I went from my desk to my sim rig, so I spent the last year building one app that does it all. It sits in the tray, sets the PC up for whatever I'm doing, and has grown into the toolkit I use every time I race in iRacing. Now you get the chance to use it too!
 
-<p align="center"><img src="features.png" alt="" width="100%"></p>
-
 ## What's in it
 
-- **Automations and Modes:** a mode is a whole PC setup: display profile, audio devices, fan preset, overlay, window positions, programs to start or close. Apply one with a click or a keybind, or let it switch on its own when a game starts, on a schedule, when the PC is idle or when it gets hot. Give a mode a game and it becomes a one-click launcher: it sets everything up, starts your helper apps, then the game, and puts things back when you quit.
-- **Displays:** turn monitors on and off, arrange them, and set resolution, refresh rate, HDR, taskbar, wallpapers and audio. Save it all as profiles (mine are *Desk* and *Sim rig*) and switch between them with a hotkey.
-- **Fan Control:** curves, presets, calibration and an emergency failsafe. Fans go back to the BIOS / driver when you quit.
-- **Hardware Monitor:** a dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with every sensor your PC exposes. The **Performance Overlay** (FPS, 1% lows, temps, usage) lives here too, and you can drag things into whatever order you want.
-- **Sim Racing Tools** (iRacing):
-  - **iRacing Overlay:** Relative, Standings, Fuel, Lap timing, Track map, Weather, Wind, Session, Race events, Multiclass traffic, Alerts and more. Every widget can be set up however you like, with layouts that switch by car / class / track, and an in-game editor (`Ctrl+Alt+E`) so you never have to leave the car.
-  - **iRacing Setup Manager:** all your setups sorted by car and class. Rename, move, import share packs and pick up new downloads.
-  - **iRacing Controller:** iRacing's settings in plain language, plus your in-sim keybinds per control profile. Everything gets backed up before it's changed.
-  - **FOV Calculator:** single and triple screens, compare rigs, and write the result straight into iRacing.
-  - **Trading Paints and Garage 61:** launch them with Goodie Bag or when iRacing starts.
-- **Session Stats:** your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. It also reads your old iRacing telemetry files, so your history doesn't start from zero.
-
 Every feature is a plugin you can switch off, and when one's off it runs nothing in the background. There are themes (Light, Dark, OLED Pastel, or your own colors), and `Ctrl+F` searches every setting and keybind in the app.
+
+### Automations and Modes
+
+A mode is a whole PC setup: display profile, audio devices, fan preset, overlay, window positions, programs to start or close. Apply one with a click or a keybind, or let it switch on its own when a game starts, on a schedule, when the PC is idle or when it gets hot. Give a mode a game and it becomes a one-click launcher: it sets everything up, starts your helper apps, then the game, and puts things back when you quit.
+
+<p align="center"><img src="screenshots/automations-and-modes.png" alt="Automations and Modes" width="100%"></p>
+
+### Displays
+
+Turn monitors on and off, arrange them, and set resolution, refresh rate, HDR, taskbar, wallpapers and audio. Save it all as profiles (mine are *Desk* and *Sim rig*) and switch between them with a hotkey.
+
+<p align="center"><img src="screenshots/displays.png" alt="Displays" width="100%"></p>
+
+### Fan Control
+
+Curves, presets, calibration and an emergency failsafe. Fans go back to the BIOS / driver when you quit.
+
+<p align="center"><img src="screenshots/fan-control.png" alt="Fan Control" width="100%"></p>
+
+### Hardware Monitor
+
+A dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with every sensor your PC exposes. The **Performance Overlay** (FPS, 1% lows, temps, usage) lives here too, and you can drag things into whatever order you want.
+
+<p align="center"><img src="screenshots/performance-overlay.png" alt="Performance Overlay" width="100%"></p>
+<p align="center"><img src="screenshots/hardware-monitor.png" alt="Hardware Monitor" width="100%"></p>
+
+### Sim Racing Tools (iRacing)
+
+#### iRacing Overlay
+
+Relative, Standings, Fuel, Lap timing, Weather, Wind, Session, Race events, Multiclass traffic, Alerts and more. Every widget can be set up however you like, with layouts that switch by car / class / track, and an in-game editor (`Ctrl+Alt+E`) so you never have to leave the car.
+
+<p align="center"><img src="screenshots/all-overlays.png" alt="Every iRacing Overlay widget" width="100%"></p>
+<p align="center"><img src="screenshots/iracing-overlay.png" alt="iRacing Overlay settings" width="100%"></p>
+
+#### iRacing Setup Manager
+
+All your setups sorted by car and class. Rename, move, import share packs and pick up new downloads.
+
+<p align="center"><img src="screenshots/iracing-setup-manager.png" alt="iRacing Setup Manager" width="100%"></p>
+
+#### iRacing Controller
+
+iRacing's settings in plain language, plus your in-sim keybinds per control profile. Everything gets backed up before it's changed.
+
+<p align="center"><img src="screenshots/iracing-controller.png" alt="iRacing Controller" width="100%"></p>
+
+#### FOV Calculator
+
+Single and triple screens, compare rigs, and write the result straight into iRacing.
+
+<p align="center"><img src="screenshots/fov-calculator.png" alt="FOV Calculator" width="100%"></p>
+
+#### Trading Paints and Garage 61
+
+Launch them with Goodie Bag or when iRacing starts.
+
+<p align="center"><img src="screenshots/companion-apps.png" alt="Trading Paints and Garage 61" width="100%"></p>
+
+### Session Stats
+
+Your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. It also reads your old iRacing telemetry files, so your history doesn't start from zero.
+
+<p align="center"><img src="screenshots/session-stats.png" alt="Session Stats" width="100%"></p>
+<p align="center"><img src="screenshots/session-laps.png" alt="A session's laps and sectors" width="100%"></p>
+<p align="center"><img src="screenshots/lap-replay.png" alt="Lap analysis and replay" width="100%"></p>
 
 ## Getting started
 
@@ -73,8 +125,9 @@ Goodie Bag is built on these, each under its own licence:
 | [.NET, WPF and Windows Forms](https://github.com/dotnet) (Microsoft) | The app framework | MIT |
 | [Lucide](https://lucide.dev) | Icons (some adapted) | ISC |
 | [Barlow](https://github.com/jpt/barlow) by Jeremy Tribby | GRR theme font | SIL Open Font License 1.1 |
+| [webgl-noise](https://github.com/ashima/webgl-noise) by Ashima Arts and Stefan Gustavson | 3D simplex noise in the topography background | MIT |
 | [SIMRacingApps](https://github.com/SIMRacingApps/SIMRacingAppsServer) by Jeffrey Gilliam | Track centreline and pit lane routes for the track map | Apache 2.0 |
-| Track map drawings by [iRacing](https://www.iracing.com), collected in [racing-track-maps-vector](https://github.com/meowmachine/racing-track-maps-vector) by meowmachine | Track maps for the overlay and Session Stats | © iRacing.com Motorsport Simulations, LLC |
+| Track map drawings by [iRacing](https://www.iracing.com), collected in [racing-track-maps-vector](https://github.com/meowmachine/racing-track-maps-vector) by meowmachine | Track maps for Session Stats | © iRacing.com Motorsport Simulations, LLC |
 | [Quotes-500K](https://github.com/ShivaliGoel/Quotes-500K) by Shivali Goel, Rishi Madhok and Shweta Garg | Quotes (from *Proposing Contextually Relevant Quotes for Images*, ECIR 2018) | Shared for educational and research use |
 | [PawnIO](https://pawnio.eu) | Optional driver for CPU and motherboard sensors (not bundled; installed separately) | See its site |
 

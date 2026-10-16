@@ -181,12 +181,15 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
             _content.Content = Drilled(view);
             return;
         }
-        var detail = await Task.Run(() => store.Session(id) is { } s
-            ? new SessionDetail(s, store.Laps(id), traces?.LapsWithTrace(id) ?? new HashSet<int>(), store.BestLap(s.Car, s.Track, s.Config), store.Conditions(id))
-            : null);
+        var detail = await Task.Run(() =>
+        {
+            if (store.Session(id) is not { } s) return null;
+            var (tank, tyres) = store.CarExtras(id);
+            return new SessionDetail(s, store.Laps(id), traces?.LapsWithTrace(id) ?? new HashSet<int>(), store.BestLap(s.Car, s.Track, s.Config), store.Conditions(id), tank, tyres);
+        });
         if (version != _version || !_shown) return;
         if (detail is null) { _sessionId = null; Refresh(); return; }
-        _content.Content = Drilled(StatsSessionView.Build(detail, stats.Settings.Imperial, StatsSessions.NoTraceReason(detail.Session, stats.Settings, DateTime.UtcNow), _ticked, picked => Open(id, picked.ToList())));
+        _content.Content = Drilled(StatsSessionView.Build(detail, stats.Settings, StatsSessions.NoTraceReason(detail.Session, stats.Settings, DateTime.UtcNow), _ticked, picked => Open(id, picked.ToList())));
     }
 
     internal static AnalysisData? LoadAnalysis(StatsStore store, TraceStore traces, long id, IReadOnlyList<int> picked, string reference = "session")
@@ -358,6 +361,11 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
             _scroll.ScrollToVerticalOffset(_scroll.ScrollableHeight * 0.55);
             await Task.Delay(300);
         });
+        yield return ("session-tools", async () =>
+        {
+            _scroll.ScrollToVerticalOffset(_scroll.ScrollableHeight);
+            await Task.Delay(300);
+        });
         yield return ("analysis", async () =>
         {
             if (Traced() is { } id && Stats?.Traces?.LapsWithTrace(id).OrderBy(l => l).Take(3).ToList() is { Count: > 0 } laps) Open(id, laps);
@@ -421,6 +429,16 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
             await Task.Delay(600);
             if (Ui.FindAnchor(this, "stats.traces") is Button gear) { gear.BringIntoView(); await Task.Delay(200); gear.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); }
             await Task.Delay(500);
+        });
+        yield return ("traces-shrink", async () =>
+        {
+            TraceSettings.PickLapsPerSession("1");
+            await Task.Delay(800);
+        });
+        yield return ("traces-shrink-cancelled", async () =>
+        {
+            _window.CloseModal(false);
+            await Task.Delay(300);
         });
         yield return ("traces-closed", () =>
         {
@@ -776,21 +794,22 @@ internal static class StatsSections
         var table = new Grid();
         table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 90 });
         table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star), MinWidth = 90 });
-        for (int c = 0; c < 3; c++) table.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        for (int c = 0; c < 4; c++) table.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         int row = 0;
-        void Cell(FrameworkElement element, int col, bool right = false)
+        void Cell(FrameworkElement element, int col, bool right = false, bool center = false)
         {
             element.Margin = new Thickness(col == 0 ? 0 : 18, 8, 0, 8);
             element.VerticalAlignment = VerticalAlignment.Center;
             if (right) element.HorizontalAlignment = HorizontalAlignment.Right;
+            if (center) element.HorizontalAlignment = HorizontalAlignment.Center;
             Grid.SetRow(element, row);
             Grid.SetColumn(element, col);
             table.Children.Add(element);
         }
         TextBlock Text(string text, string style) => new() { Text = text, Style = Ui.Res<Style>(style), TextWrapping = TextWrapping.Wrap };
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Cell(Text("Car", "Eyebrow"), 0); Cell(Text("Track", "Eyebrow"), 1); Cell(Text("Clean laps", "Eyebrow"), 2, true); Cell(Text("Best lap", "Eyebrow"), 3, true); Cell(Text("Set", "Eyebrow"), 4, true);
-        for (int c = 1; c < 5; c++) StatsSessions.ColumnBar(table, 0, c, 18);
+        Cell(Text("Car", "Eyebrow"), 0); Cell(Text("Track", "Eyebrow"), 1); Cell(Text("Clean laps", "Eyebrow"), 2, center: true); Cell(Text("Best lap", "Eyebrow"), 3, true); Cell(Text("Set", "Eyebrow"), 5, true);
+        foreach (int c in new[] { 1, 2, 3, 5 }) StatsSessions.ColumnBar(table, 0, c, 18);
         var (goldSoft, goldDeep) = StatsUi.Hue("Gold");
         foreach (var pb in charts.Bests.Take(12))
         {
@@ -799,28 +818,25 @@ internal static class StatsSections
             var rule = new Border { Height = 1, VerticalAlignment = VerticalAlignment.Top };
             rule.SetResourceReference(Border.BackgroundProperty, "Line");
             Grid.SetRow(rule, row);
-            Grid.SetColumnSpan(rule, 5);
+            Grid.SetColumnSpan(rule, 6);
             table.Children.Add(rule);
             Cell(Text(pb.Car, "Body"), 0);
             var track = Text(pb.Config.Length > 0 ? $"{pb.Track} · {pb.Config}" : pb.Track, "Body");
             track.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             Cell(track, 1);
-            Cell(Text(pb.Laps.ToString("N0", CultureInfo.CurrentCulture), "Caption"), 2, true);
+            Cell(Text(pb.Laps.ToString("N0", CultureInfo.CurrentCulture), "Caption"), 2, center: true);
             var lap = new TextBlock { Text = StatFormat.LapTime(pb.Best), FontWeight = FontWeights.SemiBold, FontSize = 14 };
             lap.SetResourceReference(TextBlock.FontFamilyProperty, "MetricFont");
             lap.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
             System.Windows.Documents.Typography.SetNumeralAlignment(lap, FontNumeralAlignment.Tabular);
             Cell(lap, 3, true);
-            var when = new StackPanel { Orientation = Orientation.Horizontal };
             if (pb.InRange && !everything)
             {
                 var chip = Ui.Chip("New", goldSoft, goldDeep);
-                chip.Margin = new Thickness(0, 0, 6, 0);
                 chip.ToolTip = "Set in this range";
-                when.Children.Add(chip);
+                Cell(chip, 4, center: true);
             }
-            when.Children.Add(new TextBlock { Text = Dates.Date(pb.When.ToLocalTime()), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center });
-            Cell(when, 4, true);
+            Cell(new TextBlock { Text = Dates.Date(pb.When.ToLocalTime()), Style = Ui.Res<Style>("Caption") }, 5, true);
         }
         var content = new StackPanel { Children = { table } };
         if (charts.Bests.Count > 12)

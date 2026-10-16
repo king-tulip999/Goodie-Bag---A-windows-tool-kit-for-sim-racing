@@ -128,7 +128,7 @@ internal static class TrackFit
         var pit = new List<(double[], double[], bool)>();
         float pitWidth = 0;
         foreach (var shape in map.Pit)
-            foreach (var fig in shape.Figures.Where(f => f.Points.Length >= 2))
+            foreach (var fig in shape.Figures.Where(f => f.Points.Length >= 2 && !(shape.Filled && IsDash(f.Points, map.Width))))
             {
                 var (px, py) = Place(fig.Points);
                 var (sx, sy) = Spline(px, py, fig.Closed || shape.Filled, 1.5);
@@ -164,6 +164,29 @@ internal static class TrackFit
         var x = new double[n];
         for (int i = 0; i < n; i++) x[i] = m[i, n] / m[i, i];
         return x;
+    }
+
+    internal static bool IsDash(PointF[] points, double width)
+    {
+        double w = points.Max(p => p.X) - points.Min(p => p.X), h = points.Max(p => p.Y) - points.Min(p => p.Y);
+        return Math.Sqrt(w * w + h * h) < width * 3;
+    }
+
+    public static List<(double[] X, double[] Y)> Wound(List<(double[] X, double[] Y)> figures)
+    {
+        if (figures.Count < 2) return figures;
+        var areas = figures.Select(f => SignedArea(f.X, f.Y)).ToList();
+        int outer = 0;
+        for (int i = 1; i < areas.Count; i++) if (Math.Abs(areas[i]) > Math.Abs(areas[outer])) outer = i;
+        return figures.Select((f, i) => i != outer && Math.Sign(areas[i]) == Math.Sign(areas[outer])
+            ? (f.X.Reverse().ToArray(), f.Y.Reverse().ToArray()) : f).ToList();
+    }
+
+    internal static double SignedArea(double[] x, double[] y)
+    {
+        double sum = 0;
+        for (int i = 0, j = x.Length - 1; i < x.Length; j = i++) sum += x[j] * y[i] - x[i] * y[j];
+        return sum / 2;
     }
 
     public static (double[] X, double[] Y) Spline(double[] x, double[] y, bool closed, double step)

@@ -6,7 +6,6 @@ using System.Windows.Media;
 using GoodieBag.Config;
 using GoodieBag.Controls;
 using GoodieBag.Services;
-using GoodieBag.Theme;
 using GoodieBag.Plugins;
 using GoodieBag.Plugins.BuiltIn;
 using GoodieBag.SimRacing;

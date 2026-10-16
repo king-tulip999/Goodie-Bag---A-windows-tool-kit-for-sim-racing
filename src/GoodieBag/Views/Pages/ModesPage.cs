@@ -7,9 +7,7 @@ using GoodieBag.Config;
 using GoodieBag.Controls;
 using GoodieBag.Modes;
 using GoodieBag.Plugins;
-using GoodieBag.Processes;
 using GoodieBag.Services;
-using GoodieBag.Theme;
 
 namespace GoodieBag.Views.Pages;
 

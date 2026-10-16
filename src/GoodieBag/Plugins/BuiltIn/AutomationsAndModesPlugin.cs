@@ -1,4 +1,3 @@
-using GoodieBag.Config;
 using GoodieBag.Modes;
 using GoodieBag.Services;
 using GoodieBag.Views.Pages;

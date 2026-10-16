@@ -326,7 +326,7 @@ internal sealed class SessionStatsService : IDisposable
 
     private void FillMissing(StatsStore store, string folder, HashSet<string> done, CancellationToken cancel)
     {
-        if (store.Meta("conditions_backfill") is not null) return;
+        if (store.Meta("conditions_backfill") is not null && store.Meta("tyres_backfill") is not null) return;
         var todo = new DirectoryInfo(folder).EnumerateFiles("*.ibt")
             .Where(f => !done.Contains(f.Name) && store.Imported(f.Name))
             .OrderByDescending(f => f.LastWriteTimeUtc).ToList();
@@ -344,9 +344,10 @@ internal sealed class SessionStatsService : IDisposable
             PostChanged();
         }
         store.SetMeta("conditions_backfill", DateTime.UtcNow.ToString("O"));
+        store.SetMeta("tyres_backfill", DateTime.UtcNow.ToString("O"));
     }
 
-    private const string MissingFromKey = "traces_missing_from";
+    private const string MissingFromKey = "traces_missing_from", ChannelsKey = "traces_channels", ChannelsVersion = "yaw";
 
     private void NoteWithoutTraces(DateTime fileUtc)
     {
@@ -362,7 +363,8 @@ internal sealed class SessionStatsService : IDisposable
     {
         if (Traces is not { } traceStore) return;
         var since = retention.KeepDays > 0 ? DateTime.UtcNow.AddDays(-retention.KeepDays) : DateTime.MinValue;
-        var covered = CoveredFrom(traceStore.Meta("traces_backfill"), traceStore.Meta("traces_backfill_from"));
+        bool channels = traceStore.Meta(ChannelsKey) == ChannelsVersion;
+        var covered = channels ? CoveredFrom(traceStore.Meta("traces_backfill"), traceStore.Meta("traces_backfill_from")) : null;
         var missing = MissingFrom(traceStore);
         if (covered is { } c && c <= since && missing is null) return;
         var todo = new DirectoryInfo(folder).EnumerateFiles("*.ibt")
@@ -384,6 +386,7 @@ internal sealed class SessionStatsService : IDisposable
         }
         traceStore.SetMeta("traces_backfill", DateTime.UtcNow.ToString("O"));
         traceStore.SetMeta("traces_backfill_from", since.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+        traceStore.SetMeta(ChannelsKey, ChannelsVersion);
         if (missing is not null) traceStore.SetMeta(MissingFromKey, "");
     }
 

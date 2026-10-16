@@ -1,11 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Threading;
 using GoodieBag.Audio;
 using GoodieBag.Config;
 using GoodieBag.Controls;
-using GoodieBag.Modes;
 using GoodieBag.Plugins;
 using GoodieBag.Processes;
 using GoodieBag.Services;

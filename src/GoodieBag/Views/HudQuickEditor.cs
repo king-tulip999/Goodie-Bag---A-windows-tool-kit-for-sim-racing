@@ -10,7 +10,6 @@ using GoodieBag.Config;
 using GoodieBag.Services;
 using GoodieBag.SimRacing.Hud;
 using GoodieBag.SimRacing.Telemetry;
-using GoodieBag.Theme;
 using GoodieBag.Views.Pages;
 
 namespace GoodieBag.Views;

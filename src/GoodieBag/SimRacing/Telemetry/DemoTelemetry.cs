@@ -54,6 +54,7 @@ internal sealed class DemoTelemetry
         {
             TrackName = "demo raceway",
             TrackDisplayName = "Demo Raceway",
+            Skies = "Partly Cloudy",
             TrackConfig = "Grand Prix",
             TrackId = 0,
             TrackLengthKm = TrackKm,

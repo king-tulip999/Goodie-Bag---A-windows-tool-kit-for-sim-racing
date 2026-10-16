@@ -44,12 +44,14 @@ internal static class PerfProbe
             var ui = AppServices.Current!.Config.Ui;
             ui.Animations = false;
             Controls.NavIcon.RefreshAll();
+            window.Topography.Refresh();
             window.Navigate("settings");
             window.Navigate("plugins");
             await Task.Delay(1500);
             await Idle("idle_main_still", window, lines);
             ui.Animations = true;
             Controls.NavIcon.RefreshAll();
+            window.Topography.Refresh();
             foreach (var pass in new[] { "first", "again" })
                 foreach (var key in window.NavKeys.Where(k => k != "plugins").Append("plugins"))
                 {
@@ -130,12 +132,14 @@ internal static class PerfProbe
             Motion.SetWindowActive(true, force: true);
             ui.Animations = false;
             Controls.NavIcon.RefreshAll();
+            window.Topography.Refresh();
             window.Navigate("settings");
             window.Navigate("plugins");
             await Task.Delay(1500);
             await Idle("idle_main_settled_still", window, lines);
             ui.Animations = true;
             Controls.NavIcon.RefreshAll();
+            window.Topography.Refresh();
             window.Hide();
             await Task.Delay(4000);
             await Idle("idle_hidden", window, lines);

@@ -162,13 +162,5 @@ internal static class TrackMapLibrary
         }
     }
 
-    public static void SaveLearned(TrackMap map)
-    {
-        Directory.CreateDirectory(LearnedFolder);
-        string path = Path.Combine(LearnedFolder, map.Key + ".svg");
-        string temp = path + ".tmp";
-        File.WriteAllText(temp, map.ToSvg());
-        File.Move(temp, path, overwrite: true);
-        lock (Lock) _maps.Clear();
-    }
+    public const string SampleKey = "523";
 }

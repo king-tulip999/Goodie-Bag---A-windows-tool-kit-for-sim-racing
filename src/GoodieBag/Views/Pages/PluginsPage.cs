@@ -40,7 +40,7 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
         public Plugin? Plugin;
         public required NavIcon Icon;
         public required FrameworkElement Content;
-        public required Brush Edge, HoverFill;
+        public required Brush HoverFill;
         public required Facts Info;
     }
 
@@ -154,7 +154,7 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
         var tile = new Tile
         {
             Style = Ui.Res<Style>("Card"), Child = card.Content, Height = RowHeight, Cursor = System.Windows.Input.Cursors.Hand,
-            BorderBrush = card.Edge, BorderThickness = new Thickness(1.5), Padding = new Thickness(16, 0, 20, 0),
+            Padding = new Thickness(16, 0, 20, 0),
             ToolTip = $"Open {label} (drag to arrange)",
         };
         AutomationProperties.SetName(tile, label);
@@ -192,7 +192,7 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
         face.Children.Add(navIcon);
         face.Children.Add(title);
 
-        return new Card { Id = id, Plugin = plugin, Icon = navIcon, Content = face, Edge = Ui.Res<Brush>("Accent"), HoverFill = Ui.Res<Brush>(colors.Soft),
+        return new Card { Id = id, Plugin = plugin, Icon = navIcon, Content = face, HoverFill = Ui.Res<Brush>(colors.Soft),
             Info = new Facts(name, description, icon, colors, reads, runs, changes) };
     }
 

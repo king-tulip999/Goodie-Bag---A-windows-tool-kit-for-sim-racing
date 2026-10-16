@@ -664,13 +664,6 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
                 ("Lapping you", "Cars a lap or more ahead", nameof(HudCustomColors.Lapping)),
                 ("Lapped", "Cars a lap or more behind", nameof(HudCustomColors.Lapped)),
             }),
-            ("Track map", new[]
-            {
-                ("Track", "The track surface", nameof(HudCustomColors.MapTrack)),
-                ("Track edges", "The outline round the track", nameof(HudCustomColors.MapEdge)),
-                ("Pit lane", "The pit lane", nameof(HudCustomColors.MapPit)),
-                ("Other cars", "Cars when class colors are off", nameof(HudCustomColors.MapCars)),
-            }),
         };
         var entries = c.All().ToDictionary(e => e.Id, e => e);
         var grid = new StackPanel { Margin = new Thickness(0, 2, 0, 8) };

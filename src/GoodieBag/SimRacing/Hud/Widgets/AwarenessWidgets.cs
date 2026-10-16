@@ -40,7 +40,6 @@ internal sealed class TrafficWidget : HudWidget
         if (DrawWaiting(p, v, "Traffic")) return;
         var f = v.Frame;
         int me = f.PlayerCarIdx;
-        p.Panel();
         bool blue = f.Flags.HasFlag(RaceFlags.Blue);
         var area = p.Header("Traffic", blue ? "BLUE FLAG" : null, blue ? HudPalette.FlagBlue : null);
         if ((uint)me >= TelemetryFrame.MaxCars) return;

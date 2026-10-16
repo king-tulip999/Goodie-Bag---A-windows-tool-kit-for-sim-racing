@@ -20,6 +20,19 @@ internal static class TraceSettings
         if (_open is { } p) p.IsOpen = false;
     }
 
+    internal static void PickLapsPerSession(string id)
+    {
+        if (_open?.Child is not Tile { Child: Panel body }) return;
+        var combos = new List<ComboBox>();
+        void Find(DependencyObject d)
+        {
+            if (d is ComboBox box) combos.Add(box);
+            foreach (var child in LogicalTreeHelper.GetChildren(d).OfType<DependencyObject>()) Find(child);
+        }
+        Find(body);
+        if (combos.Count > 1) combos[1].SelectedItem = combos[1].Items.Cast<Choice>().FirstOrDefault(c => c.Id == id);
+    }
+
     public static Button Button(AppServices app, SessionStatsService stats, MainWindow window)
     {
         Button? gear = null;
@@ -43,9 +56,28 @@ internal static class TraceSettings
         _open = popup;
         popup.Closed += (_, _) => { if (ReferenceEquals(_open, popup)) _open = null; };
 
-        void Changed()
+        async void Changed(Action? undo = null)
         {
             settings.Normalize();
+            if (undo is not null && stats.Traces is { } traces)
+            {
+                var keep = stats.Retention;
+                int drop = 0;
+                try { drop = await Task.Run(() => TraceStore.Pruned(traces.All(), keep, DateTime.UtcNow, null).Count); }
+                catch (Exception ex) { App.LogError(ex); }
+                if (drop > 0)
+                {
+                    popup.IsOpen = false;
+                    if (!await window.Confirm($"Remove {drop:N0} lap trace{(drop == 1 ? "" : "s")}?",
+                            "They no longer fit what you chose to keep, so their lines and inputs are deleted now. Lap times and stats stay. Laps still in iRacing's telemetry files come back if you keep more later.",
+                            "Remove", danger: true))
+                    {
+                        undo();
+                        settings.Normalize();
+                        return;
+                    }
+                }
+            }
             app.Save();
             _settle ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
             _settle.Stop();
@@ -60,13 +92,23 @@ internal static class TraceSettings
         var usage = new TextBlock { Text = "Working out the space used…", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
 
         var keepFor = Ui.Combo(Config.SessionStatsSettings.KeepDayChoices.Select(d => new Choice(d.ToString(CultureInfo.InvariantCulture), DaysName(d))),
-            settings.TraceKeepDays.ToString(CultureInfo.InvariantCulture), c => { settings.TraceKeepDays = int.Parse(c.Id!, CultureInfo.InvariantCulture); Changed(); }, 170);
+            settings.TraceKeepDays.ToString(CultureInfo.InvariantCulture), c =>
+            {
+                int old = settings.TraceKeepDays;
+                settings.TraceKeepDays = int.Parse(c.Id!, CultureInfo.InvariantCulture);
+                Changed(() => settings.TraceKeepDays = old);
+            }, 170);
         var perSession = Ui.Combo(Config.SessionStatsSettings.LapChoices.Select(n => new Choice(n.ToString(CultureInfo.InvariantCulture), n switch { 0 => "All laps", 1 => "Fastest only", _ => $"Fastest {n}" })),
-            settings.TraceLapsPerSession.ToString(CultureInfo.InvariantCulture), c => { settings.TraceLapsPerSession = int.Parse(c.Id!, CultureInfo.InvariantCulture); Changed(); }, 170);
+            settings.TraceLapsPerSession.ToString(CultureInfo.InvariantCulture), c =>
+            {
+                int old = settings.TraceLapsPerSession;
+                settings.TraceLapsPerSession = int.Parse(c.Id!, CultureInfo.InvariantCulture);
+                Changed(() => settings.TraceLapsPerSession = old);
+            }, 170);
         perSession.ToolTip = "Per session, clean laps first";
         var record = Ui.Switch(settings.TraceRecord, on => { settings.TraceRecord = on; keepFor.IsEnabled = perSession.IsEnabled = on; Changed(); });
         keepFor.IsEnabled = perSession.IsEnabled = settings.TraceRecord;
-        var bests = Ui.Switch(settings.TraceKeepBests, on => { settings.TraceKeepBests = on; Changed(); });
+        var bests = Ui.Switch(settings.TraceKeepBests, on => { settings.TraceKeepBests = on; Changed(() => settings.TraceKeepBests = !on); });
 
         body.Children.Add(Row("Keep lap traces", record, "Off: no new traces are kept. Back on: sessions driven meanwhile get theirs from their files"));
         body.Children.Add(Row("Keep for", keepFor, null));
