@@ -40,6 +40,8 @@ internal sealed class MonitorInfo
     internal LUID Adapter { get; init; }
     internal uint TargetId { get; init; }
 
+    public string Desktop { get; init; } = "";
+
     public (int W, int H) Landscape => (Math.Max(Width, Height), Math.Min(Width, Height));
 
     public string Label => Number > 0 ? $"{Number}" : "–";
@@ -170,6 +172,7 @@ internal sealed class DisplayService : IDisposable
                 HdrSupported = hdrSupported,
                 HdrOn = hdrOn,
                 Modes = gdi is null ? Array.Empty<DisplayMode>() : ModesOf(key, gdi),
+                Desktop = $"{path.SourceInfo.AdapterId}/{path.SourceInfo.Id}",
                 Adapter = t.AdapterId,
                 TargetId = t.Id,
             });
@@ -254,7 +257,7 @@ internal sealed class DisplayService : IDisposable
                 return e is null ? m : new MonitorInfo
                 {
                     Key = m.Key, HardwareName = m.HardwareName, GdiName = m.GdiName, Number = m.Number, Active = m.Active, Connector = m.Connector,
-                    Modes = m.Modes, HdrSupported = m.HdrSupported, HdrOn = m.HdrOn,
+                    Modes = m.Modes, HdrSupported = m.HdrSupported, HdrOn = m.HdrOn, Desktop = m.Desktop,
                     X = e.X, Y = e.Y, Width = e.DesktopWidth, Height = e.DesktopHeight, Hz = e.Hz, Rotation = e.Rotation, Primary = e.Primary,
                 };
             }).ToList();
@@ -326,7 +329,7 @@ internal sealed class DisplayService : IDisposable
                 Key = m.Key, HardwareName = m.HardwareName, Connector = m.Connector, Active = enabled, Number = enabled ? 4 : 0,
                 X = right, Y = 0, Width = enabled ? 3840 : 0, Height = enabled ? 2160 : 0, Hz = enabled ? 60 : 0,
                 Modes = enabled ? new[] { new DisplayMode(3840, 2160, 60), new DisplayMode(3840, 2160, 120), new DisplayMode(1920, 1080, 60) } : Array.Empty<DisplayMode>(),
-                HdrSupported = true,
+                HdrSupported = true, Desktop = enabled ? "demo:" + m.Key : "",
             };
             _demoMonitors = list;
             NotifyChanged();
@@ -360,23 +363,62 @@ internal sealed class DisplayService : IDisposable
             paths.Add(candidate);
         }
 
+        ApplyPaths(paths.ToArray(), activeModes);
+    }
+
+    public void SetDuplicate(MonitorInfo monitor, MonitorInfo? with)
+    {
+        if (_demo)
+        {
+            DemoDuplicate(monitor, with);
+            return;
+        }
+
+        var (active, modes) = DisplayManager.Query(QDC_ONLY_ACTIVE_PATHS);
+        var (paths, newModes) = with is null
+            ? Duplicate.Split(active, modes, DisplayManager.Query(QDC_ALL_PATHS).Paths, monitor.Adapter, monitor.TargetId)
+            : Duplicate.Join(active, modes, monitor.Adapter, monitor.TargetId, with.Adapter, with.TargetId);
+        ApplyPaths(paths, newModes);
+    }
+
+    private void ApplyPaths(PathInfo[] paths, ModeInfo[] modes)
+    {
+        (paths, modes) = Duplicate.Compact(paths, modes);
         const uint flags = SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE;
-        var pathArray = paths.ToArray();
-        int err = SetDisplayConfig((uint)pathArray.Length, pathArray, (uint)activeModes.Length, activeModes, flags);
+        int err = SetDisplayConfig((uint)paths.Length, paths, (uint)modes.Length, modes, flags);
         if (err != ERROR_SUCCESS)
         {
-            for (int i = 0; i < pathArray.Length; i++)
+            for (int i = 0; i < paths.Length; i++)
             {
-                pathArray[i].SourceInfo.ModeInfoIdx = DISPLAYCONFIG_PATH_MODE_IDX_INVALID;
-                pathArray[i].TargetInfo.ModeInfoIdx = DISPLAYCONFIG_PATH_MODE_IDX_INVALID;
+                paths[i].SourceInfo.ModeInfoIdx = DISPLAYCONFIG_PATH_MODE_IDX_INVALID;
+                paths[i].TargetInfo.ModeInfoIdx = DISPLAYCONFIG_PATH_MODE_IDX_INVALID;
             }
-            err = SetDisplayConfig((uint)pathArray.Length, pathArray, 0, null,
+            err = SetDisplayConfig((uint)paths.Length, paths, 0, null,
                 SDC_APPLY | SDC_TOPOLOGY_SUPPLIED | SDC_ALLOW_PATH_ORDER_CHANGES);
         }
 
         NotifyChanged();
         if (err != ERROR_SUCCESS)
             throw new InvalidOperationException($"Windows didn't accept the change (error {err}).");
+    }
+
+    private void DemoDuplicate(MonitorInfo monitor, MonitorInfo? with)
+    {
+        var list = GetMonitors().ToList();
+        int i = list.FindIndex(m => m.Key == monitor.Key);
+        if (i < 0) return;
+        var m = list[i];
+        var host = with is null ? null : list.FirstOrDefault(x => x.Key == with.Key);
+        int right = list.Where(x => x.Active && x.Key != m.Key).Select(x => x.X + x.Width).DefaultIfEmpty(0).Max();
+        list[i] = new MonitorInfo
+        {
+            Key = m.Key, HardwareName = m.HardwareName, GdiName = m.GdiName, Number = m.Number, Active = true, Connector = m.Connector,
+            Modes = m.Modes, HdrSupported = m.HdrSupported, HdrOn = m.HdrOn, Hz = m.Hz, Rotation = host?.Rotation ?? m.Rotation,
+            Desktop = host?.Desktop ?? "demo:" + m.Key,
+            X = host?.X ?? right, Y = host?.Y ?? 0, Width = host?.Width ?? m.Width, Height = host?.Height ?? m.Height, Primary = host?.Primary ?? false,
+        };
+        _demoMonitors = list;
+        NotifyChanged();
     }
 
     public void SetHdr(MonitorInfo monitor, bool on)
@@ -503,9 +545,9 @@ internal sealed class DisplayService : IDisposable
         };
         return new List<MonitorInfo>
         {
-            new() { Key = "demo-left", HardwareName = "Dell S2721DGF", Number = 2, Active = true, X = -2560, Y = 0, Width = 2560, Height = 1440, Hz = 165, Connector = "DisplayPort", Modes = modes, HdrSupported = true },
-            new() { Key = "demo-center", HardwareName = "LG 27GP850", Number = 1, Active = true, Primary = true, X = 0, Y = 0, Width = 2560, Height = 1440, Hz = 165, Connector = "DisplayPort", Modes = modes, HdrSupported = true, HdrOn = false },
-            new() { Key = "demo-right", HardwareName = "Dell S2721DGF", Number = 3, Active = true, X = 2560, Y = 0, Width = 2560, Height = 1440, Hz = 165, Connector = "DisplayPort", Modes = modes, HdrSupported = true },
+            new() { Key = "demo-left", Desktop = "demo:demo-left", HardwareName = "Dell S2721DGF", Number = 2, Active = true, X = -2560, Y = 0, Width = 2560, Height = 1440, Hz = 165, Connector = "DisplayPort", Modes = modes, HdrSupported = true },
+            new() { Key = "demo-center", Desktop = "demo:demo-center", HardwareName = "LG 27GP850", Number = 1, Active = true, Primary = true, X = 0, Y = 0, Width = 2560, Height = 1440, Hz = 165, Connector = "DisplayPort", Modes = modes, HdrSupported = true, HdrOn = false },
+            new() { Key = "demo-right", Desktop = "demo:demo-right", HardwareName = "Dell S2721DGF", Number = 3, Active = true, X = 2560, Y = 0, Width = 2560, Height = 1440, Hz = 165, Connector = "DisplayPort", Modes = modes, HdrSupported = true },
             new() { Key = "demo-tv", HardwareName = "LG TV SSCR2", Active = false, Connector = "HDMI" },
         };
     }

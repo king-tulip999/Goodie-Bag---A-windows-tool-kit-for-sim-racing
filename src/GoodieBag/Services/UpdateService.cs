@@ -89,8 +89,8 @@ internal sealed class UpdateService
         Set(UpdateState.Checking);
         try
         {
-            var json = await Http.GetStringAsync($"https://api.github.com/repos/{Repository}/releases/latest");
-            Latest = Parse(json);
+            var json = await Http.GetStringAsync($"https://api.github.com/repos/{Repository}/releases?per_page=30");
+            Latest = Newest(json);
             S.LastCheckUtc = DateTime.UtcNow;
             _app.Save();
             if (Latest is not null && Latest.Version > Current)
@@ -110,7 +110,7 @@ internal sealed class UpdateService
         }
         catch (Exception ex)
         {
-            Error = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } ? "No releases published yet." : ex.Message;
+            Error = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } ? "The release page couldn't be found." : ex.Message;
             bool stillAvailable = !manual && Latest is { } known && known.Version > Current;
             Set(stillAvailable ? UpdateState.Available : UpdateState.Failed);
             if (manual) _app.Notify("Couldn't check for updates", Error, NoticeKind.Warning);
@@ -209,6 +209,19 @@ internal sealed class UpdateService
     {
         using var doc = JsonDocument.Parse(json);
         return Parse(doc.RootElement);
+    }
+
+    internal static ReleaseInfo? Newest(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return Parse(doc.RootElement);
+        return doc.RootElement.EnumerateArray()
+            .Where(r => r.ValueKind == JsonValueKind.Object && !(r.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True))
+            .Select(Parse)
+            .OfType<ReleaseInfo>()
+            .OrderByDescending(r => r.Version)
+            .ThenByDescending(r => r.Published)
+            .FirstOrDefault();
     }
 
     private static ReleaseInfo? Parse(JsonElement root)

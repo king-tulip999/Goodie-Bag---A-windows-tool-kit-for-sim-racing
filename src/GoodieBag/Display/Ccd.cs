@@ -98,6 +98,8 @@ internal struct LUID : IEquatable<LUID>
     public bool Equals(LUID other) => LowPart == other.LowPart && HighPart == other.HighPart;
     public override bool Equals(object? obj) => obj is LUID other && Equals(other);
     public override int GetHashCode() => HashCode.Combine(LowPart, HighPart);
+    public static bool operator ==(LUID a, LUID b) => a.Equals(b);
+    public static bool operator !=(LUID a, LUID b) => !a.Equals(b);
     public override string ToString() => $"{HighPart:X8}:{LowPart:X8}";
 }
 

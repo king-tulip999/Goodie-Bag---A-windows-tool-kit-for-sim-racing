@@ -15,7 +15,7 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
     private readonly AppServices _app;
     private readonly MainWindow _window;
     private readonly StackPanel _body = new() { Margin = new Thickness(28, 0, 28, 28) };
-    private readonly ArrangementCanvas _canvas = new() { Height = 300 };
+    private readonly ArrangementCanvas _canvas = new() { Height = 440 };
     private readonly StackPanel _details = new();
     private readonly WrapPanel _offMonitors = new() { Margin = new Thickness(0, 12, 0, 0) };
     private readonly Border _pendingBar;
@@ -25,6 +25,7 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
     private List<MonitorInfo> _monitors = new();
     private List<MonitorEdit> _edits = new();
     private List<ArrangeTile> _tiles = new();
+    private Dictionary<string, string> _tileOf = new();
     private string? _selected;
 
     public DisplaysPage(AppServices app, MainWindow window)
@@ -37,9 +38,11 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         _canvas.Moved += key =>
         {
             var tile = _tiles.First(t => t.Key == key);
-            var edit = _edits.First(e => e.Key == key);
-            edit.X = (int)Math.Round(tile.X);
-            edit.Y = (int)Math.Round(tile.Y);
+            foreach (var edit in GroupOf(key))
+            {
+                edit.X = (int)Math.Round(tile.X);
+                edit.Y = (int)Math.Round(tile.Y);
+            }
             UpdatePending();
         };
 
@@ -142,27 +145,8 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         var detailsCard = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 16), Child = _details };
         Ui.Anchor(detailsCard, "displays.details");
 
-        var split = new Grid();
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
-        split.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        split.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        split.Children.Add(arrangeCard);
-        split.Children.Add(detailsCard);
-        bool? wide = null;
-        split.SizeChanged += (_, _) =>
-        {
-            bool now = split.ActualWidth >= 1500;
-            if (now == wide) return;
-            wide = now;
-            split.ColumnDefinitions[1].Width = new GridLength(now ? 16 : 0);
-            split.ColumnDefinitions[2].Width = now ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
-            Grid.SetColumn(detailsCard, now ? 2 : 0);
-            Grid.SetRow(detailsCard, now ? 0 : 1);
-        };
-        Grid.SetRow(detailsCard, 1);
-        _body.Children.Add(split);
+        _body.Children.Add(arrangeCard);
+        _body.Children.Add(detailsCard);
 
         var note = new Grid();
         note.ColumnDefinitions.Add(new ColumnDefinition());
@@ -204,20 +188,31 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         {
             Key = m.Key, X = m.X, Y = m.Y, Width = m.Landscape.W, Height = m.Landscape.H, Hz = m.Hz, Rotation = m.Rotation, Primary = m.Primary,
         }).ToList();
-        _tiles = active.Select(m => new ArrangeTile
+        var groups = active.GroupBy(m => m.Desktop.Length > 0 ? m.Desktop : m.Key).Select(g => g.ToList()).ToList();
+        _tileOf = groups.SelectMany(g => g.Select(m => (m.Key, Tile: g[0].Key))).ToDictionary(x => x.Key, x => x.Tile);
+        _tiles = groups.Select(g =>
         {
-            Key = m.Key, Number = m.Label, Name = m.Name, X = m.X, Y = m.Y, Width = m.Width, Height = m.Height, Primary = m.Primary,
-            Detail = $"{m.Width}×{m.Height} · {m.Hz} Hz",
+            var m = g[0];
+            return new ArrangeTile
+            {
+                Key = m.Key, Number = string.Join(" + ", g.Select(x => x.Label)), Name = string.Join(" + ", g.Select(x => x.Name)),
+                X = m.X, Y = m.Y, Width = m.Width, Height = m.Height, Primary = g.Any(x => x.Primary),
+                Detail = $"{m.Width}×{m.Height} · {m.Hz} Hz",
+            };
         }).ToList();
 
         if (_selected is null || _monitors.All(m => m.Key != _selected))
             _selected = active.FirstOrDefault(m => m.Primary)?.Key ?? active.FirstOrDefault()?.Key;
         _canvas.Animate = Motion.Enabled;
-        _canvas.SetTiles(_tiles, _selected);
+        _canvas.SetTiles(_tiles, TileKey(_selected));
         BuildOffMonitors();
         BuildDetails();
         UpdatePending();
     }
+
+    private string? TileKey(string? monitor) => monitor is not null && _tileOf.TryGetValue(monitor, out var tile) ? tile : monitor;
+
+    private IEnumerable<MonitorEdit> GroupOf(string tileKey) => _edits.Where(e => TileKey(e.Key) == tileKey);
 
     private void BuildOffMonitors()
     {
@@ -362,6 +357,38 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         primary.IsEnabled = !edit.Primary;
         right.Children.Add(Field("Main display", primary, edit.Primary ? "This is your main display (taskbar, new windows)." : "Make this the main display."));
 
+        var twins = _monitors.Where(m => m.Active && m.Key != monitor.Key && TileKey(m.Key) == TileKey(monitor.Key)).ToList();
+        var others = _monitors.Where(m => m.Active && m.Key != monitor.Key && m.Adapter.Equals(monitor.Adapter)).ToList();
+        var show = new ComboBox { MinWidth = 220 };
+        show.Items.Add(new Option<string>("", "Its own desktop (extend)"));
+        foreach (var o in others)
+            show.Items.Add(new Option<string>(o.Key, $"Duplicate {o.Name} ({o.Label})"));
+        Select(show, twins.FirstOrDefault()?.Key ?? "");
+        show.IsEnabled = others.Count > 0;
+        show.SelectionChanged += (_, _) =>
+        {
+            if (show.SelectedItem is not Option<string> o) return;
+            if (o.Value.Length == 0 ? twins.Count == 0 : twins.Any(t => t.Key == o.Value)) return;
+            var with = o.Value.Length == 0 ? null : _monitors.FirstOrDefault(m => m.Key == o.Value);
+            _ = SetDuplicateAsync(monitor, with);
+        };
+        string showHelp = others.Count == 0
+            ? (_monitors.Count(m => m.Active) > 1 ? "Windows can only duplicate displays on the same graphics card." : "Turn on another display to duplicate it.")
+            : twins.Count > 0 ? $"Same picture as {string.Join(", ", twins.Select(t => t.Name))}." : "Applies right away (you'll be asked to keep the change).";
+        right.Children.Add(Field("Show", show, showHelp));
+        if (twins.Count > 0)
+        {
+            var switchTo = new WrapPanel { Margin = new Thickness(0, -6, 0, 14) };
+            foreach (var t in twins)
+            {
+                var twin = t;
+                var b = Ui.LabeledButton("I.Monitor", $"Settings for {twin.Name} ({twin.Label})", () => { _selected = twin.Key; BuildDetails(); }, "GhostButton");
+                b.Margin = new Thickness(0, 0, 8, 0);
+                switchTo.Children.Add(b);
+            }
+            right.Children.Add(switchTo);
+        }
+
         var actions = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
         if (monitor.HdrSupported)
         {
@@ -411,16 +438,19 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
 
     private void SyncTile(MonitorEdit edit)
     {
-        var tile = _tiles.First(t => t.Key == edit.Key);
+        var tile = _tiles.First(t => t.Key == TileKey(edit.Key));
+        foreach (var twin in GroupOf(tile.Key).Where(e => e != edit))
+            (twin.Width, twin.Height, twin.Rotation) = (edit.Width, edit.Height, edit.Rotation);
         if (tile.Width != edit.DesktopWidth || tile.Height != edit.DesktopHeight)
         {
             var rects = _tiles.Select(t => ((int)Math.Round(t.X), (int)Math.Round(t.Y), (int)Math.Round(t.Width), (int)Math.Round(t.Height))).ToList();
             var at = Arrangement.Resize(rects, _tiles.IndexOf(tile), edit.DesktopWidth, edit.DesktopHeight);
             for (int i = 0; i < _tiles.Count; i++)
             {
-                if (_tiles[i] == tile || _edits.FirstOrDefault(e => e.Key == _tiles[i].Key) is not { } other) continue;
+                if (_tiles[i] == tile) continue;
                 (_tiles[i].X, _tiles[i].Y) = at[i];
-                (other.X, other.Y) = at[i];
+                foreach (var other in GroupOf(_tiles[i].Key))
+                    (other.X, other.Y) = at[i];
             }
         }
         tile.Width = edit.DesktopWidth;
@@ -495,6 +525,29 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         await ConfirmKeepAsync(undo);
     }
 
+    private async Task SetDuplicateAsync(MonitorInfo monitor, MonitorInfo? with)
+    {
+        if (_changing) return;
+        _changing = true;
+        var undo = _app.Displays.CaptureForUndo();
+        try
+        {
+            await _app.DisplayProfiles.ChangeByHandAsync(() => _app.Displays.SetDuplicate(monitor, with));
+        }
+        catch (Exception ex)
+        {
+            _changing = false;
+            _app.Notify(with is null ? "Couldn't extend the display" : "Couldn't duplicate the display", ex.Message, NoticeKind.Warning, important: true);
+            BuildDetails();
+            return;
+        }
+        await Task.Delay(400);
+        _changing = false;
+        _selected = monitor.Key;
+        Reload();
+        await ConfirmKeepAsync(undo);
+    }
+
     private async Task ConfirmKeepAsync(DisplaySnapshot? undo)
     {
         if (undo is null)
@@ -564,7 +617,7 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
                 _selected = right.Key;
                 right.Hz = 144;
                 SyncTile(right);
-                _canvas.Select(right.Key);
+                _canvas.Select(TileKey(right.Key)!);
                 BuildDetails();
             }
             return Task.CompletedTask;
@@ -577,6 +630,25 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
         yield return ("reverted", () =>
         {
             _window.CloseModal(false);
+            return Task.CompletedTask;
+        });
+        yield return ("duplicated", () =>
+        {
+            var left = _monitors.Where(m => m.Active).OrderBy(m => m.X).FirstOrDefault();
+            var center = _monitors.FirstOrDefault(m => m.Active && m.Primary);
+            if (left is null || center is null || left == center) return Task.CompletedTask;
+            _app.Displays.SetDuplicate(left, center);
+            _selected = left.Key;
+            Reload();
+            return Task.CompletedTask;
+        });
+        yield return ("extended", () =>
+        {
+            if (_monitors.FirstOrDefault(m => m.Key == _selected) is { } left)
+            {
+                _app.Displays.SetDuplicate(left, null);
+                Reload();
+            }
             return Task.CompletedTask;
         });
         yield return ("profile-editor", () =>

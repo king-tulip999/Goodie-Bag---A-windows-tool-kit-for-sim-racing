@@ -87,7 +87,7 @@ public sealed class ArrangementCanvas : Canvas
         double maxX = _tiles.Max(t => t.X + t.Width), maxY = _tiles.Max(t => t.Y + t.Height);
         double pad = 40;
         _scale = Math.Min((ActualWidth - pad * 2) / Math.Max(1, maxX - _minX), (ActualHeight - pad * 2) / Math.Max(1, maxY - _minY));
-        _scale = Math.Min(_scale, 0.12);
+        _scale = Math.Min(_scale, 0.18);
         _ox = (ActualWidth - (maxX - _minX) * _scale) / 2;
         _oy = (ActualHeight - (maxY - _minY) * _scale) / 2;
 

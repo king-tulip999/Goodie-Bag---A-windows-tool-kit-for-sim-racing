@@ -13,7 +13,7 @@ internal sealed class DisplayProfilesView : Tile
 {
     private readonly AppServices _app;
     private readonly MainWindow _window;
-    private readonly MasonryPanel _grid = new() { MinColumnWidth = 360, MaxColumns = 4, Gap = 12, CenterFew = true, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly MasonryPanel _grid = new() { MinColumnWidth = 440, MaxColumns = 3, Gap = 12, CenterFew = true, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Func<bool> _hasPending;
 
     public DisplayProfilesView(AppServices app, MainWindow window, Func<bool> hasPending)
@@ -26,16 +26,18 @@ internal sealed class DisplayProfilesView : Tile
 
         var stack = new StackPanel();
         var head = new Grid();
-        var titles = new StackPanel();
-        titles.Children.Add(Ui.Text("Saved profiles", "H2"));
-        titles.Children.Add(Ui.Text("Saved setups like “Desk” and “Sim rig”: which displays are on, arrangement, resolution, refresh rate, main display, HDR, taskbar, wallpapers and audio devices. Give each a keybind to switch between them, or let a mode pick one.", "Caption"));
-        titles.Margin = new Thickness(0, 0, 220, 0);
-        head.Children.Add(titles);
+        head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var title = Ui.Text("Saved profiles", "H2");
+        title.VerticalAlignment = VerticalAlignment.Center;
+        head.Children.Add(title);
         var save = Ui.LabeledButton("I.Save", "Save current setup", SaveCurrentAsync, "PrimaryButton");
-        save.HorizontalAlignment = HorizontalAlignment.Right;
-        save.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetColumn(save, 1);
         head.Children.Add(save);
         stack.Children.Add(head);
+        var caption = Ui.Text("Saved setups like “Desk” and “Sim rig”: which displays are on, arrangement, resolution, refresh rate, main display, HDR, taskbar, wallpapers and audio devices. Give each a keybind to switch between them, or let a mode pick one.", "Caption");
+        caption.Margin = new Thickness(0, 6, 0, 0);
+        stack.Children.Add(caption);
         stack.Children.Add(_grid);
         Child = stack;
         Ui.Anchor(this, "displays.profiles");
@@ -65,21 +67,20 @@ internal sealed class DisplayProfilesView : Tile
         var top = new Grid();
         top.ColumnDefinitions.Add(new ColumnDefinition());
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var nameRow = new Grid { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left };
-        nameRow.ColumnDefinitions.Add(new ColumnDefinition());
-        nameRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        nameRow.Children.Add(new TextBlock { Text = profile.Name, ToolTip = profile.Name, Style = Ui.Res<Style>("H3"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis });
-        var tags = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        var nameRow = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+        nameRow.Children.Add(new TextBlock { Text = profile.Name, ToolTip = profile.Name, Style = Ui.Res<Style>("H3"), TextTrimming = TextTrimming.CharacterEllipsis });
+        var tags = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         if (isActive)
             tags.Children.Add(Ui.Chip("Active", "SageSoft", "SageDeep"));
         if (profile.Hotkey is { } hk)
             tags.Children.Add(Ui.Chip(GoodieBag.Hotkeys.Hotkey.Display(hk)));
-        Grid.SetColumn(tags, 1);
-        nameRow.Children.Add(tags);
+        if (tags.Children.Count > 0)
+            nameRow.Children.Add(tags);
         top.Children.Add(nameRow);
         var apply = isActive
             ? Ui.LabeledButton("I.Check", "Applied", () => _ = _app.DisplayProfiles.ApplyAsync(profile), "GhostButton")
             : Ui.LabeledButton("I.Zap", "Apply", () => _ = _app.DisplayProfiles.ApplyAsync(profile), "PrimaryButton");
+        apply.VerticalAlignment = VerticalAlignment.Top;
         apply.ToolTip = isActive ? "Apply again" : "Apply this profile";
         Grid.SetColumn(apply, 1);
         top.Children.Add(apply);
@@ -87,10 +88,10 @@ internal sealed class DisplayProfilesView : Tile
 
         var previewBox = new Tile { Style = Ui.Res<Style>("Inset"), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(6) };
         if (profile.Layout is null)
-            previewBox.Child = new TextBlock { Text = "Leaves the arrangement as it is", Style = Ui.Res<Style>("Caption"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 22) };
+            previewBox.Child = new TextBlock { Text = "Leaves the arrangement as it is", Style = Ui.Res<Style>("Caption"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 39, 0, 39) };
         else
         {
-            var preview = new MonitorLayoutView { Height = 76 };
+            var preview = new MonitorLayoutView { Height = 110 };
             preview.SetTiles(ModeLayout.Tiles(_app, profile.Layout));
             previewBox.Child = preview;
         }

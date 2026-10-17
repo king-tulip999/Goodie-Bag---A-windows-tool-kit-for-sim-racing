@@ -325,12 +325,6 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         look.Children.Add(custom);
         look.Children.Add(Ui.Divider());
         AddTopography(look);
-        var setup = Ui.LabeledButton("I.Sliders", "Open setup", () => _window.ShowSetup(firstRun: false));
-        setup.ToolTip = "The welcome screen: theme, plugins, start with Windows and update checks in one place";
-        var setupRow = Ui.SettingRow("Setup screen", null, setup);
-        Ui.Anchor(setupRow, "settings.setup");
-        look.Children.Add(setupRow);
-        look.Children.Add(Ui.Divider());
         int scaleIndex = Array.IndexOf(UiSettings.InterfaceScales, UiSettings.InterfaceScales.OrderBy(o => Math.Abs(o - U.InterfaceScale)).First());
         var size = Ui.Segmented(UiSettings.InterfaceScales.Select(p => $"{p}%").ToArray(), scaleIndex, i =>
         {
