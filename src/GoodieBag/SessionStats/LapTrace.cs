@@ -320,7 +320,7 @@ internal sealed class TraceBuilder
         {
             double t = s.Time - lapStart;
             if (t < -0.001 || t > lapTime + 0.001) continue;
-            if (t < lapTime / 2 ? s.Dist > length / 2 : s.Dist < length / 2) continue;
+            if (Math.Abs(s.Dist - s.Pct * length) > length / 2) continue;
             if (use.Count > 0 && s.Dist <= use[^1].Dist) continue;
             use.Add(s with { Time = t });
         }

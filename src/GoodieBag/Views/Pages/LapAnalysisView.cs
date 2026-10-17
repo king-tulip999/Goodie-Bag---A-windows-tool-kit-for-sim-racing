@@ -14,7 +14,7 @@ internal sealed record AnalysisData(SessionSummary Session, List<(int Lap, doubl
     (string Label, LapTrace Trace)? TrackBest, LapTrace? Optimal, IReadOnlyList<double> SectorStarts, string Driver,
     IReadOnlyList<SharedLapInfo> Shared, (SharedLapInfo Info, LapTrace Trace)? SharedPicked, SimRacing.TrackMaps.TrackMap? Map);
 
-internal sealed record AnalysisActions(Action<string> PickReference, Action<int> RemoveLap, Action LanesChanged, Action<int> ExportLap, Action ImportLap,
+internal sealed record AnalysisActions(Action<string> PickReference, Action<int> RemoveLap, Action<int> ExportLap, Action ImportLap,
     Action<long> DeleteShared, Action Save);
 
 internal enum MapColors { Laps, Speed, Delta }
@@ -93,7 +93,7 @@ internal static class LapAnalysisView
         var s = state = Make(data, settings.Imperial, reference);
         var page = new StackPanel();
         Action<string> pickReference = actions.PickReference;
-        Action lanesChanged = actions.LanesChanged;
+        Action lanesChanged = () => { };
 
         var chips = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
         foreach (var line in s.Lines)
@@ -172,20 +172,45 @@ internal static class LapAnalysisView
         var toolbar = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(20, 12, 20, 12), Margin = new Thickness(0, 0, 0, Ui.PanelSpacing), Child = Ui.SplitRow(chips, right, 16) };
         page.Children.Add(toolbar);
 
-        var map = new LapMap(s) { Height = 460 };
+        var map = new LapMap(s) { ToolTip = "The wheel zooms in on the spot under the pointer (the charts follow); double-click = the whole lap" };
         var mapCursor = new MapCursor(s, map) { IsHitTestVisible = false };
         var mapHost = new Grid { ClipToBounds = true, Children = { map, mapCursor, windBox } };
-        var lanes = (settings.AnalysisLanes ?? Config.SessionStatsSettings.DefaultLanes.ToList()).Where(LaneNames.ContainsKey).ToList();
-        if (lanes.Count == 0) lanes.Add("speed");
-        var chart = new TraceChart(s, lanes);
-        var chartCursor = new ChartCursor(s, chart) { IsHitTestVisible = false };
-        var chartHost = new Grid { Children = { chart, chartCursor } };
+        var chartHost = new Grid();
+        TraceChart? chart = null;
+        ChartCursor? chartCursor = null;
+        void ShowLanes()
+        {
+            var lanes = (settings.AnalysisLanes ?? Config.SessionStatsSettings.DefaultLanes.ToList()).Where(LaneNames.ContainsKey).ToList();
+            if (lanes.Count == 0) lanes.Add("speed");
+            if (chart is not null && chart.Lanes.SequenceEqual(lanes)) return;
+            chart?.Detach();
+            chartCursor?.Detach();
+            chart = new TraceChart(s, lanes);
+            chartCursor = new ChartCursor(s, chart) { IsHitTestVisible = false };
+            chartHost.Children.Clear();
+            chartHost.Children.Add(chart);
+            chartHost.Children.Add(chartCursor);
+            map.Height = chart.Height;
+        }
+        ShowLanes();
+        lanesChanged = () => { ShowLanes(); actions.Save(); };
 
         var mapCard = Card(StatsSections.Chart("Line", s.Lines.Any(l => l.Line is not null) ? "Where each lap drove; the wide band is the reference's" : null, mapHost));
         var chartCard = Card(StatsSections.Chart("Telemetry", "Drag across to zoom, double-click for the whole lap"
             + (s.Lines.Any(l => l.PushToPass.Count > 0) ? "; strips along the bottom of each lane = push-to-pass in use" : ""), chartHost));
+        mapCard.Margin = chartCard.Margin = new Thickness(0);
+        void MatchHeights()
+        {
+            if (chart is null) return;
+            bool side = mapCard.IsLoaded && chartCard.IsLoaded && Math.Abs(mapCard.TranslatePoint(new Point(), chartCard).Y) < 1;
+            double want = side ? map.ActualHeight + chartCard.ActualHeight - mapCard.ActualHeight : chart.Height;
+            if (Math.Abs(want - map.Height) > 0.5) map.Height = Math.Max(120, want);
+        }
+        mapCard.SizeChanged += (_, _) => MatchHeights();
+        chartCard.SizeChanged += (_, _) => MatchHeights();
         var telemetry = StatsLayout.Pair(mapCard, chartCard, 1100, 2, 3, Ui.PanelSpacing)!;
         page.Children.Add(telemetry);
+        page.Children.Add(new DividerLine { Height = 2 * Ui.PanelSpacing });
         page.Children.Add(new LapReplayView(data, s, settings, memory, actions.Save));
         s.ResetZoom();
         return page;
@@ -253,6 +278,32 @@ internal static class LapAnalysisView
         Style = Ui.Res<Style>("Card"), Padding = new Thickness(20, 16, 20, 20), Child = content, Margin = new Thickness(0, 0, 0, Ui.PanelSpacing),
     };
 
+    private static FrameworkElement LaneTag(string id, Action? remove)
+    {
+        var row = new DockPanel { VerticalAlignment = VerticalAlignment.Center, LastChildFill = true };
+        var name = new TextBlock
+        {
+            Text = ThemeManager.Case(LaneNames[id]), VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold,
+            Foreground = Ui.Res<Brush>("AccentText"),
+        };
+        if (remove is not null)
+        {
+            var x = Ui.IconButton("I.X", "Hide this lane", remove, "QuietIconButton");
+            x.Width = x.Height = 22;
+            x.MinHeight = 0;
+            x.Foreground = Ui.Res<Brush>("AccentText");
+            if (x.Content is Icon icon) icon.Width = icon.Height = 12;
+            DockPanel.SetDock(x, Dock.Right);
+            row.Children.Add(x);
+        }
+        row.Children.Add(name);
+        return new Tile
+        {
+            Tag = id, Height = 34, Background = Ui.Res<Brush>("AccentSoft"), BorderBrush = Ui.Res<Brush>("AccentText"), BorderThickness = new Thickness(1),
+            CornerRadius = ThemeManager.Round(4), Padding = new Thickness(12, 0, remove is null ? 12 : 5, 0), Child = row, Cursor = Cursors.SizeAll,
+        };
+    }
+
     private static void OpenLanes(FrameworkElement anchor, Config.SessionStatsSettings settings, Action changed)
     {
         var content = new ContentControl();
@@ -260,7 +311,7 @@ internal static class LapAnalysisView
         {
             PlacementTarget = anchor, Placement = PlacementMode.Custom, StaysOpen = false, AllowsTransparency = true,
             CustomPopupPlacementCallback = (size, target, _) => new[] { new CustomPopupPlacement(new Point(target.Width - size.Width, target.Height), PopupPrimaryAxis.Horizontal) },
-            Child = new Tile { Style = Ui.Res<Style>("LiftedCard"), Padding = new Thickness(16, 12, 16, 14), Margin = new Thickness(0, 4, 0, 0), MaxWidth = 420, Child = content },
+            Child = new Tile { Style = Ui.Res<Style>("LiftedCard"), Padding = new Thickness(16, 12, 16, 14), Margin = new Thickness(0, 4, 0, 0), Width = 260, Child = content },
         };
         RenderOptions.SetClearTypeHint(popup.Child, ClearTypeHint.Enabled);
         Ui.FollowTarget(popup);
@@ -270,31 +321,22 @@ internal static class LapAnalysisView
             void Save(List<string> lanes) { settings.AnalysisLanes = lanes; changed(); Fill(); }
             var stack = new StackPanel();
             stack.Children.Add(new TextBlock { Text = "Shown · drag to reorder", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 0, 0, 6) });
-            var grid = new ReorderGrid { Flow = true, MinCellWidth = 40, Gap = 6 };
+            var grid = new ReorderGrid { MaxColumns = 1, MinCellWidth = 220, Gap = 6 };
             foreach (var id in on)
-            {
-                var chip = new StackPanel { Orientation = Orientation.Horizontal, Tag = id };
-                chip.Children.Add(Ui.Chip(LaneNames[id]));
-                if (on.Count > 1)
-                {
-                    var lane = id;
-                    var x = Ui.IconButton("I.X", "Hide this lane", () => Save(on.Where(l => l != lane).ToList()), "QuietIconButton");
-                    chip.Children.Add(x);
-                }
-                grid.Children.Add(chip);
-            }
+                grid.Children.Add(LaneTag(id, on.Count > 1 ? () => Save(on.Where(l => l != id).ToList()) : null));
             grid.Moved += (_, _) => Save(grid.Children.OfType<FrameworkElement>().Select(c => (string)c.Tag).ToList());
             stack.Children.Add(grid);
             var off = Config.SessionStatsSettings.Lanes.Where(l => !on.Contains(l)).ToList();
             if (off.Count > 0)
             {
                 stack.Children.Add(new TextBlock { Text = "Add", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 12, 0, 6) });
-                var add = new WrapPanel();
+                var add = new StackPanel();
                 foreach (var id in off)
                 {
                     var lane = id;
-                    var b = Ui.LabeledButton("I.Plus", LaneNames[id], () => Save(on.Append(lane).ToList()), "SoftButton");
-                    b.Margin = new Thickness(0, 0, 6, 6);
+                    var b = Ui.LabeledButton("I.Plus", LaneNames[id], () => Save(on.Append(lane).ToList()));
+                    b.Margin = new Thickness(0, 0, 0, 6);
+                    b.HorizontalContentAlignment = HorizontalAlignment.Left;
                     add.Children.Add(b);
                 }
                 stack.Children.Add(add);
@@ -415,7 +457,7 @@ internal readonly record struct MapView(double MinX, double MaxY, double Scale, 
     public Point At(double x, double y) => new(Ox + (x - MinX) * Scale, Oy + (MaxY - y) * Scale);
 }
 
-internal sealed class LapMap : FrameworkElement
+internal sealed class LapMap : FrameworkElement, IKeepsWheel
 {
     private const int Buckets = 16;
     private readonly AnalysisState _s;
@@ -449,22 +491,42 @@ internal sealed class LapMap : FrameworkElement
         }
     }
 
-    protected override void OnMouseMove(MouseEventArgs e)
+    private double? Nearest(Point p, double reach)
     {
-        base.OnMouseMove(e);
-        if (View is not { } view || _s.Reference.Line is not { } line) return;
-        var p = e.GetPosition(this);
+        if (View is not { } view || _s.Reference.Line is not { } line) return null;
         var t = _s.Reference.Trace;
         int i0 = (int)(_s.D0 / t.StepM), i1 = Math.Min(t.Points - 1, (int)(_s.D1 / t.StepM));
         int best = -1;
-        double near = 30 * 30;
+        double near = reach * reach;
         for (int i = i0; i <= i1; i++)
         {
             var q = view.At(line.X[i], line.Y[i]);
             double d = (q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y);
             if (d < near) { near = d; best = i; }
         }
-        _s.SetCursor(best >= 0 ? t.Distance(best) : null);
+        return best >= 0 ? t.Distance(best) : null;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (View is null) return;
+        _s.SetCursor(Nearest(e.GetPosition(this), 30));
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        e.Handled = true;
+        if (Nearest(e.GetPosition(this), double.MaxValue) is not { } at) return;
+        double span = Math.Min(_s.Length, (_s.D1 - _s.D0) * (e.Delta > 0 ? 0.7 : 1 / 0.7));
+        _s.Zoom(at - span / 2, at + span / 2);
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+        if (e.ClickCount == 2) { _s.ResetZoom(); e.Handled = true; }
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
@@ -612,6 +674,12 @@ internal sealed class MapCursor : FrameworkElement
         s.ZoomChanged += InvalidateVisual;
     }
 
+    public void Detach()
+    {
+        _s.CursorChanged -= InvalidateVisual;
+        _s.ZoomChanged -= InvalidateVisual;
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         if (_s.Cursor is not { } d || _map.View is not { } view) return;
@@ -642,6 +710,8 @@ internal sealed class TraceChart : FrameworkElement
         ClipToBounds = true;
         Focusable = false;
     }
+
+    public void Detach() => _s.ZoomChanged -= InvalidateVisual;
 
     public List<string> Lanes { get; }
 
@@ -864,6 +934,12 @@ internal sealed class ChartCursor : FrameworkElement
         _chart = chart;
         s.CursorChanged += InvalidateVisual;
         s.ZoomChanged += InvalidateVisual;
+    }
+
+    public void Detach()
+    {
+        _s.CursorChanged -= InvalidateVisual;
+        _s.ZoomChanged -= InvalidateVisual;
     }
 
     protected override void OnRender(DrawingContext dc)

@@ -107,8 +107,11 @@ internal sealed class HudPainter : IDisposable
     public HudPainter()
     {
         _measure = Graphics.FromImage(_measureBitmap);
-        _measure.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        _measure.TextRenderingHint = TextRenderingHint.AntiAlias;
+        _measure.TextContrast = 0;
     }
+
+    public const int ClearTypeAlpha = 190;
 
     public Graphics G { get; private set; } = null!;
     public HudPalette P { get; private set; } = HudPalette.Default;
@@ -172,7 +175,8 @@ internal sealed class HudPainter : IDisposable
         g.Clear(Color.Transparent);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.Half;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        g.TextContrast = 0;
         g.ScaleTransform(scale, scale);
         Bounds = new RectangleF(0, 0, layoutSize.Width, layoutSize.Height);
         _inset = PointF.Empty;
@@ -288,7 +292,13 @@ internal sealed class HudPainter : IDisposable
         if (text.Length == 0) return;
         float lh = TextHeight(font);
         float top = v switch { VAlign.Center => box.Y + (box.Height - lh) / 2, VAlign.Bottom => box.Bottom - lh, _ => box.Y };
-        G.DrawString(text, font, Brush(color), new RectangleF(box.X, Snap(top), box.Width, lh + 2), Format(h, VAlign.Top, false));
+        var hint = PanelAlpha >= ClearTypeAlpha ? TextRenderingHint.ClearTypeGridFit : TextRenderingHint.AntiAlias;
+        if (G.TextRenderingHint != hint) G.TextRenderingHint = hint;
+        G.PixelOffsetMode = PixelOffsetMode.None;
+        float left = h == HAlign.Left ? Snap(box.X) : box.X, width = box.Right - left;
+        if (h == HAlign.Right) width = Snap(box.Right) - left;
+        G.DrawString(text, font, Brush(color), new RectangleF(left, Snap(top), width, lh + 2), Format(h, VAlign.Top, false));
+        G.PixelOffsetMode = PixelOffsetMode.Half;
     }
 
     private readonly Dictionary<(Font, string, int), string> _trimmed = new();

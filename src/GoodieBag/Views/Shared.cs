@@ -749,6 +749,12 @@ internal static class Ui
         return new Tile { Style = Res<Style>("Segmented"), Child = panel };
     }
 
+    public static void SetSegment(FrameworkElement segmented, int index)
+    {
+        if (segmented is Border { Child: Panel panel } && index >= 0 && index < panel.Children.Count && panel.Children[index] is RadioButton rb && rb.IsChecked != true)
+            rb.IsChecked = true;
+    }
+
     public static Grid SectionHeader(string title, string? caption, params FrameworkElement[] actions)
     {
         var grid = new Grid { Margin = new Thickness(0, 0, 0, 12) };

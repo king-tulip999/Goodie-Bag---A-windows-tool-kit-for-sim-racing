@@ -42,13 +42,13 @@
                 </StackPanel>
                 <StackPanel x:Name="CaptionButtons" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Minimize">
-                        <c:Icon Data="{StaticResource I.Minus}" Width="14" Height="14" StrokeThickness="1.6" />
+                        <c:CaptionGlyph Kind="Minimize" />
                     </Button>
                     <Button x:Name="MaxButton" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Maximize">
-                        <c:Icon x:Name="MaxIcon" Data="{StaticResource I.Square}" Width="13" Height="13" StrokeThickness="1.6" />
+                        <c:CaptionGlyph x:Name="MaxIcon" Kind="Maximize" />
                     </Button>
                     <Button x:Name="CloseButton" Style="{StaticResource CloseCaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Close">
-                        <c:Icon Data="{StaticResource I.X}" Width="14" Height="14" StrokeThickness="1.6" />
+                        <c:CaptionGlyph Kind="Close" />
                     </Button>
                 </StackPanel>
                 <!-- Only for a theme with a link (ThemeSpec.Link, set up by FitBrand): its logo in the title bar beside the window
@@ -135,10 +135,10 @@
             <ContentControl x:Name="SetupContent" Focusable="False" />
             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Orientation="Horizontal">
                 <Button x:Name="SetupMinButton" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Minimize">
-                    <c:Icon Data="{StaticResource I.Minus}" Width="14" Height="14" StrokeThickness="1.6" />
+                    <c:CaptionGlyph Kind="Minimize" />
                 </Button>
                 <Button x:Name="SetupCloseButton" Style="{StaticResource CloseCaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Close">
-                    <c:Icon Data="{StaticResource I.X}" Width="14" Height="14" StrokeThickness="1.6" />
+                    <c:CaptionGlyph Kind="Close" />
                 </Button>
             </StackPanel>
         </Grid>

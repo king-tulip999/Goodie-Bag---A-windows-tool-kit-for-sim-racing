@@ -6,7 +6,7 @@ using GoodieBag.Services;
 
 namespace GoodieBag.Views.Pages;
 
-internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotStates, ICancelEdit
+internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotStates, ICancelEdit, IRevealAnchor
 {
     private readonly AppServices _app;
     private readonly MainWindow _window;
@@ -123,6 +123,14 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
             _sectionHost.Children.Add(s.Section);
         if (!Visible().Any())
             _sectionHost.Children.Add(new TextBlock { Text = "Every section is off. Switch them on again under Panels.", Style = Ui.Res<Style>("Muted") });
+    }
+
+    public bool Reveal(string anchor)
+    {
+        string? id = anchor is "monitor.performance" or "monitor.network" || anchor.StartsWith("performance.", StringComparison.Ordinal) ? "performance" : null;
+        if (id is null || !HiddenSections.Contains(id)) return false;
+        SetSectionHidden(id, false);
+        return true;
     }
 
     private void SetSectionHidden(string id, bool hidden)

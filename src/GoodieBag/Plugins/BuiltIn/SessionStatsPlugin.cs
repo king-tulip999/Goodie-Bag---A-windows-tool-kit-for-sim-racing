@@ -31,6 +31,7 @@ internal sealed class SessionStatsPlugin : Plugin
         new("Session Stats", "Every stat from your iRacing sessions: time, cars and tracks, pace, races, incidents, driving style, conditions.", "Session Stats", PageKey, "stats.all", "stats statistics history laps time pb personal best races wins podiums incidents irating"),
         new("Recent sessions", "Every session with its laps and sectors; open one to analyze laps: line, inputs, delta.", "Session Stats", PageKey, "stats.sessions", "sessions laps sectors lap analysis telemetry trace compare delta racing line optimal"),
         new("Lap traces", "How long lap telemetry is kept, the space it takes, delete all.", "Session Stats", PageKey, "stats.traces", "traces telemetry storage retention keep delete disk space ibt"),
+        new("Telemetry files", "Record telemetry to disk (exact GPS lines), the .ibt folder's size, open it, clear files already read.", "Session Stats", PageKey, "stats.telemetry", "ibt telemetry folder record disk gps accurate line clear delete space size recycle"),
     };
 
     public SessionStatsService? Service { get; private set; }

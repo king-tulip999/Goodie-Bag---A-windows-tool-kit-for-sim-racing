@@ -34,6 +34,10 @@ public sealed class SessionStatsSettings
 
     public bool ReplayShowReference { get; set; } = true;
 
+    public bool ReplayFree { get; set; }
+
+    public bool ReplayTips { get; set; } = true;
+
     public bool AnalysisWind { get; set; } = true;
 
 

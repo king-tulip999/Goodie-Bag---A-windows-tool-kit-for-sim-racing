@@ -398,6 +398,11 @@ public partial class MainWindow : Window
             return;
         Dispatcher.BeginInvoke(new Action(() =>
         {
+            if (PageFor(page) is IRevealAnchor hidden && Ui.FindAnchor((DependencyObject)hidden, anchor) is null && hidden.Reveal(anchor))
+            {
+                GoTo(page, anchor, flash);
+                return;
+            }
             if (PageFor(page) is { } p && Ui.FindAnchor(p, anchor) is { } target)
             {
                 for (DependencyObject? cur = target; cur is not null; cur = LogicalTreeHelper.GetParent(cur))
@@ -526,7 +531,7 @@ public partial class MainWindow : Window
     private void OnStateChanged()
     {
         Root.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
-        MaxIcon.Data = (Geometry)FindResource(WindowState == WindowState.Maximized ? "I.Restore" : "I.Square");
+        MaxIcon.Kind = WindowState == WindowState.Maximized ? CaptionKind.Restore : CaptionKind.Maximize;
         MaxButton.ToolTip = WindowState == WindowState.Maximized ? "Restore" : "Maximize";
     }
 

@@ -192,6 +192,11 @@ internal interface IPage
     void OnHidden();
 }
 
+internal interface IRevealAnchor
+{
+    bool Reveal(string anchor);
+}
+
 internal interface IPageHistory
 {
     object? HistoryState { get; }

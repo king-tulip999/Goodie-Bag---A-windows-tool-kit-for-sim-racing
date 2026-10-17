@@ -398,7 +398,7 @@ internal sealed class StatsStore : IDisposable
 
     public (double? Tank, List<TyreReading> Tyres) CarExtras(long session) =>
         _db.Query("SELECT tank_l, tyre_wear FROM sessions WHERE id = ?1", session) is { Count: > 0 } r
-            ? (D(r[0][0]), TyreWear.Parse(r[0][1] as string)) : (null, new List<TyreReading>());
+            ? (D(r[0][0]), TyreWear.NewSets(TyreWear.Parse(r[0][1] as string))) : (null, new List<TyreReading>());
 
     public double? BestLap(string car, string track, string config) =>
         D(_db.Scalar("SELECT MIN(l.time) FROM laps l JOIN sessions s ON s.id = l.session_id WHERE l.clean = 1 AND s.car = ?1 AND s.track = ?2 AND s.track_config = ?3", car, track, config));

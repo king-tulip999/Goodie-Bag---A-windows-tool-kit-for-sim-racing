@@ -129,6 +129,10 @@ public static class ConfigStore
         config.Ui.LandingVersion = 1;
         if (config.Ui.InterfaceScaleVersion < 1) config.Ui.InterfaceScale = UiSettings.MigrateScale(config.Ui.InterfaceScale);
         config.Ui.InterfaceScaleVersion = 1;
+        if (config.Ui.MonitorSectionsVersion < 1)
+            foreach (var id in new[] { "performance", "sensors" })
+                if (!config.Ui.MonitorHiddenSections.Contains(id)) config.Ui.MonitorHiddenSections.Add(id);
+        config.Ui.MonitorSectionsVersion = 1;
         config.Ui.LandingLayout ??= new();
         config.Ui.LandingLayout.RemoveAll(slot => slot.Id == "home");
         foreach (var layout in new[] { config.Ui.SensorsLayout, config.Fans.Layout })
@@ -308,6 +312,7 @@ public static class ConfigStore
     {
         var config = new AppConfig();
         config.Ui.InterfaceScaleVersion = 1;
+        config.Ui.MonitorSectionsVersion = 1;
         config.Fans.PresetNamesVersion = 1;
         return config;
     }

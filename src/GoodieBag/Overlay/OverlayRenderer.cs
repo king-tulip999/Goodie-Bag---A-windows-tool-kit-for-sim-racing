@@ -5,6 +5,8 @@ using GoodieBag.Hardware;
 using GoodieBag.Network;
 using System.Drawing;
 
+using GoodieBag.SimRacing.Hud;
+
 namespace GoodieBag.Overlay;
 
 internal sealed record OverlayData(
@@ -54,7 +56,8 @@ internal sealed class OverlayRenderer : IDisposable
     public OverlayRenderer()
     {
         _measure = Graphics.FromImage(_measureBitmap);
-        _measure.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        _measure.TextRenderingHint = TextRenderingHint.AntiAlias;
+        _measure.TextContrast = 0;
         _format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces | StringFormatFlags.NoWrap;
     }
 
@@ -111,10 +114,11 @@ internal sealed class OverlayRenderer : IDisposable
 
         var g = surface(new Size(width, height));
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
         g.Clear(Color.Transparent);
 
         int alpha = (int)Math.Round(Math.Clamp(layout.BackgroundOpacity, 0, 100) * 2.55);
+        g.TextRenderingHint = alpha >= HudPainter.ClearTypeAlpha ? TextRenderingHint.ClearTypeGridFit : TextRenderingHint.AntiAlias;
+        g.TextContrast = 0;
         if (alpha > 0)
         {
             if (_backPath is null || _backKey != (width, height, scale))
@@ -388,7 +392,7 @@ internal sealed class OverlayRenderer : IDisposable
     }
 
     private void DrawText(Graphics g, string text, Font font, Color color, float x, float y) =>
-        g.DrawString(Upper(text), font, BrushFor(color), x, y, _format);
+        g.DrawString(Upper(text), font, BrushFor(color), MathF.Round(x), MathF.Round(y), _format);
 
     private SolidBrush BrushFor(Color color)
     {

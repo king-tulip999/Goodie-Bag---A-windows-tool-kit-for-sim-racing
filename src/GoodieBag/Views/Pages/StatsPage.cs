@@ -172,7 +172,6 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
             var actions = new AnalysisActions(
                 pick => { _reference = pick; Refresh(); },
                 lap => { _analysisLaps = _analysisLaps?.Where(l => l != lap).ToList(); _ticked.Remove(lap); Refresh(); },
-                () => { _app.Save(); Refresh(); },
                 lap => ExportLap(store, traces!, id, lap),
                 () => _ = ImportLapAsync(traces!, data.Session),
                 shared => _ = DeleteSharedAsync(traces!, shared),
@@ -327,6 +326,7 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
         }
         var sessionsCard = StatsSessions.Card(sessions, traced, _filter, stats.Settings, Refresh, s => Open(s.Id), TraceSettings.Button(_app, stats, _window));
         page.Children.Add(StatsSections.Page(results, charts, stats, q, Changed, _app.Save, sessionsCard));
+        page.Children.Add(new TelemetryFilesCard(_app, _window, stats) { Margin = new Thickness(0, Ui.PanelSpacing, 0, 0) });
         _content.Content = page;
         if (restoreOffset)
         {
@@ -488,7 +488,7 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
                 return Task.Delay(400);
             });
         }
-        foreach (var state in new[] { "activity", "cars" })
+        foreach (var state in new[] { "activity", "cars", "telemetry" })
         {
             string anchor = "stats." + state;
             yield return (state, async () =>

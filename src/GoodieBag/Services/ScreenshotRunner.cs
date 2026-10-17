@@ -462,6 +462,8 @@ internal static class ScreenshotRunner
             window.Navigate(entry.Page);
             await Task.Delay(120);
             await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (window.PageFor(entry.Page) is IRevealAnchor hidden && Ui.FindAnchor((DependencyObject)hidden, entry.Anchor!) is null && hidden.Reveal(entry.Anchor!))
+                await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (window.PageFor(entry.Page) is not { } page || Ui.FindAnchor(page, entry.Anchor!) is null)
                 RecordError(new InvalidOperationException($"Search target missing: {entry.Title} → {entry.Page}#{entry.Anchor}"));
         }

@@ -241,7 +241,9 @@ public sealed class UiSettings
 
     public List<string> MonitorSectionOrder { get; set; } = new();
 
-    public List<string> MonitorHiddenSections { get; set; } = new();
+    public List<string> MonitorHiddenSections { get; set; } = new() { "performance", "sensors" };
+
+    public int MonitorSectionsVersion { get; set; }
 
     public List<PanelSlot> SensorsLayout { get; set; } = new();
 

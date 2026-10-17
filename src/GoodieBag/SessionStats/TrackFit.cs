@@ -19,7 +19,7 @@ internal static class TrackFit
         }
     }
 
-    public const double MaxRms = 8;
+    public const double MaxRms = 8, FallbackWidth = 18.6;
     private const int Samples = 360, Dense = 2400, Rounds = 8, Window = 80;
 
     internal static Similarity Solve(IReadOnlyList<(double U, double V)> from, IReadOnlyList<(double X, double Y)> to)
@@ -43,10 +43,11 @@ internal static class TrackFit
     public static TrackOutline? Fit(TrackMap map, double[] x, double[] y, double step, double lengthM) =>
         Fit(map, new[] { (x, y, step, lengthM) });
 
-    public static TrackOutline? Fit(TrackMap map, IReadOnlyList<(double[] X, double[] Y, double Step, double Length)> lines)
+    internal sealed record Placement(Similarity Sim, (double X, double Y)[] Centre, double Rms, double MapLength);
+
+    internal static Placement? Place(TrackMap map, IReadOnlyList<(double[] X, double[] Y, double Step, double Length)> lines)
     {
-        lines = lines.Where(l => l.X.Length >= 50 && l.Length >= 200).ToList();
-        if (map.Centerline.Length < 8 || map.Surface.Count == 0 || lines.Count == 0) return null;
+        if (map.Centerline.Length < 8 || lines.Count == 0) return null;
         int count = Samples * lines.Count;
         var lap = new (double X, double Y)[count];
         var mapPts = new (double U, double V)[count];
@@ -116,24 +117,40 @@ internal static class TrackFit
         }
         double mapLength = map.Length * sim.Scale;
         if (rms > MaxRms || Math.Abs(mapLength - lengthM) / lengthM > 0.08) return null;
+        for (int j = 0; j < nd; j++) placed[j] = sim.Apply(dense[j].X, dense[j].Y);
+        return new Placement(sim, placed, rms, mapLength);
+    }
 
-        (double[] X, double[] Y) Place(PointF[] pts)
+    public static TrackOutline? Fit(TrackMap map, IReadOnlyList<(double[] X, double[] Y, double Step, double Length)> lines)
+    {
+        lines = lines.Where(l => l.X.Length >= 50 && l.Length >= 200).ToList();
+        if (map.Surface.Count == 0 || TrackFit.Place(map, lines) is not { } placement) return null;
+        var (sim, centre, rms, mapLength) = placement;
+        int nd = centre.Length;
+
+        (double[] X, double[] Y) Placed(PointF[] pts)
         {
             var xs = new double[pts.Length];
             var ys = new double[pts.Length];
             for (int i = 0; i < pts.Length; i++) (xs[i], ys[i]) = sim.Apply(pts[i].X, pts[i].Y);
             return (xs, ys);
         }
-        var surface = map.Surface.Where(f => f.Length >= 3).Select(f => { var (px, py) = Place(f); return Spline(px, py, closed: true, 1.5); }).ToList();
+        double width = Math.Max(0.1, map.Width * sim.Scale);
+        var driven = lines.Select(l => Lateral(centre, l.X, l.Y, l.Step, l.Length)).ToList();
+        var half = Enumerable.Repeat(width / 2, nd).ToArray();
+        var surface = map.Surface.Where(f => f.Length >= 3).Select(f => { var (px, py) = Placed(f); return Spline(px, py, closed: true, 1.5); }).ToList();
         var pit = new List<(double[], double[], bool)>();
-        float pitWidth = 0;
-        foreach (var shape in map.Pit)
-            foreach (var fig in shape.Figures.Where(f => f.Points.Length >= 2 && !(shape.Filled && IsDash(f.Points, map.Width))))
+        var pitPoints = map.Pit.Where(p => p.Filled).SelectMany(p => p.Figures).SelectMany(f => f.Points).Select(q => sim.Apply(q.X, q.Y)).ToList();
+        for (int l = 0; l < lines.Count; l++)
+            foreach (var run in PitRuns(lines[l].X, lines[l].Y, lines[l].Step, driven[l], half, half, pitPoints)) pit.Add((run.X, run.Y, false));
+        double pitWidth = pit.Count > 0 ? PitLaneWidth : 0;
+        foreach (var shape in map.Pit.Where(p => !p.Filled))
+            foreach (var fig in shape.Figures.Where(f => f.Points.Length >= 2))
             {
-                var (px, py) = Place(fig.Points);
-                var (sx, sy) = Spline(px, py, fig.Closed || shape.Filled, 1.5);
-                pit.Add((sx, sy, shape.Filled));
-                if (!shape.Filled) pitWidth = Math.Max(pitWidth, shape.StrokeWidth);
+                var (px, py) = Placed(fig.Points);
+                var (sx, sy) = Spline(px, py, fig.Closed, 1.5);
+                pit.Add((sx, sy, false));
+                pitWidth = Math.Max(pitWidth, shape.StrokeWidth * sim.Scale);
             }
         (double, double, double, double)? start = null;
         if (map.StartLine is { } line)
@@ -142,7 +159,7 @@ internal static class TrackFit
             var (x2, y2) = sim.Apply(line.B.X, line.B.Y);
             start = (x1, y1, x2, y2);
         }
-        return new TrackOutline(surface, pit, pitWidth * sim.Scale, start, map.Width * sim.Scale, rms, mapLength);
+        return new TrackOutline(surface, pit, pitWidth, start, width, rms, mapLength);
     }
 
     private static double[]? SolveLinear(double[,] m)
@@ -166,10 +183,59 @@ internal static class TrackFit
         return x;
     }
 
-    internal static bool IsDash(PointF[] points, double width)
+    public const double PitLaneWidth = 8;
+    private const double OffLimit = 3, PitRunM = 40, PitNearM = 25, PitLeadM = 15;
+
+    internal readonly record struct Driven(int[] At, double[] Side);
+
+    internal static Driven Lateral((double X, double Y)[] centre, double[] x, double[] y, double step, double length)
     {
-        double w = points.Max(p => p.X) - points.Min(p => p.X), h = points.Max(p => p.Y) - points.Min(p => p.Y);
-        return Math.Sqrt(w * w + h * h) < width * 3;
+        int nd = centre.Length, n = Math.Min(x.Length, y.Length);
+        var at = new int[n];
+        var side = new double[n];
+        int hint = 0;
+        for (int i = 0; i < n; i++)
+        {
+            int from = i == 0 ? 0 : hint - Window, to = i == 0 ? nd - 1 : hint + Window;
+            int best = 0;
+            double near = double.MaxValue, signed = 0;
+            for (int w = from; w <= to; w++)
+            {
+                int j = ((w % nd) + nd) % nd;
+                var (ax, ay) = centre[j];
+                var (bx, by) = centre[(j + 1) % nd];
+                double ex = bx - ax, ey = by - ay, len2 = ex * ex + ey * ey;
+                double t = len2 > 0 ? Math.Clamp(((x[i] - ax) * ex + (y[i] - ay) * ey) / len2, 0, 1) : 0;
+                double dx = x[i] - (ax + ex * t), dy = y[i] - (ay + ey * t), d = dx * dx + dy * dy;
+                if (d < near) { near = d; best = j; signed = len2 > 0 ? Math.Sign(ex * dy - ey * dx) * Math.Sqrt(d) : 0; }
+            }
+            hint = best;
+            at[i] = best;
+            side[i] = signed;
+        }
+        return new Driven(at, side);
+    }
+
+    internal static List<(double[] X, double[] Y)> PitRuns(double[] x, double[] y, double step, Driven d, double[] left, double[] right, IReadOnlyList<(double X, double Y)> pitPoints)
+    {
+        var runs = new List<(double[] X, double[] Y)>();
+        int n = d.At.Length, minRun = (int)(PitRunM / step), lead = (int)(PitLeadM / step);
+        bool Off(int i) => d.Side[i] > left[d.At[i]] + OffLimit || -d.Side[i] > right[d.At[i]] + OffLimit;
+        for (int i = 0; i < n;)
+        {
+            if (!Off(i)) { i++; continue; }
+            int a = i;
+            while (i < n && Off(i)) i++;
+            if (i - a < minRun) continue;
+            bool nearPit = false;
+            for (int k = a; k < i && !nearPit; k += 4)
+                foreach (var (px, py) in pitPoints)
+                    if ((px - x[k]) * (px - x[k]) + (py - y[k]) * (py - y[k]) < PitNearM * PitNearM) { nearPit = true; break; }
+            if (!nearPit) continue;
+            int from = Math.Max(0, a - lead), to = Math.Min(n, i + lead);
+            runs.Add((x[from..to], y[from..to]));
+        }
+        return runs;
     }
 
     public static List<(double[] X, double[] Y)> Wound(List<(double[] X, double[] Y)> figures)

@@ -44,10 +44,12 @@ internal sealed class LapReplayView : Grid
     private readonly TextBlock _clock = new(), _gapSeconds = new(), _gapMetres = new(), _sectorName = new(), _sectorGap = new();
     private readonly SectorTable? _table;
     private readonly Slider _zoom = null!;
+    private readonly FrameworkElement _camera = null!;
+    private readonly Button _turn = null!;
+    private readonly CheckBox _refSwitch = null!;
     private readonly Tile _stageTile = null!;
     private readonly Tile _barTile = null!;
     private ScrollViewer? _page;
-    private readonly ReplayCardRow? _cardRow;
     private ReplayCar _follow = null!;
     private double _time;
     private bool _playing, _hooked;
@@ -77,18 +79,19 @@ internal sealed class LapReplayView : Grid
         Focusable = true;
         FocusVisualStyle = null;
 
-        for (int r = 0; r < 3; r++) RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int r = 0; r < 2; r++) RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        _stage = new ReplayStage(_cars, s, settings, () => _follow);
+        _stage = new ReplayStage(_cars, s, settings, () => _follow, data.Session.Car);
         if (data.Map is { } map)
         {
             var lines = _cars.Select(c => (c.X, c.Y, c.Trace.StepM, c.Trace.LengthM)).ToList();
             _ = PlaceMapAsync(map, lines);
         }
         _stage.ZoomStep += delta => SetZoom(_settings.ReplayZoom + delta);
+        _stage.WentFree += () => { _save(); SyncCamera(); };
         var overlay = new Grid { Margin = new Thickness(14) };
 
-        var cards = new ReplayCardRow { Margin = new Thickness(0, 0, 0, 12) };
+        var cards = new ReplayCardRow { VerticalAlignment = VerticalAlignment.Top };
         foreach (var car in _cars.OrderBy(c => c.Line.Reference ? 1 : 0))
         {
             var card = new ReplayCard(car, settings.Imperial, () => Follow(car));
@@ -125,12 +128,16 @@ internal sealed class LapReplayView : Grid
             Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 10, 12, 10), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
             Child = new StackPanel { Children = { _mini, miniFoot } },
         };
-        _cardRow = cards;
-        Children.Add(cards);
         overlay.Children.Add(miniCard);
 
-        var topLeft = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
-        overlay.Children.Add(topLeft);
+        var topLeft = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 12, 0) };
+        var top = new Grid { VerticalAlignment = VerticalAlignment.Top };
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition());
+        Grid.SetColumn(cards, 1);
+        top.Children.Add(topLeft);
+        top.Children.Add(cards);
+        overlay.Children.Add(top);
         if (_cars.Any(c => c.Line.Wind is not null))
         {
             _wind = new ReplayWind(_cars, settings.Imperial) { HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 10) };
@@ -157,10 +164,23 @@ internal sealed class LapReplayView : Grid
         turn.ToolTip = "Keep the followed car pointing up (off = north up)";
         turn.Margin = new Thickness(10, 0, 0, 0);
         var zoomRow = new StackPanel { Orientation = Orientation.Horizontal };
-        zoomRow.Children.Add(Ui.IconButton("I.Minus", "Zoom out", () => SetZoom(_settings.ReplayZoom - 0.1), "QuietIconButton"));
+        _camera = Ui.Segmented(new[] { "Follow car", "Free" }, settings.ReplayFree ? 1 : 0, i => SetFree(i == 1), "replayCamera",
+            new[] { "The camera stays on the followed car (click a card to pick it)", "Drag to move around the track, the wheel zooms where the pointer is" });
+        _camera.VerticalAlignment = VerticalAlignment.Center;
+        _camera.Margin = new Thickness(0, 0, 10, 0);
+        zoomRow.Children.Add(_camera);
+        zoomRow.Children.Add(Ui.IconButton("I.Minus", "Zoom out", () => ZoomBy(-0.1), "QuietIconButton"));
         zoomRow.Children.Add(_zoom);
-        zoomRow.Children.Add(Ui.IconButton("I.Plus", "Zoom in", () => SetZoom(_settings.ReplayZoom + 0.1), "QuietIconButton"));
+        zoomRow.Children.Add(Ui.IconButton("I.Plus", "Zoom in", () => ZoomBy(0.1), "QuietIconButton"));
+        _turn = turn;
+        turn.IsEnabled = !settings.ReplayFree;
         zoomRow.Children.Add(turn);
+        var tips = Ui.LabeledButton("I.Flag", "Tips", () => { });
+        Ui.SetToggled(tips, settings.ReplayTips);
+        tips.ToolTip = "Notes on the track where the lap brakes, picks up the throttle or carries speed differently from the reference";
+        tips.Margin = new Thickness(6, 0, 0, 0);
+        tips.Click += (_, _) => { settings.ReplayTips = !settings.ReplayTips; Ui.SetToggled(tips, settings.ReplayTips); _stage.Update(); _save(); };
+        zoomRow.Children.Add(tips);
         if (_wind is not null)
         {
             var windButton = Ui.LabeledButton("I.Wind", "Wind", () => { });
@@ -193,24 +213,33 @@ internal sealed class LapReplayView : Grid
         topLeft.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 8, 12, 8), HorizontalAlignment = HorizontalAlignment.Left, Child = legend });
 
         var stageHost = new Grid { ClipToBounds = true, Children = { _stage, overlay } };
+        IEnumerable<FrameworkElement> Parts() => overlay.Children.OfType<FrameworkElement>().Where(p => p != top)
+            .Concat(topLeft.Children.OfType<FrameworkElement>()).Concat(cards.Children.OfType<FrameworkElement>());
         void Avoid()
         {
             _stage.Avoid.Clear();
-            foreach (FrameworkElement part in overlay.Children)
+            foreach (var part in Parts())
             {
                 if (part.Visibility != Visibility.Visible || part.ActualWidth < 1 || !part.IsDescendantOf(stageHost)) continue;
                 var at = part.TransformToAncestor(stageHost).TransformBounds(new Rect(part.RenderSize));
                 at.Inflate(6, 6);
                 _stage.Avoid.Add(at);
             }
+            _stage.TopInset = cards.IsDescendantOf(stageHost) && cards.ActualHeight > 0 ? cards.TransformToAncestor(stageHost).Transform(new Point(0, cards.ActualHeight)).Y : 0;
             _stage.Update();
         }
-        foreach (FrameworkElement part in overlay.Children) part.SizeChanged += (_, _) => Avoid();
-        stageHost.SizeChanged += (_, _) => Avoid();
+        bool avoidQueued = false;
+        void QueueAvoid()
+        {
+            if (avoidQueued) return;
+            avoidQueued = true;
+            Dispatcher.InvokeAsync(() => { avoidQueued = false; Avoid(); }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        foreach (var part in Parts().Append(top)) part.SizeChanged += (_, _) => QueueAvoid();
+        stageHost.SizeChanged += (_, _) => QueueAvoid();
         _stageTile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(0), Height = 560, Child = stageHost };
 
         _stageTile.Margin = new Thickness(0, 0, 0, 12);
-        SetRow(_stageTile, 1);
         Children.Add(_stageTile);
 
         _scrubber = new ReplayScrubber(_follow.Trace.LapTime > 0 ? _sectorStarts.Skip(1).Select(d => _follow.Trace.TimeAt(d) / _follow.Trace.LapTime).ToArray() : Array.Empty<double>())
@@ -248,7 +277,8 @@ internal sealed class LapReplayView : Grid
         var gapLabel = new TextBlock { Text = "Delta", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         var gap = new StackPanel { Orientation = Orientation.Horizontal, Children = { gapLabel, _gapSeconds, _gapMetres } };
         gap.ToolTip = "Behind (+) or ahead (−) of the reference: in time at this spot, and in distance after the same time";
-        var refSwitch = Ui.Switch(settings.ReplayShowReference, on => { _settings.ReplayShowReference = on; _stage.Update(); _save(); });
+        _refSwitch = Ui.Switch(settings.ReplayShowReference, ShowReference);
+        var refSwitch = _refSwitch;
         var refRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         refRow.Children.Add(new TextBlock { Text = "Reference", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
         refRow.Children.Add(refSwitch);
@@ -267,7 +297,7 @@ internal sealed class LapReplayView : Grid
         bar.Children.Add(_scrubber);
         bar.Children.Add(Ui.SplitRow(left, right, 16));
         _barTile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(20, 14, 20, 14), Child = bar };
-        SetRow(_barTile, 2);
+        SetRow(_barTile, 1);
         Children.Add(_barTile);
 
         PreviewMouseDown += (_, e) => { if (e.OriginalSource is not TextBox && !IsKeyboardFocusWithin) Focus(); };
@@ -314,7 +344,7 @@ internal sealed class LapReplayView : Grid
         if (_page is null || !_stageTile.IsLoaded) return;
         var toPage = _stageTile.TransformToAncestor(_page);
         double unit = Math.Max(0.1, toPage.Transform(new Point(0, 100)).Y - toPage.Transform(new Point(0, 0)).Y) / 100;
-        double room = _page.ViewportHeight / unit - _barTile.ActualHeight - _stageTile.Margin.Bottom - 28 - (_cardRow?.ActualHeight ?? 0);
+        double room = _page.ViewportHeight / unit - _barTile.ActualHeight - _stageTile.Margin.Bottom - 28;
         _stageTile.Height = Math.Clamp(room, MinStage, MaxStage);
     }
 
@@ -391,8 +421,20 @@ internal sealed class LapReplayView : Grid
         if (ended) Pause();
     }
 
+    private void ShowReference(bool on)
+    {
+        _settings.ReplayShowReference = on;
+        _refSwitch.IsChecked = on;
+        if (!on && _follow.Line.Reference && _cars.FirstOrDefault(c => !c.Line.Reference) is { } own) Follow(own);
+        _stage.Update();
+        Readouts();
+        _save();
+    }
+
     private void Follow(ReplayCar car)
     {
+        if (_settings.ReplayFree) SetFree(false);
+        if (car.Line.Reference && !_settings.ReplayShowReference) ShowReference(true);
         if (car == _follow) return;
         double d = _follow.Distance;
         _follow = car;
@@ -402,11 +444,34 @@ internal sealed class LapReplayView : Grid
         Place(force: true);
     }
 
+    private void SetFree(bool free)
+    {
+        if (free == _settings.ReplayFree) return;
+        if (free) _stage.StartFree();
+        else { _settings.ReplayFree = false; _stage.Update(); _wind?.Turn(_stage.Rotation); }
+        _save();
+        SyncCamera();
+    }
+
+    private void SyncCamera()
+    {
+        Ui.SetSegment(_camera, _settings.ReplayFree ? 1 : 0);
+        _turn.IsEnabled = !_settings.ReplayFree;
+        _wind?.Turn(_stage.Rotation);
+    }
+
+    private void ZoomBy(double step)
+    {
+        if (_settings.ReplayFree) _stage.ZoomFree(step > 0 ? 1.25 : 1 / 1.25);
+        else SetZoom(_settings.ReplayZoom + step);
+    }
+
     private void SetZoom(double z)
     {
         z = Math.Clamp(z, 0, 1);
         if (Math.Abs(_zoom.Value - z) > 1e-9) { _zoom.Value = z; return; }
         _settings.ReplayZoom = z;
+        if (_settings.ReplayFree) { _settings.ReplayFree = false; SyncCamera(); }
         _stage.Update();
         _wind?.Turn(_stage.Rotation);
         _save();
@@ -557,13 +622,15 @@ internal sealed class ReplayWind : Tile
 
 internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 {
-    public const double TrackWidth = 14;
+    public const double TrackWidth = TrackFit.FallbackWidth;
     private const double MaxScale = 22;
     private const int Buckets = 16;
     private readonly List<ReplayCar> _cars;
     private readonly AnalysisState _s;
     private readonly Config.SessionStatsSettings _settings;
     private readonly Func<ReplayCar> _follow;
+    private readonly (double Length, double Width) _carSize;
+    private readonly bool _onlyReference;
     private readonly VisualCollection _visuals;
     private readonly DrawingVisual _world = new();
     private readonly MatrixTransform _camera = new();
@@ -596,9 +663,24 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 
     public event Action<double>? ZoomStep;
 
-    public ReplayStage(List<ReplayCar> cars, AnalysisState s, Config.SessionStatsSettings settings, Func<ReplayCar> follow)
+    public event Action? WentFree;
+
+    public double TopInset { get; set; }
+
+    private Point Anchor(double k)
+    {
+        double top = Math.Clamp(TopInset, 0, ActualHeight * 0.6), h = ActualHeight - top;
+        return new Point(ActualWidth / 2, top + h * (0.5 + 0.08 * k));
+    }
+
+    private double _camX, _camY, _camScale = 1, _freeX, _freeY, _freeScale = 1;
+    private Point? _dragFrom;
+
+    public ReplayStage(List<ReplayCar> cars, AnalysisState s, Config.SessionStatsSettings settings, Func<ReplayCar> follow, string car)
     {
         _cars = cars;
+        _carSize = CarShape.SizeOf(car);
+        _onlyReference = cars.All(c => c.Line.Reference);
         _s = s;
         _settings = settings;
         _follow = follow;
@@ -707,13 +789,70 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
-        ZoomStep?.Invoke(e.Delta > 0 ? 0.06 : -0.06);
+        if (_settings.ReplayFree) ZoomFree(e.Delta > 0 ? 1.2 : 1 / 1.2, e.GetPosition(this));
+        else ZoomStep?.Invoke(e.Delta > 0 ? 0.06 : -0.06);
         e.Handled = true;
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+        _dragFrom = e.GetPosition(this);
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (_dragFrom is not { } from || e.LeftButton != MouseButtonState.Pressed) return;
+        var at = e.GetPosition(this);
+        if (!_settings.ReplayFree)
+        {
+            if ((at - from).Length < 5) return;
+            StartFree();
+            WentFree?.Invoke();
+        }
+        _freeX -= (at.X - from.X) / _freeScale;
+        _freeY += (at.Y - from.Y) / _freeScale;
+        _dragFrom = at;
+        Update();
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        _dragFrom = null;
+        ReleaseMouseCapture();
+    }
+
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        _dragFrom = null;
+    }
+
+    public void StartFree()
+    {
+        (_freeX, _freeY, _freeScale) = (_camX, _camY, _camScale);
+        _settings.ReplayFree = true;
+        Update();
+    }
+
+    public void ZoomFree(double by, Point? at = null)
+    {
+        var c = Anchor(0);
+        var p = at ?? c;
+        double wx = _freeX + (p.X - c.X) / _freeScale, wy = _freeY - (p.Y - c.Y) / _freeScale;
+        _freeScale = Math.Clamp(_freeScale * by, Scale(0) * 0.5, MaxScale * 2);
+        _freeX = wx - (p.X - c.X) / _freeScale;
+        _freeY = wy + (p.Y - c.Y) / _freeScale;
+        Update();
     }
 
     private double Scale(double zoom)
     {
-        double fit = Math.Min((ActualWidth - 60) / _spanX, (ActualHeight - 60) / _spanY);
+        double fit = Math.Min((ActualWidth - 60) / _spanX, (ActualHeight - Math.Clamp(TopInset, 0, ActualHeight * 0.6) - 60) / _spanY);
         fit = Math.Max(0.01, fit);
         return fit * Math.Pow(Math.Max(1, MaxScale / fit), zoom);
     }
@@ -722,24 +861,33 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
     {
         if (ActualWidth < 20 || ActualHeight < 20) return;
         var follow = _follow();
-        double zoom = _settings.ReplayZoom, scale = Scale(zoom);
+        bool free = _settings.ReplayFree;
+        double zoom = _settings.ReplayZoom, scale = free ? _freeScale : Scale(zoom);
         if (Math.Abs(scale / _builtScale - 1) > 0.004 || follow != _builtFollow || _settings.ReplayShowReference != _builtRef) Build(scale, follow);
 
-        double k = Math.Clamp(zoom / 0.15, 0, 1);
-        double cx = _midX + (follow.Px - _midX) * k, cy = _midY + (follow.Py - _midY) * k;
-        double rot = _settings.ReplayTurn ? Math.IEEERemainder(follow.Heading - Math.PI / 2, Math.Tau) * k : 0;
+        double k = free ? 0 : Math.Clamp(zoom / 0.15, 0, 1);
+        double cx = free ? _freeX : _midX + (follow.Px - _midX) * k, cy = free ? _freeY : _midY + (follow.Py - _midY) * k;
+        double rot = !free && _settings.ReplayTurn ? Math.IEEERemainder(follow.Heading - Math.PI / 2, Math.Tau) * k : 0;
         Rotation = rot;
         var m = Matrix.Identity;
         m.Translate(-cx, -cy);
         m.Scale(scale, -scale);
         m.Rotate(rot * 180 / Math.PI);
-        m.Translate(ActualWidth / 2, ActualHeight * (0.5 + 0.08 * k));
+        var anchor = Anchor(k);
+        m.Translate(anchor.X, anchor.Y);
         _camera.Matrix = m;
+        if (!free && m.HasInverse)
+        {
+            var back = m;
+            back.Invert();
+            var centre = back.Transform(Anchor(0));
+            (_camX, _camY, _camScale) = (centre.X, centre.Y, scale);
+        }
 
         for (int i = 0; i < _cars.Count; i++)
         {
             var car = _cars[i];
-            bool shown = _settings.ReplayShowReference || !car.Line.Reference || car == follow;
+            bool shown = _settings.ReplayShowReference || !car.Line.Reference || _onlyReference;
             _carVisuals[i].Opacity = shown ? 1 : 0;
             var p = m.Transform(new Point(car.Px, car.Py));
             var cm = Matrix.Identity;
@@ -768,11 +916,11 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
             var p = m.Transform(note.World);
             double x = Math.Round(p.X), y = Math.Round(p.Y);
             note.MarkerAt.Matrix = new Matrix(1, 0, 0, 1, x, y);
-            note.Marker.Opacity = view.Contains(p) ? 1 : 0;
+            note.Marker.Opacity = _settings.ReplayTips && view.Contains(p) ? 1 : 0;
             var box = new Rect(x + 12, y - 12, note.Box.Width, note.Box.Height);
             if (box.Right > view.Right) box.X = x - 12 - box.Width;
             if (box.Bottom > view.Bottom) box.Y = y + 12 - box.Height;
-            bool show = view.Contains(p) && view.Contains(box);
+            bool show = _settings.ReplayTips && view.Contains(p) && view.Contains(box);
             foreach (var r in _taken) if (show && r.IntersectsWith(box)) show = false;
             if (show) _taken.Add(box);
             note.Callout.Opacity = show ? 1 : 0;
@@ -830,11 +978,11 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
             }
             DrawPedals(dc, follow, 3.5 * px);
         }
-        double carPx = Math.Clamp(CarShape.ShownLength * scale, 30, 170);
+        double carPx = Math.Max(_carSize.Length * scale, 22), carWide = carPx * _carSize.Width / _carSize.Length;
         for (int i = 0; i < _cars.Count; i++)
         {
             var brush = Ui.Res<Brush>(_cars[i].Line.BrushKey);
-            using (var dc = _carVisuals[i].RenderOpen()) CarShape.Draw(dc, brush, carPx, _cars[i] == follow);
+            using (var dc = _carVisuals[i].RenderOpen()) CarShape.Draw(dc, brush, carPx, carWide, _cars[i] == follow);
         }
         for (int i = 0; i < _labelVisuals.Length; i++)
         {
@@ -989,7 +1137,27 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 
 internal static class CarShape
 {
-    public const double ShownLength = 10;
+    public static readonly (double Length, double Width) Default = (4.619, 2.050);
+
+    private static readonly (string[] Words, double Length, double Width)[] Sizes =
+    {
+        (new[] { "gt3 cup", "cup (992)" }, 4.585, 1.920),
+        (new[] { "mx-5", "mx5", "miata" }, 3.915, 1.735),
+        (new[] { "gtp", "lmdh", "963", "v-series.r", "m hybrid v8", "arx-06" }, 5.100, 2.000),
+        (new[] { "ir18", "ir-18", "indycar" }, 5.000, 1.970),
+        (new[] { "w12", "w13", "w14", "mercedes-amg f1" }, 5.600, 2.000),
+        (new[] { "next gen", "nascar cup" }, 4.900, 2.030),
+    };
+
+    public static (double Length, double Width) SizeOf(string car)
+    {
+        foreach (var (words, length, width) in Sizes)
+            foreach (var word in words)
+                if (System.Text.RegularExpressions.Regex.IsMatch(car, $"(?<![a-z0-9]){System.Text.RegularExpressions.Regex.Escape(word)}(?![a-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return (length, width);
+        return Default;
+    }
+
+    private const double OuterWidth = 0.52;
 
     private static readonly Geometry Body = Geometry.Parse(
         "M-0.06,-0.5 L0.06,-0.5 L0.17,-0.42 L0.2,-0.28 L0.2,-0.12 L0.22,0.02 L0.22,0.3 L0.2,0.42 L0.1,0.47 L-0.1,0.47 L-0.2,0.42 L-0.22,0.3 L-0.22,0.02 L-0.2,-0.12 L-0.2,-0.28 L-0.17,-0.42 Z");
@@ -1006,10 +1174,10 @@ internal static class CarShape
         Wheels.Freeze();
     }
 
-    public static void Draw(DrawingContext dc, Brush brush, double length, bool strong)
+    public static void Draw(DrawingContext dc, Brush brush, double length, double width, bool strong)
     {
-        dc.PushTransform(new ScaleTransform(length, length));
-        double px = 1 / length;
+        dc.PushTransform(new ScaleTransform(width / OuterWidth, length));
+        double px = 1 / Math.Min(length, width / OuterWidth);
         var fill = brush.Clone();
         fill.Opacity = strong ? 0.28 : 0.16;
         fill.Freeze();
@@ -1028,7 +1196,7 @@ internal static class CarShape
 
 internal sealed class ReplayCardRow : Panel
 {
-    private const double MinCard = 330, MaxCard = 560, Gap = 12;
+    private const double MinCard = 270, MaxCard = 460, Gap = 10;
 
     private (int PerRow, double Width) Fit(double width)
     {
@@ -1128,12 +1296,12 @@ internal sealed class ReplayCard : Tile
         values.Children.Add(Value(_speed, imperial ? "mph" : "km/h", "speed"));
         values.Children.Add(Value(_gear, "Gear", "gear"));
         values.Children.Add(Value(_rpm, "RPM", "rpm"));
-        var steer = Value(_steer, "Steering angle", "steering");
-        _steer.MinWidth = 58;
+        var steer = Value(_steer, "Steer", "steering");
+        _steer.MinWidth = 44;
         steer.ToolTip = "Steering wheel angle in degrees; the wheel shows which way";
         if (car.Trace[TraceChannel.Steering] is not null)
         {
-            var wheel = new Icon { Data = Ui.Res<Geometry>("I.Wheel"), Width = 40, Height = 40, StrokeThickness = 2.4, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _wheel };
+            var wheel = new Icon { Data = Ui.Res<Geometry>("I.Wheel"), Width = 32, Height = 32, StrokeThickness = 2.4, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _wheel };
             wheel.SetResourceReference(Icon.ForegroundProperty, LapAnalysisView.LaneHue("steering"));
             steer = new DockPanel { Children = { wheel, steer }, ToolTip = steer.ToolTip };
             DockPanel.SetDock(wheel, Dock.Left);

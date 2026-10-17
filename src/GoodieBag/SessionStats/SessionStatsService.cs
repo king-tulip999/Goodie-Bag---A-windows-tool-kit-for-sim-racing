@@ -347,7 +347,7 @@ internal sealed class SessionStatsService : IDisposable
         store.SetMeta("tyres_backfill", DateTime.UtcNow.ToString("O"));
     }
 
-    private const string MissingFromKey = "traces_missing_from", ChannelsKey = "traces_channels", ChannelsVersion = "yaw";
+    private const string MissingFromKey = "traces_missing_from", ChannelsKey = "traces_channels", ChannelsVersion = "yaw-uneven-halves";
 
     private void NoteWithoutTraces(DateTime fileUtc)
     {

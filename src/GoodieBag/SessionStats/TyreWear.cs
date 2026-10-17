@@ -25,10 +25,10 @@ internal sealed record TyreReading(int Lap, int Run, int Laps, double[] Start, d
 
 internal sealed class TyreWearTracker
 {
-    private const double Same = 0.0005;
+    internal const double Same = 0.0005;
     private readonly double[] _last = new double[TyreReading.Values], _start = new double[TyreReading.Values];
     private bool _seen;
-    private int _startLaps;
+    private int _startLaps, _lastLaps;
 
     public TyreReading? Feed(ReadOnlySpan<double> now, int laps, int run)
     {
@@ -39,24 +39,34 @@ internal sealed class TyreWearTracker
             _seen = true;
             now.CopyTo(_last);
             now.CopyTo(_start);
-            _startLaps = laps;
+            _startLaps = _lastLaps = laps;
             return null;
         }
-        bool changed = false, fresher = false, fresh = true;
+        bool changed = false, fresh = true;
         for (int i = 0; i < now.Length; i++)
         {
             if (Math.Abs(now[i] - _last[i]) >= Same) changed = true;
-            if (now[i] > _start[i] + Same) fresher = true;
             if (now[i] < 1 - Same) fresh = false;
         }
         if (!changed) return null;
-        now.CopyTo(_last);
-        if (fresh || fresher)
+        if (fresh)
         {
+            now.CopyTo(_last);
             now.CopyTo(_start);
-            _startLaps = laps;
+            _startLaps = _lastLaps = laps;
             return null;
         }
+        Span<bool> fitted = stackalloc bool[4];
+        bool newSet = false;
+        for (int z = 0; z < TyreReading.Values; z++)
+            if (now[z] > _last[z] + Same) newSet = fitted[z / 3] = true;
+        if (newSet)
+        {
+            for (int z = 0; z < TyreReading.Values; z++) _start[z] = fitted[z / 3] ? 1 : _last[z];
+            _startLaps = _lastLaps;
+        }
+        now.CopyTo(_last);
+        _lastLaps = laps;
         return new TyreReading(laps, run, laps - _startLaps, _start.ToArray(), now.ToArray());
     }
 
@@ -65,6 +75,31 @@ internal sealed class TyreWearTracker
 
 internal static class TyreWear
 {
+    public static List<TyreReading> NewSets(List<TyreReading> readings)
+    {
+        double[]? start = null;
+        int startLap = 0;
+        for (int i = 1; i < readings.Count; i++)
+        {
+            var prev = readings[i - 1];
+            var r = readings[i];
+            var fitted = new bool[4];
+            bool any = false;
+            for (int z = 0; z < TyreReading.Values; z++)
+                if (r.Now[z] > prev.Now[z] + TyreWearTracker.Same) any = fitted[z / 3] = true;
+            if (any && r.Laps > r.Lap - prev.Lap)
+            {
+                start = new double[TyreReading.Values];
+                for (int z = 0; z < TyreReading.Values; z++) start[z] = fitted[z / 3] ? 1 : prev.Now[z];
+                startLap = prev.Lap;
+            }
+            else if (any) start = null;
+            if (start is not null && r.Laps > r.Lap - startLap)
+                readings[i] = r with { Start = start.ToArray(), Laps = r.Lap - startLap };
+        }
+        return readings;
+    }
+
     public static string? Text(IReadOnlyList<TyreReading>? readings, int lapOffset = 0)
     {
         if (readings is not { Count: > 0 }) return null;
