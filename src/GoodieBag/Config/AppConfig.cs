@@ -98,6 +98,8 @@ public sealed class UpdateSettings
     public DateTime? LastCheckUtc { get; set; }
 
     public string? NotifiedVersion { get; set; }
+
+    public string? InstalledTag { get; set; }
 }
 
 public enum PanelSize { Small, Medium, Large }

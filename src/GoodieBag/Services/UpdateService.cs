@@ -24,11 +24,17 @@ internal sealed class UpdateService
     private static HttpClient? _http;
     private static HttpClient Http => _http ??= CreateClient();
 
+    private readonly DispatcherTimer _retry = new();
+    private int _retries;
+
     public UpdateService(AppServices app)
     {
         _app = app;
         _timer.Tick += (_, _) => { if (Due) _ = CheckAsync(manual: false); };
+        _retry.Tick += (_, _) => { _retry.Stop(); _ = CheckAsync(manual: false); };
     }
+
+    internal static readonly TimeSpan[] RetryDelays = { TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(60) };
 
     public UpdateState State { get; private set; } = Repository.Length == 0 ? UpdateState.NotConfigured : UpdateState.Idle;
     public ReleaseInfo? Latest { get; private set; }
@@ -39,8 +45,13 @@ internal sealed class UpdateService
 
     public static Version Current { get; } = Normalize(typeof(UpdateService).Assembly.GetName().Version ?? new Version(0, 0, 0));
 
+    public Version Installed => InstalledVersion(Current, S.InstalledTag);
+
+    internal static Version InstalledVersion(Version current, string? installedTag) =>
+        installedTag is not null && TryVersion(installedTag, out var tagged) && tagged > current ? tagged : current;
+
     public bool Available => Latest is { } latest
-        && (State is UpdateState.Available or UpdateState.Downloading || State == UpdateState.Checking && latest.Version > Current);
+        && (State is UpdateState.Available or UpdateState.Downloading || State == UpdateState.Checking && latest.Version > Installed);
 
     public static bool CanSelfInstall => Environment.ProcessPath is not null && !File.Exists(Path.Combine(AppContext.BaseDirectory, "GoodieBag.dll"));
 
@@ -59,9 +70,13 @@ internal sealed class UpdateService
             Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                 _app.Notify("Updated", "Goodie Bag installed the new version and restarted.", NoticeKind.Success)));
         if (Environment.GetCommandLineArgs().Contains("--update-failed", StringComparer.OrdinalIgnoreCase))
+        {
+            S.InstalledTag = null;
+            _app.Save();
             Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                 _app.Notify("Update didn't install", "The file couldn't be replaced (in use, or no permission), so this version kept running. You can download it from the release page instead.",
                     NoticeKind.Warning, important: true)));
+        }
         if (_app.Demo || Repository.Length == 0) return;
         ApplySchedule();
         if (S.Check == UpdateCheck.OnStart || Due)
@@ -93,7 +108,8 @@ internal sealed class UpdateService
             Latest = Newest(json);
             S.LastCheckUtc = DateTime.UtcNow;
             _app.Save();
-            if (Latest is not null && Latest.Version > Current)
+            _retries = 0;
+            if (Latest is not null && Latest.Version > Installed)
             {
                 Set(UpdateState.Available);
                 if (manual || S.NotifiedVersion != Latest.Tag)
@@ -111,8 +127,13 @@ internal sealed class UpdateService
         catch (Exception ex)
         {
             Error = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } ? "The release page couldn't be found." : ex.Message;
-            bool stillAvailable = !manual && Latest is { } known && known.Version > Current;
+            bool stillAvailable = !manual && Latest is { } known && known.Version > Installed;
             Set(stillAvailable ? UpdateState.Available : UpdateState.Failed);
+            if (!manual && _retries < RetryDelays.Length)
+            {
+                _retry.Interval = RetryDelays[_retries++];
+                _retry.Start();
+            }
             if (manual) _app.Notify("Couldn't check for updates", Error, NoticeKind.Warning);
         }
     }
@@ -161,6 +182,8 @@ internal sealed class UpdateService
                     throw new InvalidOperationException("The download didn't match the release's checksum, so it wasn't installed.");
             }
 
+            S.InstalledTag = release.Tag;
+            _app.SaveNow();
             App.RelaunchAfterExit("--updated", SwapSteps(current, download), current);
         }
         catch (Exception ex)
@@ -203,7 +226,25 @@ internal sealed class UpdateService
         if (Repository.Length > 0) Views.Ui.OpenUrl(Latest?.PageUrl ?? ReleasesPage);
     }
 
-    public static string Show(Version v) => v.ToString(v.Revision > 0 ? 4 : 3);
+    public static string Show(Version v) => $"{v.Major}.{MinorText(v.Minor)}.{v.Build}" + (v.Revision > 0 ? $".{v.Revision}" : "");
+
+    public static string Tag(Version v) =>
+        $"v{v.Major}.{MinorText(v.Minor)}" + (v.Build > 0 || v.Revision > 0 ? $".{v.Build}" : "") + (v.Revision > 0 ? $".{v.Revision}" : "");
+
+    private const int MinorDigits = 3;
+
+    private static int DecimalMinor(int minor)
+    {
+        var digits = minor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return digits.Length >= MinorDigits ? minor : int.Parse(digits.PadRight(MinorDigits, '0'), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string MinorText(int minor)
+    {
+        if (minor >= 1000) return minor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var text = minor.ToString("000", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0');
+        return text.Length == 0 ? "0" : text;
+    }
 
     internal static ReleaseInfo? Parse(string json)
     {
@@ -263,7 +304,7 @@ internal sealed class UpdateService
     }
 
     private static Version Normalize(Version v) =>
-        v.Revision > 0 ? new(v.Major, v.Minor, Math.Max(0, v.Build), v.Revision) : new(v.Major, v.Minor, Math.Max(0, v.Build));
+        v.Revision > 0 ? new(v.Major, DecimalMinor(v.Minor), Math.Max(0, v.Build), v.Revision) : new(v.Major, DecimalMinor(v.Minor), Math.Max(0, v.Build));
 
     internal void ShowForScreenshots(ReleaseInfo? release)
     {

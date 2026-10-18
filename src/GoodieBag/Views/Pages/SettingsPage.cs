@@ -113,7 +113,6 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         BuildSearch();
         BuildPerformance();
         BuildHardware();
-        BuildDiagnostics();
         BuildData();
         BuildAboutAndUpdates();
         _sections.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
@@ -473,9 +472,12 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
     private TextBlock _diagStatus = new();
 
-    private void BuildDiagnostics()
+    private void BuildDiagnostics(StackPanel parent)
     {
-        var section = Section("Diagnostics", "I.Stethoscope", "settings.diagnostics");
+        var section = new StackPanel();
+        Ui.Anchor(section, "settings.diagnostics");
+        parent.Children.Add(section);
+        section.Children.Add(new TextBlock { Text = ThemeManager.Case("Diagnostics"), Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 8, 0, 4) });
         section.Children.Add(new TextBlock
         {
             Text = "Tools for troubleshooting hardware and app problems. Reports leave out personal details (user and PC names, folders, IP addresses).",
@@ -621,6 +623,8 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         section.Children.Add(fileRow);
         section.Children.Add(Ui.Divider());
         section.Children.Add(ResetRow());
+        section.Children.Add(Ui.Divider());
+        BuildDiagnostics(section);
     }
 
     private void ExportSettings()
@@ -885,7 +889,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         about.ColumnDefinitions.Add(new ColumnDefinition());
         about.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var text = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
-        text.Children.Add(new TextBlock { Text = "Goodie Bag" + (_app.Demo ? " · demo data" : ""), Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold });
+        text.Children.Add(new TextBlock { Text = $"Goodie Bag {UpdateService.Tag(_app.Updates.Installed)}" + (_app.Demo ? " · demo data" : ""), Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold });
         text.Children.Add(new TextBlock { Text = "A PC control center for sim rigs: modes that switch displays, audio, fans and more automatically, plus plugins for hardware monitoring, the overlay, fan control and sim racing tools.", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
         about.Children.Add(text);
         var project = Ui.LabeledButton("I.ChevronRight", "Project page", () => Ui.OpenUrl(UpdateService.ProjectPage), "GhostButton");
@@ -912,7 +916,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             head.Children.Add(Ui.Badge("I.Download", "Accent", "Knob", 32, 10, 17));
             var title = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             title.Children.Add(new TextBlock { Text = "A new version of Goodie Bag is available", Style = Ui.Res<Style>("H3") });
-            title.Children.Add(new TextBlock { Text = "Install it here; your settings stay.", Style = Ui.Res<Style>("Caption") });
+            title.Children.Add(new TextBlock { Text = $"{UpdateService.Tag(u.Installed)} → {UpdateService.Tag(r.Version)}. Install it here; your settings stay.", Style = Ui.Res<Style>("Caption") });
             head.Children.Add(title);
             box.Children.Add(head);
             var buttons = new WrapPanel { Margin = new Thickness(44, 12, 0, 0) };
@@ -937,7 +941,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         {
             UpdateState.NotConfigured => "Update checks aren't set up in this build.",
             UpdateState.Checking => "Checking…",
-            UpdateState.UpToDate => "You have the latest version.",
+            UpdateState.UpToDate => $"You have the latest version ({UpdateService.Tag(u.Installed)}).",
             UpdateState.Available or UpdateState.Downloading => "A newer version is ready (above).",
             UpdateState.Failed => $"The last check didn't work: {u.Error}",
             _ => _app.Config.Updates.LastCheckUtc is { } last ? $"Last checked {Dates.ShortTime(last.ToLocalTime())}." : "Not checked yet.",
