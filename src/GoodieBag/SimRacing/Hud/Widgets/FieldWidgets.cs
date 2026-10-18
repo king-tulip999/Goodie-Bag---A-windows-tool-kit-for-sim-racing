@@ -840,7 +840,7 @@ internal sealed class StandingsWidget : HudWidget
                 case "laps":
                     int leader = block[0].CarIdx;
                     if (f.CurrentSession?.Laps is not > 0 && f.SessionTimeRemain is { } left && v.Race.PaceOf(leader) is { } pace && pace > 0)
-                        parts.Add($"~{f.CarLapCompleted[leader] + Math.Ceiling(left / pace) + 1:0} laps");
+                        parts.Add("~" + RaceFormat.Count((long)(f.CarLapCompleted[leader] + Math.Ceiling(left / pace) + 1), "lap"));
                     break;
             }
         return string.Join(" · ", parts);
@@ -1048,7 +1048,7 @@ internal static class Strips
     public static string Remaining(HudView v)
     {
         var f = v.Frame;
-        if (f.CurrentSession?.Laps is > 0 && f.SessionLapsRemain is { } laps) return laps <= 0 ? "Final lap" : $"{laps} laps left";
+        if (f.CurrentSession?.Laps is > 0 && f.SessionLapsRemain is { } laps) return laps <= 0 ? "Final lap" : RaceFormat.Count(laps, "lap") + " left";
         if (f.SessionTimeRemain is { } t && f.CurrentSession?.TimeSeconds is not null) return RaceFormat.Clock(t) + " left";
         return f.SessionTime is { } el ? RaceFormat.Clock(el) : "";
     }

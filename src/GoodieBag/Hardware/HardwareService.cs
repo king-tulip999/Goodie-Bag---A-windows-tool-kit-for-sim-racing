@@ -137,6 +137,11 @@ internal sealed class HardwareService : IDisposable
         get { lock (_gate) return _consumers.Keys.ToList(); }
     }
 
+    public int FullTreeConsumers
+    {
+        get { lock (_gate) return _consumers.Values.Count(v => v); }
+    }
+
     public HardwareService()
     {
         _ui = SynchronizationContext.Current ?? new System.Windows.Forms.WindowsFormsSynchronizationContext();

@@ -238,6 +238,7 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
         if (summary is null || trace is null) { _app.Notify("Couldn't export the lap", "Its telemetry isn't stored any more.", NoticeKind.Warning); return; }
         var row = store.Laps(session).FirstOrDefault(l => l.Lap == lap);
         var shared = new SharedLap(store.DriverOf(session), summary.Car, summary.Track, summary.Config, row?.Sectors, summary.StartUtc, trace);
+        if (!GoodieBag.Services.External.Allowed("save dialog")) return;
         var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export lap", Filter = LapFile.Filter, FileName = LapFile.FileName(shared), DefaultExt = LapFile.Extension, AddExtension = true };
         if (dialog.ShowDialog(_window) != true) return;
         try
@@ -253,6 +254,7 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
 
     private async Task ImportLapAsync(TraceStore traces, SessionSummary session)
     {
+        if (!GoodieBag.Services.External.Allowed("open dialog")) return;
         var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Import lap", Filter = LapFile.Filter + "|All files (*.*)|*.*", CheckFileExists = true };
         if (dialog.ShowDialog(_window) != true) return;
         string path = dialog.FileName;
@@ -712,7 +714,7 @@ internal static class StatsSections
         }
         else
         {
-            if (name) { value.FontSize = 16; value.MaxHeight = 16 * 2.8; value.TextTrimming = TextTrimming.CharacterEllipsis; }
+            if (name) { value.FontSize = 16; value.MaxHeight = 16 * 2.8; value.TextTrimming = TextTrimming.CharacterEllipsis; TextFit.TipWhenTrimmed(value); }
             if (tone is { } t) value.SetResourceReference(TextBlock.ForegroundProperty, t.Deep);
             else if (hue is not null) value.SetResourceReference(TextBlock.ForegroundProperty, hue);
         }
@@ -1090,8 +1092,8 @@ internal static class StatsCharts
         }
         var c = CultureInfo.CurrentCulture;
         var bins = starts.Select((t, i) => new TrendBin(
-            unit switch { "day" => range == StatRange.Week ? t.ToString("ddd", c) : t.Day.ToString(c), "week" => Dates.Short(t), _ => Dates.ShortMonthYear(t) },
-            unit switch { "day" => t.ToString("ddd ", c) + Dates.Short(t), "week" => "Week of " + Dates.Date(t), _ => Dates.MonthYear(t) },
+            unit switch { "day" => range == StatRange.Week ? Dates.Weekday(t) : t.Day.ToString(c), "week" => Dates.Short(t), _ => Dates.ShortMonthYear(t) },
+            unit switch { "day" => Dates.Weekday(t) + " " + Dates.Short(t), "week" => "Week of " + Dates.Date(t), _ => Dates.MonthYear(t) },
             seconds[i], counts[i])).ToList();
         return new TrendData(unit switch { "day" => "Driving per day", "week" => "Driving per week", _ => "Driving per month" }, bins);
     }

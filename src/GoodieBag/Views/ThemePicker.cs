@@ -32,12 +32,12 @@ internal sealed class ThemePicker : UniformGrid
         foreach (var key in new[] { "Accent", "ActiveModeBg", "Sage" })
             dots.Children.Add(new Rectangle { Width = 10, Height = 10, RadiusX = theme.ChipRadius > 6 ? 5 : 2, RadiusY = theme.ChipRadius > 6 ? 5 : 2, Fill = Of(key), Margin = new Thickness(4, 0, 0, 0) });
 
-        var name = new TextBlock
+        var name = TextFit.TipWhenTrimmed(new TextBlock
         {
             Text = theme.Caps ? theme.Name.ToUpperInvariant() : theme.Name,
             FontFamily = ThemeManager.Family(theme.DisplayFont), FontWeight = theme.HeadingWeight, FontStyle = theme.HeadingStyle, FontSize = 14,
             Foreground = Of("Heading"), VerticalAlignment = VerticalAlignment.Bottom, TextTrimming = TextTrimming.CharacterEllipsis,
-        };
+        });
         FrameworkElement label = theme.Link is { } link && Logo(link.Logo) is { } logo
             ? new Image
             {

@@ -41,6 +41,7 @@ internal sealed class SettingsSearchBox : Grid
         _box.GotKeyboardFocus += (_, _) => Update();
         _box.PreviewKeyDown += OnKey;
         _box.LostKeyboardFocus += (_, _) => { if (!_popup.IsKeyboardFocusWithin && _box.Text.Length == 0) Dismissed?.Invoke(); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) _popup.IsOpen = false; };
     }
 
     public event Action? Opened;
@@ -74,7 +75,7 @@ internal sealed class SettingsSearchBox : Grid
             var entry = _found[i];
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = entry.Title, FontWeight = FontWeights.SemiBold });
-            text.Children.Add(new TextBlock { Text = $"{entry.Category} · {entry.Description}", Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
+            text.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = $"{entry.Category} · {entry.Description}", Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap }));
             var row = new Tile
             {
                 CornerRadius = ThemeManager.Round(8),

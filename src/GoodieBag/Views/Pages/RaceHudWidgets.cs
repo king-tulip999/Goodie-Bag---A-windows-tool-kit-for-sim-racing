@@ -313,8 +313,8 @@ internal sealed class RaceHudWidgets
         Grid.SetColumn(chevron, 1);
         grid.Children.Add(chevron);
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 12, 0) };
-        text.Children.Add(new TextBlock { Text = def is null ? $"{w.Kind} (needs a newer Goodie Bag)" : NameOf(w), FontWeight = FontWeights.SemiBold, Style = Ui.Res<Style>("Body"), TextTrimming = TextTrimming.CharacterEllipsis });
-        var summary = new TextBlock { Text = Summary(w), Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) };
+        text.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = def is null ? $"{w.Kind} (needs a newer Goodie Bag)" : NameOf(w), FontWeight = FontWeights.SemiBold, Style = Ui.Res<Style>("Body"), TextTrimming = TextTrimming.CharacterEllipsis }));
+        var summary = TextFit.TipWhenTrimmed(new TextBlock { Text = Summary(w), Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) });
         _summaries[w.Id] = summary;
         text.Children.Add(summary);
         Grid.SetColumn(text, 2);
@@ -398,8 +398,8 @@ internal sealed class RaceHudWidgets
     {
         var chevron = new Icon { Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         chevron.SetResourceReference(Icon.ForegroundProperty, "TextMuted");
-        var name = new TextBlock { Text = title.ToUpperInvariant(), Style = Ui.Res<Style>("Eyebrow"), VerticalAlignment = VerticalAlignment.Center };
-        var summaryText = summary is null ? null : new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(14, 0, 0, 0) };
+        var name = new TextBlock { Text = title, Style = Ui.Res<Style>("Eyebrow"), VerticalAlignment = VerticalAlignment.Center };
+        var summaryText = summary is null ? null : TextFit.TipWhenTrimmed(new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(14, 0, 0, 0) });
         var line = new DockPanel { LastChildFill = true };
         line.Children.Add(chevron);
         line.Children.Add(name);
@@ -671,7 +671,7 @@ internal sealed class RaceHudWidgets
                 DockPanel.SetDock(mark, Dock.Right);
                 row.Children.Add(mark);
             }
-            row.Children.Add(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center }));
             var b = new RadioButton { Style = Ui.Res<Style>("NavItem"), GroupName = group, IsChecked = on, Content = row, HorizontalContentAlignment = HorizontalAlignment.Stretch, Height = 34 };
             b.Checked += (_, _) => pick();
             return b;
@@ -679,10 +679,10 @@ internal sealed class RaceHudWidgets
         TextBlock Eyebrow(string text) => new() { Text = text, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(8, 6, 0, 6) };
         if (!_inPage)
         {
-            _nav.Children.Add(Eyebrow("OVERLAY"));
+            _nav.Children.Add(Eyebrow("Overlay"));
             _nav.Children.Add(Item("Hud Settings", _general, null, () => { _general = true; Host?.Pick(null); Fill(); }));
         }
-        _nav.Children.Add(Eyebrow(layout is null ? "WIDGETS" : $"WIDGETS · {layout.Name.ToUpperInvariant()}"));
+        _nav.Children.Add(Eyebrow(layout is null ? "Widgets" : $"Widgets · {layout.Name}"));
         foreach (var w in widgets)
         {
             var id = w.Id;
@@ -767,7 +767,7 @@ internal sealed class RaceHudWidgets
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var words = new StackPanel();
-        words.Children.Add(new TextBlock { Text = title, Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis });
+        words.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = title, Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis }));
         words.Children.Add(new TextBlock { Text = text, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 16, 0) });
         grid.Children.Add(words);
         if (toggle is not null)

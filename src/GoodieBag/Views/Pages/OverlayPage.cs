@@ -483,6 +483,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         };
         swatch.Click += (_, _) =>
         {
+            if (!GoodieBag.Services.External.Allowed("color dialog")) return;
             var current = OverlayRenderer.Parse(get(), System.Drawing.Color.Gray);
             using var dialog = new WinForms.ColorDialog { Color = current, FullOpen = true, AnyColor = true };
             if (dialog.ShowDialog() == WinForms.DialogResult.OK)
@@ -493,7 +494,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         controls.Children.Add(swatch);
         controls.Children.Add(hex);
         var cell = new StackPanel { Margin = new Thickness(0, 4, 8, 6) };
-        cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Muted"), Margin = new Thickness(0, 0, 0, 4), TextTrimming = TextTrimming.CharacterEllipsis });
+        cell.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = label, Style = Ui.Res<Style>("Muted"), Margin = new Thickness(0, 0, 0, 4), TextTrimming = TextTrimming.CharacterEllipsis }));
         cell.Children.Add(controls);
         return cell;
     }

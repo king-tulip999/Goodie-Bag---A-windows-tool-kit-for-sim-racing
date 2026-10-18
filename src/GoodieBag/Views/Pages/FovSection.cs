@@ -308,10 +308,9 @@ internal sealed class FovSection : StackPanel
     private void ScreenEditor(FovScreen screen)
     {
         bool measured = screen.SizeMode == ScreenSizeMode.Measured;
-        var size = new StackPanel { Orientation = Orientation.Horizontal };
-        size.Children.Add(Ui.Segmented(new[] { "Diagonal", "Measured" }, measured ? 1 : 0,
+        var size = Ui.Segmented(new[] { "Diagonal", "Measured" }, measured ? 1 : 0,
             i => Change(() => screen.SizeMode = i == 1 ? ScreenSizeMode.Measured : ScreenSizeMode.Diagonal, rebuild: true), "Size",
-            new[] { "The advertised size, e.g. 32 inches", "The lit picture's width and height, measured with a tape (most accurate)" }));
+            new[] { "The advertised size, e.g. 32 inches", "The lit picture's width and height, measured with a tape (most accurate)" });
         _inputs.Children.Add(Row("Size from", size, "Diagonal: the advertised size. Measured: the lit picture's width and height (most accurate)."));
 
         if (!measured)
@@ -357,8 +356,18 @@ internal sealed class FovSection : StackPanel
         var typed = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), Visibility = known >= 0 ? Visibility.Collapsed : Visibility.Visible };
         var tw = new TextBox { Width = 56, Text = screen.ResolutionW.ToString(), VerticalContentAlignment = VerticalAlignment.Center };
         var th = new TextBox { Width = 56, Text = screen.ResolutionH.ToString(), VerticalContentAlignment = VerticalAlignment.Center };
-        tw.LostKeyboardFocus += (_, _) => { if (int.TryParse(tw.Text, out var v) && v is >= 320 and <= 15360) Change(() => screen.ResolutionW = v); };
-        th.LostKeyboardFocus += (_, _) => { if (int.TryParse(th.Text, out var v) && v is >= 200 and <= 8640) Change(() => screen.ResolutionH = v); };
+        void Commit(TextBox box, int lo, int hi, Func<int> get, Action<int> set)
+        {
+            if (int.TryParse(box.Text.Trim(), out var v) && v >= lo && v <= hi) { if (v != get()) Change(() => set(v)); }
+            else box.Text = get().ToString();
+        }
+        void Wire(TextBox box, int lo, int hi, Func<int> get, Action<int> set)
+        {
+            box.LostKeyboardFocus += (_, _) => Commit(box, lo, hi, get, set);
+            box.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Commit(box, lo, hi, get, set); };
+        }
+        Wire(tw, 320, 15360, () => screen.ResolutionW, v => screen.ResolutionW = v);
+        Wire(th, 200, 8640, () => screen.ResolutionH, v => screen.ResolutionH = v);
         typed.Children.Add(tw);
         typed.Children.Add(new TextBlock { Text = "×", Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.Res<Brush>("TextMuted") });
         typed.Children.Add(th);
@@ -494,7 +503,7 @@ internal sealed class FovSection : StackPanel
             var line = new Grid();
             line.ColumnDefinitions.Add(new ColumnDefinition());
             line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            line.Children.Add(new TextBlock { Text = v.Sim, FontWeight = mine ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+            line.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = v.Sim, FontWeight = mine ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center }));
             var value = new TextBlock
             {
                 Text = v.Degrees is { } deg ? $"{deg:0.0}° {(v.Axis == "Horizontal" ? "H" : "V")}" : "–",
@@ -577,8 +586,8 @@ internal sealed class FovSection : StackPanel
             var who = new DockPanel { Margin = new Thickness(20, 12, 8, 12) };
             var detail = (edit is null ? "Editing · " : "") + $"{(setup.Triple ? "3 × " : "")}{Describe(setup.Centre)} · {Len(setup.DistanceCm, 0)}";
             var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center, ToolTip = $"{setup.Name}\n{detail}" };
-            label.Children.Add(new TextBlock { Text = setup.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            label.Children.Add(new TextBlock { Text = detail, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) });
+            label.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = setup.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis }));
+            label.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = detail, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) }));
             who.Children.Add(label);
             Cell(who, 0);
             Cell(T($"{r.HorizontalFovTotal:0.0}°"), 1);
@@ -744,7 +753,7 @@ internal sealed class FovSection : StackPanel
         void M(string label, string value, string? help)
         {
             var cell = new StackPanel { Margin = new Thickness(8, 4, 8, 4), ToolTip = help };
-            cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis });
+            cell.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis }));
             cell.Children.Add(new TextBlock { Text = value, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("AccentText") });
             grid.Children.Add(cell);
         }
@@ -780,6 +789,7 @@ internal sealed class FovSection : StackPanel
 
     private void ImportFromFile()
     {
+        if (!GoodieBag.Services.External.Allowed("open dialog")) return;
         var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "iRacing monitor settings (rendererDX11Monitor.ini)|rendererDX11Monitor.ini|INI files (*.ini)|*.ini" };
         if (FovExchange.IracingFolder() is { } folder) dialog.InitialDirectory = folder;
         if (dialog.ShowDialog() == true) Import(dialog.FileName);
@@ -846,6 +856,7 @@ internal sealed class FovSection : StackPanel
             _app.Notify("iRacing's settings weren't found", "The updated files are made from your own app.ini and rendererDX11Monitor.ini in Documents\\iRacing. Start iRacing once first.", NoticeKind.Warning, important: true);
             return;
         }
+        if (!GoodieBag.Services.External.Allowed("folder dialog")) return;
         var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Folder for the updated iRacing files" };
         if (dialog.ShowDialog() != true) return;
         try
@@ -896,7 +907,7 @@ internal sealed class FovSection : StackPanel
         return grid;
     }
 
-    private static TextBlock Section(string title) => new() { Text = title.ToUpperInvariant(), Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 12, 0, 2) };
+    private static TextBlock Section(string title) => new() { Text = title, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 12, 0, 2) };
 
     private static StackPanel Heading(string title, string icon)
     {

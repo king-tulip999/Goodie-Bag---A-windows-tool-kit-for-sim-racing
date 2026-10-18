@@ -688,7 +688,7 @@ internal sealed class PerformanceSection : UserControl, IPage
 
     private (FrameworkElement, Action<Frame>) FpsPanel(PanelSize size)
     {
-        var game = new TextBlock { Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis };
+        var game = TextFit.TipWhenTrimmed(new TextBlock { Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis });
         var (stats, values) = Stats(("Now", ""), ("Average", ""), ("1% low", ""), ("Frame time", "ms"));
         values[0].Foreground = Ui.Res<Brush>("SageDeep");
         var parts = new List<UIElement> { game, stats };
@@ -754,7 +754,7 @@ internal sealed class PerformanceSection : UserControl, IPage
         head.ColumnDefinitions.Add(new ColumnDefinition());
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(Ui.Badge(icon, soft, deep, 28, 8, 15));
-        var name = new TextBlock { Text = title, Style = Ui.Res<Style>("H3"), Margin = new Thickness(10, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var name = TextFit.TipWhenTrimmed(new TextBlock { Text = title, Style = Ui.Res<Style>("H3"), Margin = new Thickness(10, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         Grid.SetColumn(name, 1);
         head.Children.Add(name);
         if (now is not null)
@@ -763,6 +763,7 @@ internal sealed class PerformanceSection : UserControl, IPage
             now.HorizontalAlignment = HorizontalAlignment.Right;
             now.VerticalAlignment = VerticalAlignment.Center;
             now.TextTrimming = TextTrimming.CharacterEllipsis;
+            TextFit.TipWhenTrimmed(now);
             now.MaxWidth = 180;
             Grid.SetColumn(now, 2);
             head.Children.Add(now);
@@ -968,8 +969,8 @@ internal sealed class PerformanceSection : UserControl, IPage
                 {
                     _labels.Add(label);
                     var cell = new StackPanel { Margin = new Thickness(0, 0, 12, 6) };
-                    cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis });
-                    var value = new TextBlock { FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+                    cell.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis }));
+                    var value = TextFit.TipWhenTrimmed(new TextBlock { FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
                     value.SetResourceReference(TextBlock.ForegroundProperty, "Text");
                     cell.Children.Add(value);
                     Root.Children.Add(cell);
@@ -1026,8 +1027,8 @@ internal sealed class PerformanceSection : UserControl, IPage
                     grid.RowDefinitions.Add(new RowDefinition());
                     grid.RowDefinitions.Add(new RowDefinition());
                     grid.RowDefinitions.Add(new RowDefinition());
-                    grid.Children.Add(new TextBlock { Text = item.Name, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 10, 0) });
-                    var text = new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
+                    grid.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = item.Name, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 10, 0) }));
+                    var text = TextFit.TipWhenTrimmed(new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
                     if (TextBelow)
                     {
                         Grid.SetRow(text, 2);
@@ -1064,7 +1065,7 @@ internal sealed class PerformanceSection : UserControl, IPage
         private readonly Tile _pill = new() { CornerRadius = ThemeManager.Round(9), Padding = new Thickness(8, 1, 8, 2), VerticalAlignment = VerticalAlignment.Center };
         private readonly Border _track = new() { Height = 5, CornerRadius = ThemeManager.Round(2.5), Margin = new Thickness(0, 6, 0, 0) };
         private readonly Border _fill = new() { Height = 5, CornerRadius = ThemeManager.Round(2.5), HorizontalAlignment = HorizontalAlignment.Left };
-        private readonly TextBlock _detail = new() { TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0) };
+        private readonly TextBlock _detail = TextFit.TipWhenTrimmed(new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0) });
         private double _share;
         public bool Steady { get; init; }
         private Visibility Gone => Steady ? Visibility.Hidden : Visibility.Collapsed;

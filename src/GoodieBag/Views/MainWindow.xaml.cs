@@ -228,7 +228,25 @@ public partial class MainWindow : Window
     {
         if (_pageActive && _current is not null && _pages.GetValueOrDefault(_current) is IPage page)
             page.OnHidden();
+        if (_current is not null && _pages.GetValueOrDefault(_current) is DependencyObject leaving)
+            ClosePopupsOf(leaving);
         _pageActive = false;
+    }
+
+    private static void ClosePopupsOf(DependencyObject page)
+    {
+        foreach (PresentationSource source in PresentationSource.CurrentSources)
+        {
+            if (source.RootVisual is not FrameworkElement { IsVisible: true } root || root.GetType().Name != "PopupRoot") continue;
+            if (root.Parent is not System.Windows.Controls.Primitives.Popup popup) continue;
+            if (popup.Child is ContextMenu { PlacementTarget: { } menuTarget } menu)
+            {
+                if (menuTarget.IsDescendantOf(page)) menu.IsOpen = false;
+            }
+            else if (popup.Child is not System.Windows.Controls.ToolTip && popup.PlacementTarget is { } target && target.IsDescendantOf(page)
+                     && !System.Windows.Data.BindingOperations.IsDataBound(popup, System.Windows.Controls.Primitives.Popup.IsOpenProperty))
+                popup.IsOpen = false;
+        }
     }
 
     internal IReadOnlyList<string> NavKeys => _nav.Keys.ToList();

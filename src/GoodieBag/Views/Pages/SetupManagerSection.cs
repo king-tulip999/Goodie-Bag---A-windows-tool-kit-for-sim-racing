@@ -437,7 +437,7 @@ internal sealed class SetupManagerSection : StackPanel
         var arrow = new Icon { Data = Ui.Res<Geometry>("I.ChevronDown"), Width = 12, Height = 12, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(arrow, Dock.Right);
         row.Children.Add(arrow);
-        row.Children.Add(new TextBlock { Text = $"Sort: {label}" + (hidden > 0 ? $" · {hidden} class{(hidden == 1 ? "" : "es")} hidden" : ""), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = $"Sort: {label}" + (hidden > 0 ? $" · {hidden} class{(hidden == 1 ? "" : "es")} hidden" : ""), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }));
         _sort.Content = row;
         _sort.ToolTip = "How the cars are ordered, and which classes are listed (a switch per class)";
     }
@@ -1035,6 +1035,7 @@ internal sealed class SetupManagerSection : StackPanel
 
     private void PickImport(SetupNode folder)
     {
+        if (!GoodieBag.Services.External.Allowed("open dialog")) return;
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "Import setups into " + Label(folder), Multiselect = true, CheckFileExists = true,
@@ -1169,6 +1170,7 @@ internal sealed class SetupManagerSection : StackPanel
         row.Children.Add(where);
         var browse = Ui.LabeledButton("I.Folder", "Choose…", () =>
         {
+            if (!GoodieBag.Services.External.Allowed("folder dialog")) return;
             var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Where to save", InitialDirectory = destination };
             if (dialog.ShowDialog() == true) { destination = dialog.FolderName; where.Text = destination; }
         });
@@ -1235,6 +1237,7 @@ internal sealed class SetupManagerSection : StackPanel
     private void OpenPath(string arguments)
     {
         if (_store.Demo) { _app.Notify("File Explorer", "Opens File Explorer there (not available with demo data).", NoticeKind.Info); return; }
+        if (!GoodieBag.Services.External.Allowed("open File Explorer")) return;
         try { Process.Start(new ProcessStartInfo("explorer.exe", arguments) { UseShellExecute = true })?.Dispose(); }
         catch { _app.Notify("File Explorer", "Windows couldn't open File Explorer.", NoticeKind.Warning); }
     }

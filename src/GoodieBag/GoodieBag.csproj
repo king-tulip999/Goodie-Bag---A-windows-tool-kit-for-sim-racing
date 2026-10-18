@@ -10,7 +10,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- WPF takes its per-monitor DPI setting from the manifest; the WinForms analyzer's alternative is for WinForms apps -->
-    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <NoWarn>$(NoWarn);WFO0003;CS1591</NoWarn>
+    <!-- Analyzers that found real bugs fail the build: unused usings (IDE0005 needs the documentation file to run at build time; it is never shipped) and stackalloc in a loop. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);IDE0005;CA2014</WarningsAsErrors>
     <ApplicationIcon>Assets\GoodieBag.ico</ApplicationIcon>
     <AssemblyName>GoodieBag</AssemblyName>
     <RootNamespace>GoodieBag</RootNamespace>

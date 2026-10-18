@@ -10,7 +10,7 @@ namespace GoodieBag.Controls;
 internal sealed class NumberBox : Grid
 {
     private readonly TextBox _box = new() { TextAlignment = TextAlignment.Right, MinWidth = 64, VerticalContentAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _unit = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) };
+    private readonly TextBlock _unit = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
     private double _value;
     private bool _updating;
     private double? _typed;
@@ -37,6 +37,8 @@ internal sealed class NumberBox : Grid
         var plus = StepButton("I.Plus", "Larger", +1);
         _box.Margin = new Thickness(6, 0, 0, 0);
         _unit.Text = unit;
+        if (unit.Length == 0) _unit.Visibility = Visibility.Collapsed;
+        plus.Margin = new Thickness(6, 0, 0, 0);
         _unit.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
         Grid.SetColumn(_box, 1);
         Grid.SetColumn(_unit, 2);

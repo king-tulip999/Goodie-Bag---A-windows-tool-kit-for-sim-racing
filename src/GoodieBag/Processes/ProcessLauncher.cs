@@ -17,6 +17,7 @@ internal static class ProcessLauncher
             return $"{Path.GetFileName(target)} wasn't found at {target}.";
 
         string? dir = isUrl ? null : Path.GetDirectoryName(target);
+        if (!GoodieBag.Services.External.Allowed("start " + target)) return "Blocked during an automated run.";
         try
         {
             if (!asAdmin && Environment.IsPrivilegedProcess)

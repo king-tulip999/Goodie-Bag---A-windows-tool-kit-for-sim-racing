@@ -313,7 +313,7 @@ public sealed class CurveEditor : FrameworkElement
         double lt = Math.Clamp(LiveTemp, MinTemp, MaxTemp);
         double x = ToScreen(lt, 0).X;
         dc.DrawLine(_livePen, new Point(x, plot.Top), new Point(x, plot.Bottom));
-        string caption = double.IsNaN(LiveOutput) ? $"{LiveTemp:0.0}°" : $"{LiveTemp:0.0}° → {LiveOutput:0}%";
+        string caption = double.IsNaN(LiveOutput) ? $"{LiveTemp:0.0} °C" : $"{LiveTemp:0.0} °C → {LiveOutput:0}%";
         if (!double.IsNaN(LiveOutput))
         {
             var dot = ToScreen(lt, LiveOutput);
@@ -343,7 +343,7 @@ public sealed class CurveEditor : FrameworkElement
             dc.DrawEllipse(active ? accent : surface, ring, s, r, r);
             if (active)
             {
-                string label = $"{_points[i].Temp:0}° → {_points[i].Percent:0}%";
+                string label = $"{_points[i].Temp:0} °C → {_points[i].Percent:0}%";
                 var t = Text(label, 11.5, ThemeManager.Brush("TooltipText", Brushes.White), dpi, Bold);
                 double bx = Math.Max(plot.Left, Math.Min(s.X - t.Width / 2 - 8, plot.Right - t.Width - 16));
                 double by = s.Y - r - t.Height - 14 < plot.Top ? s.Y + r + 8 : s.Y - r - t.Height - 14;

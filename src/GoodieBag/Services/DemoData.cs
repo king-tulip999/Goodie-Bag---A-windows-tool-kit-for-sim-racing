@@ -10,7 +10,60 @@ internal static class DemoData
     private const string SimHubPath = @"C:\Program Files (x86)\SimHub\SimHubWPF.exe";
     private const string Stream = "demo:demo-center,0,0,2560,1440,144,0;demo-tv,2560,0,3840,2160,60,0";
 
+    public static bool Stress { get; } = Environment.GetCommandLineArgs().Contains("--stress", StringComparer.OrdinalIgnoreCase);
+
     public static AppConfig Config()
+    {
+        var config = Build();
+        if (Stress) Lengthen(config);
+        return config;
+    }
+
+    internal static string Long(string name, int index) =>
+        (name + " " + index + " · a very long name that fills the whole box").PadRight(Views.Ui.NameLength, 'x')[..Views.Ui.NameLength];
+
+    private static void Lengthen(AppConfig config)
+    {
+        int n = 0;
+        foreach (var m in config.Modes)
+        {
+            string to = Long(m.Name, ++n);
+            ConfigReferences.Mode(config, m.Name, to);
+            m.Name = to;
+        }
+        foreach (var p in config.Displays.Profiles)
+        {
+            string to = Long(p.Name, ++n);
+            ConfigReferences.DisplayProfile(config, p.Name, to);
+            p.Name = to;
+        }
+        foreach (var p in config.Fans.Presets)
+        {
+            string to = Long(p.Name, ++n);
+            ConfigReferences.FanPreset(config, p.Name, to);
+            if (string.Equals(config.Fans.ActivePreset, p.Name, StringComparison.OrdinalIgnoreCase)) config.Fans.ActivePreset = to;
+            p.Name = to;
+        }
+        foreach (var c in config.Fans.Curves)
+        {
+            string to = Long(c.Name, ++n);
+            ConfigReferences.FanCurve(config, c.Name, to);
+            c.Name = to;
+        }
+        foreach (var l in config.Overlay.Layouts)
+        {
+            string to = Long(l.Name, ++n);
+            ConfigReferences.OverlayLayout(config, l.Name, to);
+            if (string.Equals(config.Overlay.ActiveLayout, l.Name, StringComparison.OrdinalIgnoreCase)) config.Overlay.ActiveLayout = to;
+            l.Name = to;
+        }
+        foreach (var l in config.SimRacing.Hud.Layouts.Select(l => l.Name).Where(l => !RaceHudSettings.IsDefaultName(l)).ToList())
+            config.SimRacing.Hud.RenameLayout(l, Long(l, ++n));
+        foreach (var h in config.Fans.Hardware)
+            h.CustomName = h.CustomName is null ? null : Long(h.CustomName, ++n);
+    }
+
+    private static AppConfig Build()
     {
         var config = new AppConfig
         {

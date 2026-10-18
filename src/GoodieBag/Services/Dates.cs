@@ -18,6 +18,10 @@ internal static class Dates
 
     public static string Short(DateTime t) => t.ToString(ShortPattern, C);
 
+    public static string Weekday(DateTime t) => t.ToString("ddd", C);
+
+    public static string ShortWithDay(DateTime t) => t.ToString("dddd", C) + " " + Short(t);
+
     public static string ShortTime(DateTime t) => Short(t) + " · " + Time(t);
 
     public static string MonthYear(DateTime t) => t.ToString(C.DateTimeFormat.YearMonthPattern, C);

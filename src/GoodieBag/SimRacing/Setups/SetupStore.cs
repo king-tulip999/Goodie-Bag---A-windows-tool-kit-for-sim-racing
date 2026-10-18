@@ -463,7 +463,7 @@ internal sealed class SetupStore : IDisposable
 
     public static string PackName(SetupCar car, IReadOnlyList<SetupNode> nodes)
     {
-        string what = nodes.Count == 1 ? (nodes[0].IsRoot ? "all setups" : System.IO.Path.GetFileNameWithoutExtension(nodes[0].Name)) : $"{nodes.Sum(n => n.Files)} setups";
+        string what = nodes.Count == 1 ? (nodes[0].IsRoot ? "all setups" : System.IO.Path.GetFileNameWithoutExtension(nodes[0].Name)) : GoodieBag.SimRacing.Race.RaceFormat.Count(nodes.Sum(n => n.Files), "setup");
         return SetupNames.Clean($"{car.Name} - {what}") + ".zip";
     }
 
@@ -576,8 +576,11 @@ internal sealed class SetupStore : IDisposable
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHGetKnownFolderPath([MarshalAs(UnmanagedType.LPStruct)] Guid id, uint flags, IntPtr token, out IntPtr path);
 
+    internal static string? DownloadsForTests { get; set; }
+
     private static string? DownloadsFolder()
     {
+        if (DownloadsForTests is { } sandbox) return sandbox;
         try
         {
             if (SHGetKnownFolderPath(new Guid("374DE290-123F-4565-9164-39C4925E467B"), 0, IntPtr.Zero, out var p) == 0)

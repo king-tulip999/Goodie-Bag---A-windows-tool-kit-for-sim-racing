@@ -80,6 +80,8 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
         _quoteAuthor.Style = Ui.Res<Style>("Caption");
         _quoteAuthor.TextTrimming = TextTrimming.CharacterEllipsis;
         _quoteAuthor.Margin = new Thickness(0, 3, 0, 0);
+        TextFit.TipWhenTrimmed(_quoteText);
+        TextFit.TipWhenTrimmed(_quoteAuthor);
         var ghost = new StackPanel { Visibility = Visibility.Hidden, Children =
         {
             new TextBlock { Text = "A\nA", Style = _quoteText.Style, FontStyle = FontStyles.Italic, FontSize = 14, LineHeight = 19 },
@@ -186,7 +188,7 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
     {
         var deep = Ui.Res<Brush>(colors.Deep);
         var navIcon = new NavIcon { Glyph = icon, Foreground = deep, Width = IconSize, Height = IconSize, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 20, 0) };
-        var title = new TextBlock { Text = Ui.Spaced(name), Style = Ui.Res<Style>("H3"), FontSize = TitleSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        var title = TextFit.TipWhenTrimmed(new TextBlock { Text = Ui.Spaced(name), Style = Ui.Res<Style>("H3"), FontSize = TitleSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
         title.SetResourceReference(TextBlock.ForegroundProperty, "Text");
         var face = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         face.Children.Add(navIcon);
@@ -291,7 +293,7 @@ internal sealed class PluginsPage : UserControl, IPage, IScreenshotStates, ICanc
         NextQuote();
     }
 
-    private void UpdateGreeting() => _greeting.Text = Greeting(DateTime.Now.Hour);
+    private void UpdateGreeting() => _greeting.Text = Greeting(ScreenshotRunner.Active ? 10 : DateTime.Now.Hour);
 
     internal static string Greeting(int hour) => hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 

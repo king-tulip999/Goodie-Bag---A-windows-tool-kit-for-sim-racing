@@ -34,6 +34,7 @@ internal static class ColorField
         box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Commit(box.Text); };
         swatch.Click += (_, _) =>
         {
+            if (!Services.External.Allowed("color dialog")) return;
             var now = CustomPalette.Parse(get()) ?? Colors.Black;
             using var dialog = new WinForms.ColorDialog { Color = System.Drawing.Color.FromArgb(now.R, now.G, now.B), FullOpen = true, AnyColor = true };
             var owner = Window.GetWindow(swatch) is { } w ? new Owner(new WindowInteropHelper(w).Handle) : null;

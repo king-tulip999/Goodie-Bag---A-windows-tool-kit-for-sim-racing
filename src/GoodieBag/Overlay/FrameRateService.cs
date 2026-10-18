@@ -41,6 +41,8 @@ internal sealed class FrameRateService : IDisposable
 
     public bool Running => _session is not null;
 
+    public int ConsumerCount => _consumers.Count;
+
     public void Acquire(string consumer)
     {
         _consumers.Add(consumer);

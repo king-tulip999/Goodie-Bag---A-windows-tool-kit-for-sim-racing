@@ -287,7 +287,7 @@ internal sealed class PanelGrid : Panel
         veil.Background = new SolidColorBrush(Color.FromArgb(130, surface.R, surface.G, surface.B));
 
         var tag = new StackPanel { Orientation = Orientation.Horizontal };
-        tag.Children.Add(new TextBlock { Text = def.Label, FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("AccentText"), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        tag.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = def.Label, FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("AccentText"), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }));
         if (def.VeilExtra?.Invoke() is { } extra) tag.Children.Add(extra);
         var layers = new Grid();
         layers.Children.Add(new Tile

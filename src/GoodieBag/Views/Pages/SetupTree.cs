@@ -110,12 +110,12 @@ internal sealed class SetupTree : Grid
 
         var name = TextCase.Verbatim(new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 8, 0) });
         string stem = node.IsFolder ? node.Name : System.IO.Path.GetFileNameWithoutExtension(node.Name);
-        name.Children.Add(new TextBlock
+        name.Children.Add(TextFit.TipWhenTrimmed(new TextBlock
         {
             Text = stem, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
             Style = Ui.Res<Style>("Body"), FontWeight = node.IsFolder ? FontWeights.SemiBold : FontWeights.Normal,
             Foreground = Ui.Res<Brush>(target ? "AccentText" : "Text"),
-        });
+        }));
         if (!node.IsFolder)
             name.Children.Add(new TextBlock { Text = System.IO.Path.GetExtension(node.Name), Foreground = Ui.Res<Brush>("TextFaint"), VerticalAlignment = VerticalAlignment.Center });
         if (!node.IsFolder && fresh > 0)

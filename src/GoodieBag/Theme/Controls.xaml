@@ -8,12 +8,21 @@
          edges (CardEdge, CardEdgeThickness, BtnEdgeThickness, BtnEdgePressed, PressDrop), effects (AccentGlow…)
          and Caps (all text in capitals: Theme/TextCase.cs). -->
     <th:CaseConverter x:Key="Case" />
+    <th:CaseConverter x:Key="Verbatim" Verbatim="True" />
     <!-- string / Choice content (buttons, nav, check boxes, segments, combo and menu items, tooltips) in the theme's case;
          TextBlocks are cased by the TextCase.Upper setters in the text styles -->
     <DataTemplate x:Key="CasedText">
         <TextBlock Text="{Binding Converter={StaticResource Case}}" />
     </DataTemplate>
     <th:CaseTemplateSelector x:Key="CasedContent" Text="{StaticResource CasedText}" />
+    <!-- a combo box's picked item: trimmed with an ellipsis when the box is narrower than the text (the list shows it whole) -->
+    <DataTemplate x:Key="CasedTrimmedText">
+        <TextBlock Text="{Binding Converter={StaticResource Case}}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <DataTemplate x:Key="PlainTrimmedText">
+        <TextBlock Text="{Binding Converter={StaticResource Verbatim}}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <th:CaseTemplateSelector x:Key="CasedTrimmed" Text="{StaticResource CasedTrimmedText}" Plain="{StaticResource PlainTrimmedText}" />
     <DataTemplate x:Key="CasedWrappedText">
         <TextBlock Text="{Binding Converter={StaticResource Case}}" TextWrapping="Wrap" />
     </DataTemplate>
@@ -699,7 +708,7 @@
                     <c:Tile x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource R.Input}" c:Tile.Chamfer="True">
                         <Grid>
                             <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
-                            <TextBlock x:Name="Ph" Text="{TemplateBinding Tag}" Foreground="{DynamicResource TextFaint}" Margin="{TemplateBinding Padding}" Padding="2,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
+                            <TextBlock x:Name="Ph" Text="{TemplateBinding Tag}" Foreground="{DynamicResource TextFaint}" Margin="{TemplateBinding Padding}" Padding="2,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" TextTrimming="CharacterEllipsis" />
                         </Grid>
                     </c:Tile>
                     <ControlTemplate.Triggers>
@@ -790,7 +799,7 @@
                         </ToggleButton>
                         <ContentPresenter IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                          ContentTemplateSelector="{StaticResource CasedTrimmed}"
                                           Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left" TextElement.FontWeight="SemiBold" />
                         <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True"
                                Focusable="False" PopupAnimation="Fade">

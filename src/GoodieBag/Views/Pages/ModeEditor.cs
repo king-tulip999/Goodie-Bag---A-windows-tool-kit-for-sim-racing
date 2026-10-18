@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 using GoodieBag.Audio;
 using GoodieBag.Config;
 using GoodieBag.Controls;
@@ -185,7 +184,8 @@ internal sealed class ModeEditor
             Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(150, 0, 0, 4),
         });
         _programIcon.Text = mode.Program?.IconPath ?? "";
-        _programIcon.Tag = "Image or .ico (default: the program's own icon)";
+        _programIcon.Tag = "The program's own icon";
+        _programIcon.ToolTip = "An image or .ico; left empty, the program's own icon is used";
         var iconBrowse = Ui.IconButton("I.Folder", "Choose image", () =>
         {
             if (ProgramPicker.BrowseExe("Images and icons (*.png;*.jpg;*.ico;*.exe)|*.png;*.jpg;*.jpeg;*.ico;*.exe|All files (*.*)|*.*") is { } p)

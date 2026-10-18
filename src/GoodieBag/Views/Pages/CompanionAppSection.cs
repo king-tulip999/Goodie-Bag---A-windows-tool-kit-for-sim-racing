@@ -67,9 +67,6 @@ internal sealed class CompanionAppSection : Tile
         var spec = app.Spec;
         var s = app.Settings;
 
-        var top = new Grid();
-        top.ColumnDefinitions.Add(new ColumnDefinition());
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var (text, soft, deep) = status switch
         {
@@ -88,7 +85,6 @@ internal sealed class CompanionAppSection : Tile
         };
         TextCase.SetVerbatim(where, app.ExePath is not null);
         info.Children.Add(where);
-        top.Children.Add(info);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var visit = Ui.LabeledButton("I.External", spec.Host, () => Ui.OpenUrl(spec.Site), "GhostButton");
@@ -131,9 +127,7 @@ internal sealed class CompanionAppSection : Tile
                 actions.Children.Add(stop);
             }
         }
-        Grid.SetColumn(actions, 1);
-        top.Children.Add(actions);
-        _stack.Children.Add(top);
+        _stack.Children.Add(Ui.SplitRow(info, actions, 12, stackLeft: true));
 
         _stack.Children.Add(new Border { Height = 1, Background = Ui.Res<System.Windows.Media.Brush>("Line"), Margin = new Thickness(0, 14, 0, 4) });
         _stack.Children.Add(Ui.SettingRow($"Launch {spec.Name} with Goodie Bag", "Starts it when Goodie Bag starts (skipped if it's already running).",

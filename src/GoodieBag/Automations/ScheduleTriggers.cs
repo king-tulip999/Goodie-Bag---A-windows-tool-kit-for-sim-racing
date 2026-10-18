@@ -8,11 +8,20 @@ internal static class ScheduleTriggers
 
     public static readonly TimeSpan Grace = TimeSpan.FromMinutes(15);
 
-    public static DateTime SearchFrom(DateTime now, DateTime? lastDue, DateTime? armedAt = null)
+    public static DateTime SearchFrom(DateTime now, DateTime? lastDue, DateTime? armedAt = null, TimeZoneInfo? zone = null)
     {
-        var from = now - Grace;
+        var from = Before(now, Grace, zone ?? TimeZoneInfo.Local);
         if (lastDue is { } last && last >= from) from = last.AddSeconds(1);
         return armedAt is { } armed && armed > from ? armed : from;
+    }
+
+    internal static DateTime Before(DateTime clock, TimeSpan span, TimeZoneInfo zone)
+    {
+        if (clock.Kind == DateTimeKind.Utc) return clock - span;
+        var local = DateTime.SpecifyKind(clock, DateTimeKind.Unspecified);
+        if (zone.IsInvalidTime(local)) return clock - span;
+        var earlier = TimeZoneInfo.ConvertTimeFromUtc(TimeZoneInfo.ConvertTimeToUtc(local, zone) - span, zone);
+        return DateTime.SpecifyKind(earlier, clock.Kind);
     }
 
     public static string Signature(AutomationRule r) =>

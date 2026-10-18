@@ -173,7 +173,7 @@ internal sealed class Collapsible : StackPanel
         _subtitle = new TextBlock { Text = framed ? "" : subtitle, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
         if (framed)
         {
-            var name = new TextBlock { Text = Ui.Spaced(title), Style = Ui.Res<Style>("H3"), FontSize = Ui.CardTitleSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            var name = TextFit.TipWhenTrimmed(new TextBlock { Text = Ui.Spaced(title), Style = Ui.Res<Style>("H3"), FontSize = Ui.CardTitleSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
             name.SetResourceReference(TextBlock.ForegroundProperty, "Text");
             var face = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 12, 0) };
             face.Children.Add(badge);
@@ -383,6 +383,7 @@ internal static class Ui
         void OnScroll(object? _, ScrollChangedEventArgs e) { if (e.VerticalChange != 0 || e.HorizontalChange != 0) Reposition(); }
         void OnMoved(object? _, EventArgs e) => Reposition();
         void OnHidden(object? _, DependencyPropertyChangedEventArgs e) { if (e.NewValue is false) popup.IsOpen = false; }
+        void OnUnloaded(object? _, RoutedEventArgs e) => popup.IsOpen = false;
         UIElement? watched = null;
         popup.Opened += (_, _) =>
         {
@@ -390,6 +391,7 @@ internal static class Ui
             if (watched is not null)
             {
                 watched.IsVisibleChanged += OnHidden;
+                if (watched is FrameworkElement fe) fe.Unloaded += OnUnloaded;
                 popup.Dispatcher.BeginInvoke(() => { if (popup.IsOpen && watched is { IsVisible: false }) popup.IsOpen = false; }, System.Windows.Threading.DispatcherPriority.Loaded);
             }
             viewers.Clear();
@@ -401,6 +403,7 @@ internal static class Ui
         popup.Closed += (_, _) =>
         {
             if (watched is not null) watched.IsVisibleChanged -= OnHidden;
+            if (watched is FrameworkElement fe) fe.Unloaded -= OnUnloaded;
             watched = null;
             foreach (var sv in viewers) sv.ScrollChanged -= OnScroll;
             viewers.Clear();
@@ -421,7 +424,7 @@ internal static class Ui
 
     public static TextBlock EditorSection(string title) => new()
     {
-        Text = title.ToUpperInvariant(),
+        Text = title,
         Style = Res<Style>("Eyebrow"),
         Margin = new Thickness(0, 22, 0, 4),
     };
@@ -681,7 +684,7 @@ internal static class Ui
 
     public static Border Chip(string text, string? soft = null, string? deep = null)
     {
-        var chip = new Tile { Style = Res<Style>("Chip"), Child = new TextBlock { Text = ThemeManager.Case(text) } };
+        var chip = new Tile { Style = Res<Style>("Chip"), Child = TextFit.TipWhenTrimmed(new TextBlock { Text = ThemeManager.Case(text), TextTrimming = TextTrimming.CharacterEllipsis }) };
         if (soft is not null) { chip.Background = Res<Brush>(soft); chip.BorderBrush = Res<Brush>(ThemeManager.Current.Glow && deep is not null ? deep : soft); }
         if (deep is not null) ((TextBlock)chip.Child).Foreground = Res<Brush>(deep);
         if (soft == "DangerSoft") Danger(chip, (TextBlock)chip.Child, 11);
@@ -873,6 +876,7 @@ internal static class Ui
 
     public static void OpenUrl(string url)
     {
+        if (!GoodieBag.Services.External.Allowed("open " + url)) return;
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
         catch { }
     }

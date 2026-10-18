@@ -43,7 +43,7 @@ internal sealed class ControlsFile
             string name = Encoding.ASCII.GetString(data, at, nul - at);
             int body = nul + 1;
             if (body + Body > end)
-                throw new FormatException($"The entry \"{name}\" is cut short.");
+                throw new FormatException($"The entry “{name}” is cut short.");
             list.Add(new ControlBinding(name, body));
             at = body + Body;
         }

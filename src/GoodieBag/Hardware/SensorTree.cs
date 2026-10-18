@@ -100,7 +100,7 @@ internal static class SensorFormat
         return kind switch
         {
             SensorKind.Temperature => $"{v:0.0} °C",
-            SensorKind.Load or SensorKind.Control or SensorKind.Level => $"{v:0.0} %",
+            SensorKind.Load or SensorKind.Control or SensorKind.Level => $"{v:0.0}%",
             SensorKind.Clock => v >= 1000 ? $"{v / 1000:0.00} GHz" : $"{v:0} MHz",
             SensorKind.Power => v < 10 ? $"{v:0.00} W" : $"{v:0.0} W",
             SensorKind.Voltage => $"{v:0.000} V",

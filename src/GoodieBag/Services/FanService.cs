@@ -31,6 +31,7 @@ internal static class FanService
 
     public static bool Start()
     {
+        if (!External.Allowed("start the fan service")) return false;
         try
         {
             Process.Start(new ProcessStartInfo(Environment.ProcessPath!, Arg) { UseShellExecute = false, CreateNoWindow = true })?.Dispose();

@@ -7,6 +7,8 @@ namespace GoodieBag.SimRacing.Race;
 internal static class RaceFormat
 {
     public const string Missing = "–";
+
+    public static string Count(long n, string word) => $"{n} {word}{(n == 1 ? "" : "s")}";
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     public static string LapTime(double? seconds, int decimals = 3)

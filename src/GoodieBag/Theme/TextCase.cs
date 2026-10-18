@@ -163,10 +163,12 @@ public static class TextCase
 
 public sealed class CaseConverter : IValueConverter
 {
+    public bool Verbatim { get; set; }
+
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
-        string s => ThemeManager.Case(s),
-        Choice c => ThemeManager.Case(c.Text),
+        string s => Verbatim ? s : ThemeManager.Case(s),
+        Choice c => Verbatim ? c.Text : ThemeManager.Case(c.Text),
         _ => value,
     };
 
@@ -177,6 +179,8 @@ public sealed class CaseTemplateSelector : DataTemplateSelector
 {
     public DataTemplate? Text { get; set; }
 
+    public DataTemplate? Plain { get; set; }
+
     public override DataTemplate? SelectTemplate(object? item, DependencyObject container) =>
-        item is string or Choice && !TextCase.GetVerbatim(container) ? Text : null;
+        item is string or Choice ? (TextCase.GetVerbatim(container) ? Plain : Text) : null;
 }

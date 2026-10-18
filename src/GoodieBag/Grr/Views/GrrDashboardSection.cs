@@ -314,7 +314,7 @@ internal sealed class GrrDashboardSection : StackPanel
             progress.ColumnDefinitions.Add(new ColumnDefinition());
             progress.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             progress.Children.Add(new Meter { Height = 6, Steps = s.Count, StepsUseFill = true, Value = (double)done / s.Count, Fill = Ui.Res<Brush>("Accent"), VerticalAlignment = VerticalAlignment.Center });
-            var label = GrrParts.Caption($"{done} of {s.Count} rounds run");
+            var label = GrrParts.Caption($"{done} of {GoodieBag.SimRacing.Race.RaceFormat.Count(s.Count, "round")} run");
             label.Margin = new Thickness(12, 0, 0, 0);
             Grid.SetColumn(label, 1);
             progress.Children.Add(label);
@@ -338,7 +338,7 @@ internal sealed class GrrDashboardSection : StackPanel
             return Card("Driver profile", null, body);
         }
         var mine = data.StandingOf(driver);
-        body.Children.Add(new TextBlock { Text = mine?.Row.Driver ?? driver, Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis });
+        body.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = mine?.Row.Driver ?? driver, Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis }));
         body.Children.Add(GrrParts.Caption(mine is { } m
             ? string.Join(" · ", new[] { data.ClassLabel(m.Class), m.Row.Car, m.Row.Team }.Where(x => !string.IsNullOrEmpty(x))) is { Length: > 0 } sub ? sub : LeagueInfo.Name
             : $"Not in the {LeagueInfo.Name} standings"));
@@ -469,11 +469,11 @@ internal sealed class GrrDashboardSection : StackPanel
         int span = columns.Count + 2;
 
         void Cell(UIElement e, int row, int col) { Grid.SetRow(e, row); Grid.SetColumn(e, col); grid.Children.Add(e); }
-        TextBlock Head(string text, bool right) => new()
+        TextBlock Head(string text, bool right) => TextFit.TipWhenTrimmed(new TextBlock
         {
-            Text = text.ToUpperInvariant(), Style = Ui.Res<Style>("Eyebrow"), TextAlignment = right ? TextAlignment.Right : TextAlignment.Left,
+            Text = text, Style = Ui.Res<Style>("Eyebrow"), TextAlignment = right ? TextAlignment.Right : TextAlignment.Left,
             Margin = new Thickness(0, 0, right ? 10 : 0, 6), TextTrimming = TextTrimming.CharacterEllipsis,
-        };
+        });
 
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Cell(Head("Pos", false), 0, 0);
@@ -541,12 +541,12 @@ internal sealed class GrrDashboardSection : StackPanel
             for (int c = 0; c < columns.Count; c++)
             {
                 var col = columns[c];
-                var t = new TextBlock
+                var t = TextFit.TipWhenTrimmed(new TextBlock
                 {
                     Text = col.Value(row) ?? "–", FontSize = 13, FontWeight = weight, Foreground = Ui.Res<Brush>(col == columns[^1] && !me ? "Heading" : col.Right ? (me ? fg : "TextMuted") : fg),
                     TextAlignment = col.Right ? TextAlignment.Right : TextAlignment.Left, Margin = new Thickness(0, 0, col.Right ? 10 : 8, 0), VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis, IsHitTestVisible = false, Typography = { NumeralAlignment = FontNumeralAlignment.Tabular },
-                };
+                });
                 if (col == columns[^1]) t.FontWeight = FontWeights.SemiBold;
                 if (col.Fill) t.Margin = new Thickness(FillGap, 0, 8, 0);
                 Cell(t, r, c + 2);
@@ -693,8 +693,8 @@ internal sealed class GrrDashboardSection : StackPanel
                 right = c;
             }
             list.Children.Add(strip
-                ? StripCell(eyebrow.ToUpperInvariant(), r.Track, GrrParts.ShortWhen(r.Start), right, mark, i == from || (i - from) % StripColumns == 0, i == to - 1 || (i - from) % StripColumns == StripColumns - 1, click, tipContent)
-                : GrrParts.TimelineRow(eyebrow.ToUpperInvariant(), r.Track, GrrParts.ShortWhen(r.Start), right, mark, i == from, i == to - 1, click, tipContent));
+                ? StripCell(eyebrow, r.Track, GrrParts.ShortWhen(r.Start), right, mark, i == from || (i - from) % StripColumns == 0, i == to - 1 || (i - from) % StripColumns == StripColumns - 1, click, tipContent)
+                : GrrParts.TimelineRow(eyebrow, r.Track, GrrParts.ShortWhen(r.Start), right, mark, i == from, i == to - 1, click, tipContent));
         }
         var body = new StackPanel();
         if (strip)
@@ -728,7 +728,7 @@ internal sealed class GrrDashboardSection : StackPanel
             System.Windows.Automation.AutomationProperties.SetName(fl, "Fastest lap");
             row.Children.Add(fl);
         }
-        row.Children.Add(new TextBlock { Text = name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("Text"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("Text"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center }));
         return row;
     }
 

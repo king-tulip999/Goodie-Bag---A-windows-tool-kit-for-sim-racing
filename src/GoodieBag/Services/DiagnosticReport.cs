@@ -179,7 +179,7 @@ internal static class DiagnosticReport
         return $"{name}{(display.Length > 0 ? " " + display : "")} (build {build}), {(Environment.Is64BitOperatingSystem ? "64-bit" : "32-bit")}";
     }
 
-    private static readonly Regex UsersFolder = new(@"(?i)(\\Users\\)[^\\/\s""':]+", RegexOptions.Compiled);
+    private static readonly Regex UsersFolder = new(@"(?i)(\\Users\\)[^\\/\s""':]+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Ipv4 = new(@"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b", RegexOptions.Compiled);
 
     public static string Scrub(string text, string? userName, string? machineName, string? profilePath)
@@ -189,7 +189,7 @@ internal static class DiagnosticReport
         text = UsersFolder.Replace(text, "$1<user>");
         foreach (var (word, mask) in new[] { (userName, "<user>"), (machineName, "<pc>") })
             if (!string.IsNullOrWhiteSpace(word) && word.Length >= 3)
-                text = Regex.Replace(text, @"(?<![\w-])" + Regex.Escape(word) + @"(?![\w-])", mask, RegexOptions.IgnoreCase);
+                text = Regex.Replace(text, @"(?<![\w-])" + Regex.Escape(word) + @"(?![\w-])", mask, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return Ipv4.Replace(text, "<ip>");
     }
 }

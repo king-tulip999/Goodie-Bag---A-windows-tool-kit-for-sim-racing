@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 using GoodieBag.Theme;
+using GoodieBag.Views;
 
 namespace GoodieBag.Controls;
 
@@ -150,7 +151,7 @@ public sealed class ArrangementCanvas : Canvas
             HorizontalAlignment = HorizontalAlignment.Center,
             FontFamily = ThemeManager.DisplayFace.FontFamily,
         });
-        stack.Children.Add(new TextBlock { Text = tile.Name, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 0, 6, 0) });
+        stack.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = tile.Name, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 0, 6, 0) }));
         stack.Children.Add(new TextBlock { Text = tile.Detail, FontSize = 11, Opacity = 0.65, HorizontalAlignment = HorizontalAlignment.Center });
         grid.Children.Add(stack);
         if (tile.Primary)

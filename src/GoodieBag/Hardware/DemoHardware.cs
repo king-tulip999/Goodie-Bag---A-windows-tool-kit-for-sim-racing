@@ -33,22 +33,23 @@ internal sealed class DemoHardware
         _t += 1;
         double Wave(double period, double phase = 0) => Math.Sin(_t / period * Math.PI * 2 + phase);
 
-        float cpuTemp = (float)(58 + 7 * Wave(37) + 2 * Wave(9, 1));
-        float gpuTemp = (float)(64 + 6 * Wave(44, 2) + 1.5 * Wave(7));
+        bool stress = Services.DemoData.Stress;
+        float cpuTemp = (float)(stress ? 104.6 + Wave(9) : 58 + 7 * Wave(37) + 2 * Wave(9, 1));
+        float gpuTemp = (float)(stress ? 112.4 + Wave(7) : 64 + 6 * Wave(44, 2) + 1.5 * Wave(7));
         var snapshot = new HardwareSnapshot
         {
             CpuTemp = cpuTemp,
-            CpuLoad = (float)(34 + 14 * Wave(23) + 6 * Wave(5, 1)),
+            CpuLoad = (float)(stress ? 100 : 34 + 14 * Wave(23) + 6 * Wave(5, 1)),
             CpuClockMhz = (float)(4870 + 60 * Wave(11)),
             CpuPower = (float)(88 + 14 * Wave(23)),
             GpuTemp = gpuTemp,
             GpuHotSpot = gpuTemp + 14,
-            GpuLoad = (float)(91 + 6 * Wave(13)),
+            GpuLoad = (float)(stress ? 100 : 91 + 6 * Wave(13)),
             GpuClockMhz = (float)(2480 + 40 * Wave(17)),
             GpuPower = (float)(318 + 22 * Wave(13)),
             VramUsedMb = 11_900,
             VramTotalMb = 24_560,
-            GpuFanRpm = (float)(1650 + 120 * Wave(44, 2)),
+            GpuFanRpm = (float)(stress ? 12_345 : 1650 + 120 * Wave(44, 2)),
             GpuFanPercent = (float)(48 + 4 * Wave(44, 2)),
             DiskReadBps = (float)Math.Max(0, 2.5e6 + 2e6 * Wave(7)),
             DiskWriteBps = (float)Math.Max(0, 6e5 + 5e5 * Wave(11, 1)),
@@ -64,7 +65,7 @@ internal sealed class DemoHardware
             new("/gpu-amd/0/temperature/0", "GPU Core", "AMD Radeon RX 7900 XTX", gpuTemp),
             new("/gpu-amd/0/temperature/1", "GPU Hot Spot", "AMD Radeon RX 7900 XTX", gpuTemp + 14),
             new("/gpu-amd/0/temperature/2", "GPU Memory", "AMD Radeon RX 7900 XTX", gpuTemp + 8),
-            new("/lpc/nct6798d/temperature/0", "System", "Nuvoton NCT6798D", 36),
+            new("/lpc/nct6798d/temperature/0", "System", "Nuvoton NCT6798D", stress ? -12 : 36),
             new("/lpc/nct6798d/temperature/1", "CPU Socket", "Nuvoton NCT6798D", 44),
         };
 
@@ -122,7 +123,7 @@ internal sealed class DemoHardware
 
                 float? rpm = fan.MaxRpm == 0 ? 0
                     : percent < fan.StallPercent ? 0
-                    : (float)(fan.MaxRpm * (0.22 + 0.78 * percent / 100) + _random.Next(-12, 12));
+                    : (float)((Services.DemoData.Stress ? 12_000 : fan.MaxRpm) * (0.22 + 0.78 * percent / 100) + _random.Next(-12, 12));
                 bool controlled = settings.Enabled && entry is { Mode: not FanMode.Auto } || _overrides.ContainsKey(fan.Id);
                 fans.Add(new FanInfo(fan.Id, $"{fan.Hardware} · {fan.Name}", fan.Hardware, percent, rpm, controlled, null));
             }

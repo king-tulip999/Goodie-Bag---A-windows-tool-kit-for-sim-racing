@@ -39,6 +39,19 @@ public partial class App : Application
             TrackMapBuild.Run(this, e.Args.Skip(mapsAt + 1).ToList());
             return;
         }
+        if (Array.FindIndex(e.Args, a => string.Equals(a, "--shot-diff", StringComparison.OrdinalIgnoreCase)) is >= 0 and var diffAt && diffAt + 3 < e.Args.Length)
+        {
+            int changes = 0;
+            try { changes = ShotDiff.Run(e.Args[diffAt + 1], e.Args[diffAt + 2], e.Args[diffAt + 3]); }
+            catch (Exception ex) { File.WriteAllText(Path.Combine(e.Args[diffAt + 3], "changed.txt"), "error " + ex.Message); }
+            Shutdown(changes > 0 ? 2 : 0);
+            return;
+        }
+        if (Array.FindIndex(e.Args, a => string.Equals(a, GoldenRun.Arg, StringComparison.OrdinalIgnoreCase)) is >= 0 and var goldenAt && goldenAt + 2 < e.Args.Length)
+        {
+            GoldenRun.Run(this, e.Args[goldenAt + 1], e.Args[goldenAt + 2], e.Args.Contains("--approve", StringComparer.OrdinalIgnoreCase));
+            return;
+        }
         if (ArgValue(e.Args, FanProbe.Arg) is { } probeFile)
         {
             FanProbe.Run(this, probeFile);
@@ -55,11 +68,18 @@ public partial class App : Application
         bool fromStartup = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);
         string? showcaseDir = ArgValue(e.Args, "--showcase");
         string? perfFile = ArgValue(e.Args, "--perf");
+        string? monkeyDir = ArgValue(e.Args, "--monkey");
         PerfProbe.File = perfFile;
         if (perfFile is not null) try { File.Delete(perfFile); } catch { }
-        Motion.FollowFocus = screenshotDir is null && showcaseDir is null && perfFile is null;
-        bool demo = screenshotDir is not null || showcaseDir is not null || perfFile is not null || e.Args.Contains("--demo", StringComparer.OrdinalIgnoreCase);
+        Motion.FollowFocus = screenshotDir is null && showcaseDir is null && perfFile is null && monkeyDir is null;
+        bool demo = screenshotDir is not null || showcaseDir is not null || perfFile is not null || monkeyDir is not null || e.Args.Contains("--demo", StringComparer.OrdinalIgnoreCase);
         bool fresh = e.Args.Contains("--fresh", StringComparer.OrdinalIgnoreCase);
+        if (demo && ArgValue(e.Args, "--culture") is { } cultureName)
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(cultureName);
+            System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
 
         if (!demo && !SingleInstance.TryAcquire())
         {
@@ -145,6 +165,12 @@ public partial class App : Application
             ScreenshotRunner.Run(window, screenshotDir);
             return;
         }
+        if (monkeyDir is not null)
+        {
+            MonkeyRunner.Run(window, monkeyDir, int.TryParse(ArgValue(e.Args, "--seed"), out int seed) ? seed : Environment.TickCount,
+                double.TryParse(ArgValue(e.Args, "--minutes"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double minutes) ? minutes : 10);
+            return;
+        }
         if (showcaseDir is not null)
         {
             Showcase.ShowcaseRunner.Run(window, showcaseDir, ArgValue(e.Args, "--ffmpeg"));
@@ -182,6 +208,7 @@ public partial class App : Application
 
     internal static void RelaunchAfterExit(string args, IEnumerable<string>? steps = null, string? exe = null)
     {
+        if (!GoodieBag.Services.External.Allowed("restart")) return;
         exe ??= Environment.ProcessPath!;
         int pid = Environment.ProcessId;
         var script = Path.Combine(ScratchFolder(exe), $"GoodieBag-relaunch-{pid}.cmd");
@@ -232,6 +259,7 @@ public partial class App : Application
 
     public static void Quit()
     {
+        if (!GoodieBag.Services.External.Allowed("quit")) return;
         ExitRequested = true;
         Current.Shutdown();
     }
@@ -254,7 +282,7 @@ public partial class App : Application
     private void OnUiException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         e.Handled = true;
-        if (_starting && !ScreenshotRunner.Active && PerfProbe.File is null && !_trayWired && MainWindow is not { IsVisible: true })
+        if (_starting && !ScreenshotRunner.Active && !MonkeyRunner.Active && PerfProbe.File is null && !_trayWired && MainWindow is not { IsVisible: true })
         {
             LogError(e.Exception);
             try { AppServices.Current?.Hardware.EmergencyRestore(); } catch { }
@@ -276,6 +304,11 @@ public partial class App : Application
             ScreenshotRunner.RecordError(ex);
             return;
         }
+        if (MonkeyRunner.Active)
+        {
+            MonkeyRunner.RecordError(ex);
+            return;
+        }
         if (PerfProbe.File is { } perf)
         {
             try { File.AppendAllText(perf, "error " + ex.ToString().Replace(Environment.NewLine, " | ") + Environment.NewLine); } catch { }
@@ -293,6 +326,7 @@ public partial class App : Application
 
     internal static void LogError(Exception ex)
     {
+        if (Current is not App || AppServices.Current is { Demo: true }) return;
         lock (LogGate)
         {
             try

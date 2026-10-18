@@ -66,14 +66,14 @@ internal static class FuelCalculator
                 box.ValueChanged += v => { settings.Laps = (int)Math.Round(v); save(); Recalc(); };
                 return box;
             }
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var minutes = new NumberBox(settings.Minutes, "min", 70) { Minimum = 1, Maximum = 1440, Step = 5 };
+            var row = new WrapPanel();
+            var minutes = new NumberBox(settings.Minutes, "min", 70) { Minimum = 1, Maximum = 1440, Step = 5, Margin = new Thickness(0, 0, 6, 6) };
             minutes.ValueChanged += v => { settings.Minutes = v; save(); Recalc(); };
             row.Children.Add(minutes);
             foreach (int preset in new[] { 20, 30, 45, 60 })
             {
                 var b = Ui.LabeledButton("I.Clock", preset.ToString(CultureInfo.CurrentCulture), () => { settings.Minutes = preset; save(); lengthHost.Content = LengthInput(); Recalc(); }, "GhostButton");
-                b.Margin = new Thickness(6, 0, 0, 0);
+                b.Margin = new Thickness(0, 0, 6, 6);
                 Ui.SetToggled(b, Math.Abs(settings.Minutes - preset) < 0.01);
                 row.Children.Add(b);
             }

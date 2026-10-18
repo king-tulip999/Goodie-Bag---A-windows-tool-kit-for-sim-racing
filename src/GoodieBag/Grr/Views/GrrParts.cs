@@ -15,9 +15,9 @@ internal static class GrrParts
 
     public static string LongWhen(DateTime t) => LongDate(t) + " · " + Dates.Time(t);
 
-    public static string LongDate(DateTime t) => t.ToString("dddd", System.Globalization.CultureInfo.CurrentCulture) + " " + Dates.Short(t);
+    public static string LongDate(DateTime t) => Dates.ShortWithDay(t);
 
-    public static string ShortWhen(DateTime t) => t.ToString("ddd", System.Globalization.CultureInfo.CurrentCulture) + " " + Dates.Short(t) + " · " + Dates.Time(t);
+    public static string ShortWhen(DateTime t) => Dates.Weekday(t) + " " + Dates.Short(t) + " · " + Dates.Time(t);
 
     public static string Ago(DateTime t)
     {
@@ -35,20 +35,20 @@ internal static class GrrParts
             text += " · " + round;
             if (data?.Schedule is { Count: > 1 } s) text += $" of {s.Count}";
         }
-        return text.ToUpperInvariant();
+        return text;
     }
 
     public static GrrRound? RoundOf(GrrRace race, GrrLeagueData? data) => data?.Schedule?.FirstOrDefault(r => r.Start == race.Start);
 
     public static TextBlock Eyebrow(string text, string? brush = null, double top = 0)
     {
-        var t = new TextBlock { Text = text, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, top, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        var t = TextFit.TipWhenTrimmed(new TextBlock { Text = text, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, top, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         if (brush is not null) t.Foreground = Ui.Res<Brush>(brush);
         return t;
     }
 
     public static TextBlock Caption(string text, double top = 0) =>
-        new() { Text = text, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, top, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
+        TextFit.TipWhenTrimmed(new TextBlock { Text = text, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, top, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
 
     public static TextBlock Wrapped(string text, double top = 0) =>
         new() { Text = text, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, top, 0, 0), TextWrapping = TextWrapping.Wrap };
@@ -88,7 +88,7 @@ internal static class GrrParts
         clock.Margin = new Thickness(0, 8, 0, 0);
         clock.Text = GrrLeagues.Countdown(GrrLeagues.Until(race.Start, now));
         body.Children.Add(clock);
-        body.Children.Add(new TextBlock { Text = race.Track, Style = Ui.Res<Style>("H2"), Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        body.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = race.Track, Style = Ui.Res<Style>("H2"), Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis }));
 
         var when = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         var whenText = Caption(LongWhen(race.Start));
@@ -98,7 +98,7 @@ internal static class GrrParts
         if (RoundOf(race, data) is { } round)
         {
             if (round.Format is { } f) when.Children.Add(Small(char.ToUpperInvariant(f[0]) + f[1..]));
-            if (round.Laps is { } laps) when.Children.Add(Small($"{laps} laps"));
+            if (round.Laps is { } laps) when.Children.Add(Small(GoodieBag.SimRacing.Race.RaceFormat.Count(laps, "lap")));
         }
         body.Children.Add(when);
         return grid;
@@ -137,11 +137,11 @@ internal static class GrrParts
 
         var text = new StackPanel { Margin = new Thickness(4, 0, 10, 0) };
         text.Children.Add(Eyebrow(eyebrow, mark == TimelineMark.Next ? "AccentText" : null));
-        text.Children.Add(new TextBlock
+        text.Children.Add(TextFit.TipWhenTrimmed(new TextBlock
         {
             Text = track, FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>(mark == TimelineMark.Done ? "TextMuted" : "Text"),
             TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0),
-        });
+        }));
         text.Children.Add(Caption(when, 1));
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);

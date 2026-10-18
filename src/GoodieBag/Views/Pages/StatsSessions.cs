@@ -162,7 +162,7 @@ internal static class StatsSessions
 
     private static TextBlock Body(string text, string? brush = null)
     {
-        var t = new TextBlock { Text = text, Style = Ui.Res<Style>("Body"), FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis };
+        var t = TextFit.TipWhenTrimmed(new TextBlock { Text = text, Style = Ui.Res<Style>("Body"), FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
         if (brush is not null) t.SetResourceReference(TextBlock.ForegroundProperty, brush);
         return t;
     }

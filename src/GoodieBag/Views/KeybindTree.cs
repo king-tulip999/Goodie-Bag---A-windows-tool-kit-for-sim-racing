@@ -307,7 +307,7 @@ internal sealed class KeybindTree : Tile
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         names.Children.Add(new TextBlock { Text = entry.Label, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Label });
         if (entry.Note is { } note)
-            names.Children.Add(new TextBlock { Text = note, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis });
+            names.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = note, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis }));
         grid.Children.Add(names);
 
         var reset = Ui.IconButton("I.Undo", "Back to the default: " + entry.Default, () => { }, "QuietIconButton");
@@ -322,7 +322,7 @@ internal sealed class KeybindTree : Tile
             var pad = new Icon { Data = Ui.Res<Geometry>("I.Gamepad"), Width = 13, Height = 13, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
             pad.SetResourceReference(Control.ForegroundProperty, "TextFaint");
             lockedText.Children.Add(pad);
-            lockedText.Children.Add(new TextBlock { Text = GoodieBag.Hotkeys.Hotkey.Display(entry.Get()), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+            lockedText.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = GoodieBag.Hotkeys.Hotkey.Display(entry.Get()), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }));
             var fixedKey = new Border
             {
                 Style = Ui.Res<Style>("Inset"), Height = 30, Padding = new Thickness(10, 0, 10, 0), ToolTip = locked, Child = lockedText,

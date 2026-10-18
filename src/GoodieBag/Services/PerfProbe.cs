@@ -125,6 +125,9 @@ internal static class PerfProbe
             window.Navigate("plugins");
             await Task.Delay(3000);
             await Idle("idle_main_settled", window, lines);
+            Put("home_frame_rate_consumers", AppServices.Current!.Frames.ConsumerCount);
+            Put("home_frame_rate_session", AppServices.Current!.Frames.Running ? 1 : 0);
+            Put("home_full_tree_consumers", AppServices.Current!.Hardware.FullTreeConsumers);
             await InvalidElements("main_settled", window, lines);
             Motion.SetWindowActive(false, force: true);
             await Task.Delay(2500);
@@ -143,6 +146,8 @@ internal static class PerfProbe
             window.Hide();
             await Task.Delay(4000);
             await Idle("idle_hidden", window, lines);
+            Put("hidden_hardware_consumers", AppServices.Current!.Hardware.Consumers.Count);
+            Put("hidden_frame_rate_session", AppServices.Current!.Frames.Running ? 1 : 0);
             window.TrimWhileHidden();
             await Task.Delay(2000);
             await Idle("idle_hidden_trimmed", window, lines);
@@ -165,6 +170,7 @@ internal static class PerfProbe
         }
         finally
         {
+            lines.AddRange(PerfBudget.Check(lines, PerfBudget.Read()));
             System.IO.File.AppendAllLines(file, lines);
             Application.Current.Shutdown();
         }

@@ -118,6 +118,7 @@ internal static class ScreenshotRunner
                     window.Navigate(page);
                     await Task.Delay(Wait(1400));
                     Capture(window, Path.Combine(folder, $"{n:00}-{page}.png"));
+                    Lint(window, page);
                     CaptureFullPage(window, page, Path.Combine(folder, $"{n:00}-{page}-full.png"));
                     if (window.PageFor(page) is System.Windows.Controls.UserControl { Content: System.Windows.Controls.ScrollViewer sv } && sv.ScrollableHeight > 40)
                     {
@@ -144,6 +145,7 @@ internal static class ScreenshotRunner
                             await Task.Delay(Wait(1200));
                             string shot = $"{n:00}{StateTag(state++)}-{page}-{name}";
                             Capture(window, Path.Combine(folder, shot + ".png"));
+                            Lint(window, $"{page}/{name}");
                             CaptureFullPage(window, page, Path.Combine(folder, shot + "-full.png"));
                         }
                         catch (Exception ex)
@@ -155,6 +157,7 @@ internal static class ScreenshotRunner
                 n++;
             }
 
+            await LintSizesAsync(window, pages);
             if (Environment.GetCommandLineArgs().Contains("--sizes", StringComparer.OrdinalIgnoreCase))
                 await CaptureSizesAsync(window, folder);
             if (only is null) await CheckSearchAsync(window, folder, n);
@@ -494,6 +497,43 @@ internal static class ScreenshotRunner
                 RecordError(ex);
             }
         }
+    }
+
+    private static void Lint(Window window, string where)
+    {
+        if (window.Content is not Visual root) return;
+        var found = LayoutLint.Inspect(root, where);
+        foreach (PresentationSource source in PresentationSource.CurrentSources)
+            if (source.RootVisual is FrameworkElement { IsVisible: true } popup && popup.GetType().Name == "PopupRoot")
+                found.AddRange(LayoutLint.Inspect(popup, where + " popup"));
+        lock (Errors)
+            Errors.AddRange(found.Select(f => f.ToString()));
+    }
+
+    private static async Task LintSizesAsync(MainWindow window, IReadOnlyList<string> pages)
+    {
+        var size = (window.Width, window.Height);
+        foreach (var (w, h) in new[] { (960.0, 600.0), (2560.0, 1440.0) })
+        {
+            if ((w, h) == size) continue;
+            window.Width = w;
+            window.Height = h;
+            foreach (var page in pages)
+            {
+                try
+                {
+                    window.Navigate(page);
+                    await Task.Delay(Wait(1000));
+                    Lint(window, $"{page} @{w}x{h}");
+                }
+                catch (Exception ex)
+                {
+                    RecordError(ex);
+                }
+            }
+        }
+        (window.Width, window.Height) = size;
+        await Task.Delay(Wait(600));
     }
 
     private static (double W, double H) BaseSize =>

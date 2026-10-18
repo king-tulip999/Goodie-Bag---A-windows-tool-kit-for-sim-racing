@@ -48,9 +48,11 @@ internal static class IracingPaths
     public static readonly IReadOnlyList<string> CopyableFiles =
         RendererModes.Select(m => m.File).Concat(new[] { RendererTemplate, App, Core }).Concat(KeptFiles).ToList();
 
+    internal static string? DocumentsForTests { get; set; }
+
     public static string? FindDocumentsFolder()
     {
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var documents = DocumentsForTests ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if (string.IsNullOrEmpty(documents)) return null;
         var folder = Path.Combine(documents, "iRacing");
         return Directory.Exists(folder) ? folder : null;
@@ -176,7 +178,9 @@ internal sealed class BackupStore
             Line("base", baseFolder);
             Line("source", source);
             foreach (var f in copied) Line("file", f);
-            File.WriteAllText(Path.Combine(folder, Manifest), sb.ToString(), new UTF8Encoding(false));
+            string manifest = Path.Combine(folder, Manifest);
+            File.WriteAllText(manifest + ".tmp", sb.ToString(), new UTF8Encoding(false));
+            File.Move(manifest + ".tmp", manifest);
         }
         catch
         {
@@ -339,7 +343,7 @@ internal sealed record StrayCopy(string Path, string OriginalName, DateTime Modi
                 $"^(?:{stem}(?: - Copy(?: \\(\\d+\\))?| \\(\\d+\\)|_backup|_old|_bak){ext}" +
                 $"|{full}(?:\\d+|\\.bak|\\.old|\\.backup)" +
                 $"|{stem}\\.(?:bak|old))$";
-            if (Regex.IsMatch(name, pattern, RegexOptions.IgnoreCase)) return original;
+            if (Regex.IsMatch(name, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return original;
         }
         return null;
     }

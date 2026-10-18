@@ -76,12 +76,12 @@ internal sealed class IracingControllerSection : StackPanel
         bar.Margin = new Thickness(0, 0, 0, 12);
         Children.Add(bar);
 
-        var where = new TextBlock
+        var where = TextFit.TipWhenTrimmed(new TextBlock
         {
             Text = (_ws.Demo ? "Demo settings (nothing is read from or written to the PC) · " : _ws.Folder + " · ")
                    + $"{Session.Settings.Count} settings in {string.Join(", ", Session.FileNames)}",
             Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 0, 0, 10), TextTrimming = TextTrimming.CharacterEllipsis,
-        };
+        });
         TextCase.SetVerbatim(where, !_ws.Demo);
         Children.Add(where);
 
@@ -621,11 +621,13 @@ internal sealed class IracingControllerSection : StackPanel
             _summary.Style = Ui.Res<Style>("Caption");
             Grid.SetColumn(_summary, 2);
             head.Children.Add(_summary);
-            _fileLine = new TextBlock
+            _fileLine = TextFit.TipWhenTrimmed(new TextBlock
             {
                 Text = $"{(_searching ? _section.Area + " · " : "")}{_section.FileName} [{_section.Section}]",
                 Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 10, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
-            };
+            });
+            TextCase.SetVerbatim(_fileLine, !_searching);
+            TextFit.TipWhenTrimmed(_fileLine);
             var headStack = new StackPanel();
             headStack.Children.Add(head);
             headStack.Children.Add(_fileLine);
@@ -814,10 +816,14 @@ internal sealed class IracingControllerSection : StackPanel
             Note(s.Def.Danger, "Danger", "I.Alert");
             Note(s.IsChanged ? s.Def.Caution : null, "Warn");
             Note(s.IsInert ? s.Def.DependsOn?.Message : null, "TextFaint");
-            var meta = new List<string> { $"[{s.Section}] {s.Key}" };
+            var meta = new List<string>();
             if (Session!.DefaultOf(s) is { } std) meta.Add("default " + s.Show(std));
             if (s.IsChanged) meta.Add("in the file now: " + s.Show(s.Applied));
-            Note(string.Join(" · ", meta), "TextFaint");
+            var keyLine = new WrapPanel { Margin = new Thickness(0, 3, 0, 0) };
+            keyLine.Children.Add(TextCase.Verbatim(new TextBlock { Text = $"[{s.Section}] {s.Key}", Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>("TextFaint") }));
+            if (meta.Count > 0)
+                keyLine.Children.Add(new TextBlock { Text = " · " + string.Join(" · ", meta), Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>("TextFaint"), TextWrapping = TextWrapping.Wrap });
+            text.Children.Add(keyLine);
             grid.Children.Add(text);
 
             var control = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -919,6 +925,7 @@ internal sealed class IracingControllerSection : StackPanel
         });
         var browse = Ui.LabeledButton("I.Folder", "Browse", () =>
         {
+            if (!GoodieBag.Services.External.Allowed("folder dialog")) return;
             var dialog = new Microsoft.Win32.OpenFolderDialog { Title = s.Def.Label };
             if (!blank && Directory.Exists(s.Draft)) dialog.InitialDirectory = s.Draft;
             if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.FolderName)) set(dialog.FolderName);
@@ -1065,7 +1072,7 @@ internal sealed class IracingControllerSection : StackPanel
         }
         catch (Exception ex)
         {
-            _tab.Children.Add(new TextBlock { Text = "Backups couldn't be listed: " + ex.Message, Foreground = Ui.Res<Brush>("Danger"), TextWrapping = TextWrapping.Wrap });
+            _tab.Children.Add(Ui.DangerBanner("Backups couldn't be listed", ex.Message));
             return;
         }
 
@@ -1083,7 +1090,7 @@ internal sealed class IracingControllerSection : StackPanel
         foreach (var b in backups)
             list.Children.Add(BackupRow(b));
         _tab.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 6, 18, 6), Child = list });
-        var where = TextCase.Verbatim(new TextBlock { Text = "Kept in " + _ws.Store.Root, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 8, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        var where = TextCase.Verbatim(TextFit.TipWhenTrimmed(new TextBlock { Text = "Kept in " + _ws.Store.Root, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 8, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis }));
         _tab.Children.Add(where);
     }
 
@@ -1163,7 +1170,7 @@ internal sealed class IracingControllerSection : StackPanel
         }
         catch (Exception ex)
         {
-            list.Children.Add(new TextBlock { Text = ex.Message, Foreground = Ui.Res<Brush>("Danger") });
+            list.Children.Add(Ui.DangerBanner("The backup couldn't be compared with your files", ex.Message));
         }
         var close = new StackPanel();
         var ok = new Button { Content = "Close", Style = Ui.Res<Style>("PrimaryButton") };

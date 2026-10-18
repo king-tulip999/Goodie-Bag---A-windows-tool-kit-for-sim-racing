@@ -458,8 +458,8 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             : new FanSpinner(Ui.Res<Geometry>("I.Fan"), Ui.Res<Brush>("AccentText"), 34);
         left.Children.Add(new Tile { Width = 54, Height = 54, CornerRadius = ThemeManager.Round(14), Background = Ui.Res<Brush>(hw.IsPump ? "SlateSoft" : "AccentSoft"), Child = spinner, VerticalAlignment = VerticalAlignment.Center });
         var names = new StackPanel { Margin = new Thickness(16, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
-        names.Children.Add(new TextBlock { Text = _app.FanName(fan), Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis });
-        names.Children.Add(new TextBlock { Text = fan.Controllable ? Short(fan.Hardware) : "Read only", Style = Ui.Res<Style>("Caption"), FontSize = 13.5, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
+        names.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = _app.FanName(fan), Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis }));
+        names.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = fan.Controllable ? Short(fan.Hardware) : "Read only", Style = Ui.Res<Style>("Caption"), FontSize = 13.5, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap }));
         Grid.SetColumn(names, 1);
         left.Children.Add(names);
         var bar = new Meter { Tiered = !hw.IsPump, Fill = Ui.Res<Brush>("Slate"), Height = 12, VerticalAlignment = VerticalAlignment.Center };
@@ -593,7 +593,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         var toggleContent = new DockPanel();
         DockPanel.SetDock(toggleIcon, Dock.Left);
         toggleContent.Children.Add(toggleIcon);
-        toggleContent.Children.Add(new TextBlock { Text = summary, Margin = new Thickness(6, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        toggleContent.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = summary, Margin = new Thickness(6, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis }));
         toggle.Content = toggleContent;
         var drop = new Popup
         {
@@ -869,7 +869,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             {
                 Style = Ui.Res<Style>("NavItem"),
                 GroupName = "FanCurves",
-                Content = curve.Name,
+                Content = TextFit.TipWhenTrimmed(new TextBlock { Text = curve.Name, TextTrimming = TextTrimming.CharacterEllipsis }),
                 Tag = Ui.Res<Geometry>(curve.Type switch { FanCurveType.Flat => "I.Minus", FanCurveType.Mix => "I.Layers", _ => "I.Activity" }),
                 IsChecked = curve.Name == _selectedCurve,
             };
@@ -1065,11 +1065,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         string old = curve.Name;
         string? name = await _window.Prompt("Rename curve", "", old, n => ValidateCurveName(n, curve));
         if (name is null || name == old) return;
-        foreach (var e in Fans.Presets.SelectMany(p => p.Fans).Where(e => e.CurveName == old))
-            e.CurveName = name;
-        foreach (var mix in Fans.Curves)
-            for (int i = 0; i < mix.MixOf.Count; i++)
-                if (mix.MixOf[i] == old) mix.MixOf[i] = name;
+        ConfigReferences.FanCurve(_app.Config, old, name);
         curve.Name = name;
         _selectedCurve = name;
         _app.FanSettingsChanged();
@@ -1082,17 +1078,16 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
     {
         var curve = Fans.Curves.FirstOrDefault(c => c.Name == _selectedCurve);
         if (curve is null) return;
-        var mixes = Fans.Curves.Where(c => c != curve && c.Type == FanCurveType.Mix && c.MixOf.Contains(curve.Name)).Select(c => $"“{c.Name}”").ToList();
+        var mixes = Fans.Curves.Where(c => c != curve && c.Type == FanCurveType.Mix && c.MixOf.Contains(curve.Name, StringComparer.OrdinalIgnoreCase)).Select(c => $"“{c.Name}”").ToList();
         if (mixes.Count > 0)
         {
             _app.Notify($"“{curve.Name}” is part of a mix", $"Take it out of {string.Join(", ", mixes)} first, then delete it.", NoticeKind.Warning);
             return;
         }
-        var users = Fans.Presets.SelectMany(p => p.Fans).Where(e => e.CurveName == curve.Name && e.Mode == FanMode.Curve).ToList();
-        if (!await _window.Confirm($"Delete the “{curve.Name}” curve?", users.Count > 0 ? $"{users.Count} fan setting(s) use it and will go back to Auto." : "No fans use it.", "Delete", danger: true))
+        int users = Fans.Presets.SelectMany(p => p.Fans).Count(e => string.Equals(e.CurveName, curve.Name, StringComparison.OrdinalIgnoreCase) && e.Mode == FanMode.Curve);
+        if (!await _window.Confirm($"Delete the “{curve.Name}” curve?", users > 0 ? $"{GoodieBag.SimRacing.Race.RaceFormat.Count(users, "fan setting")} {(users == 1 ? "uses" : "use")} it and will go back to Auto." : "No fans use it.", "Delete", danger: true))
             return;
-        foreach (var e in users) { e.Mode = FanMode.Auto; e.CurveName = null; }
-        foreach (var mix in Fans.Curves) mix.MixOf.Remove(curve.Name);
+        ConfigReferences.FanCurve(_app.Config, curve.Name, null);
         Fans.Curves.Remove(curve);
         _selectedCurve = null;
         _app.FanSettingsChanged();
@@ -1184,7 +1179,9 @@ internal sealed class CalibrationDialog
         _hw = app.Config.Fans.HardwareFor(fan.ControlId);
 
         var stack = new StackPanel();
-        stack.Children.Add(Ui.Text($"Calibrate {app.FanName(fan)}", "H2"));
+        var title = Ui.Text($"Calibrate {app.FanName(fan)}", "H2");
+        title.TextWrapping = TextWrapping.Wrap;
+        stack.Children.Add(title);
         stack.Children.Add(_content);
         stack.Children.Add(_buttons);
         Card = new Tile
@@ -1395,7 +1392,7 @@ internal sealed class CalibrationDialog
             int? min = Parse(minPct, 0, 100);
             int? stop = string.IsNullOrWhiteSpace(stopPct.Text) ? null : Parse(stopPct, 0, 100);
             int? start = string.IsNullOrWhiteSpace(startPct.Text) ? null : Parse(startPct, 0, 100);
-            if (min is null || (!string.IsNullOrWhiteSpace(stopPct.Text) && stop is null) || (!string.IsNullOrWhiteSpace(startPct.Text) && start is null))
+            if (min is null || (!string.IsNullOrWhiteSpace(maxRpm.Text) && Parse(maxRpm, 0, 20000) is null) || (!string.IsNullOrWhiteSpace(stopPct.Text) && stop is null) || (!string.IsNullOrWhiteSpace(startPct.Text) && start is null))
             {
                 error.Text = "Use whole numbers: RPM 0–20000, percentages 0–100.";
                 error.Visibility = Visibility.Visible;
@@ -1461,7 +1458,7 @@ internal sealed class BatchCalibrationDialog
         _content.Children.Clear();
         _content.Children.Add(new TextBlock
         {
-            Text = $"{_fans.Count} fans report their speed. They're calibrated together, each on its own, in about a minute. Pumps never go below 60%.",
+            Text = $"{GoodieBag.SimRacing.Race.RaceFormat.Count(_fans.Count, "fan")} report their speed. They're calibrated together, each on its own, in about a minute. Pumps never go below 60%.",
             Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 10),
         });
         var list = new WrapPanel();
@@ -1512,7 +1509,7 @@ internal sealed class BatchCalibrationDialog
         var calibrator = new FanCalibrator(_app.Hardware, _app.Demo);
         string? stoppedBecause = null;
         var shares = new double[_fans.Count];
-        status.Text = $"{_fans.Count} fans at once. Keep the PC idle.";
+        status.Text = $"{GoodieBag.SimRacing.Race.RaceFormat.Count(_fans.Count, "fan")} at once. Keep the PC idle.";
 
         async Task One(int index)
         {
@@ -1557,7 +1554,7 @@ internal sealed class BatchCalibrationDialog
         _results.Sort((a, b) => _fans.IndexOf(a.Fan).CompareTo(_fans.IndexOf(b.Fan)));
 
         current.Text = stoppedBecause is null ? "Done" : "Stopped";
-        status.Text = stoppedBecause ?? $"{_results.Count} of {_fans.Count} fans calibrated.";
+        status.Text = stoppedBecause ?? $"{_results.Count} of {GoodieBag.SimRacing.Race.RaceFormat.Count(_fans.Count, "fan")} calibrated.";
         if (stoppedBecause is not null && stoppedBecause.StartsWith("Stopped for safety")) status.Foreground = Ui.Res<Brush>("Danger");
         Motion.To(bar, Meter.ValueProperty, 1, 400);
 
@@ -1576,7 +1573,7 @@ internal sealed class BatchCalibrationDialog
     private static (DockPanel Row, TextBlock Detail) Row(string name, string detail, string tone)
     {
         var row = new DockPanel { Margin = new Thickness(0, 3, 0, 3) };
-        var label = new TextBlock { Text = name, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, Width = 170, TextTrimming = TextTrimming.CharacterEllipsis };
+        var label = TextFit.TipWhenTrimmed(new TextBlock { Text = name, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, Width = 170, TextTrimming = TextTrimming.CharacterEllipsis });
         row.Children.Add(label);
         var text = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap };
         Tone(text, detail, tone);
@@ -1600,7 +1597,7 @@ internal sealed class BatchCalibrationDialog
                 hw.AllowStop = false;
         }
         _app.FanSettingsChanged();
-        _app.Notify("Calibrations saved", $"{_results.Count} fans calibrated.", NoticeKind.Success);
+        _app.Notify("Calibrations saved", $"{GoodieBag.SimRacing.Race.RaceFormat.Count(_results.Count, "fan")} calibrated.", NoticeKind.Success);
         _window.CloseModal(true);
     }
 }

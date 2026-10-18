@@ -24,7 +24,7 @@ internal static class ThemeMenu
 
     public static Button OverlayButton(Func<Pick> current, Action<Pick> picked, bool followApp, string? customLabel, double minWidth = 200)
     {
-        var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var text = TextFit.TipWhenTrimmed(new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         var row = new DockPanel { LastChildFill = true };
         var chevron = new Icon { Data = Ui.Res<Geometry>("I.ChevronDown"), Width = 12, Height = 12, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(chevron, Dock.Right);

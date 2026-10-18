@@ -192,7 +192,7 @@ internal sealed class SetupScreen : UserControl
             badge.VerticalAlignment = VerticalAlignment.Top;
             row.Children.Add(badge);
             var text = new StackPanel { Margin = new Thickness(11, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock { Text = plugin.Name, Style = Ui.Res<Style>("H3"), TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = plugin.Name, Style = Ui.Res<Style>("H3"), TextTrimming = TextTrimming.CharacterEllipsis }));
             text.Children.Add(new TextBlock { Text = plugin.Description, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
             Grid.SetColumn(text, 1);
             row.Children.Add(text);
@@ -289,6 +289,7 @@ internal sealed class SetupScreen : UserControl
 
     private async Task SetStartupAsync(bool on)
     {
+        if (_app.Demo) return;
         try
         {
             await Task.Run(() => StartupManager.SetEnabled(on));

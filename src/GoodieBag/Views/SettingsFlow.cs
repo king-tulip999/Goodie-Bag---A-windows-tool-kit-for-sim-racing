@@ -38,7 +38,7 @@ internal sealed class SettingsFlow : StackPanel
         return new Size(available.Width, Layout(available.Width));
     }
 
-    private double Layout(double width)
+    private double Layout(double width, bool measure = true)
     {
         _laidOutWidth = width;
         _places.Clear();
@@ -67,7 +67,7 @@ internal sealed class SettingsFlow : StackPanel
                 var line = run.Skip(r * cols).Take(cols).ToList();
                 foreach (var child in line)
                 {
-                    child.Measure(new Size(cell, double.PositiveInfinity));
+                    if (measure) child.Measure(new Size(cell, double.PositiveInfinity));
                     height = Math.Max(height, child.DesiredSize.Height);
                 }
                 for (int c = 0; c < line.Count; c++)
@@ -84,12 +84,12 @@ internal sealed class SettingsFlow : StackPanel
             if (child.Visibility == Visibility.Collapsed) continue;
             if (child is SettingDivider)
             {
-                child.Measure(new Size(0, 0));
+                if (measure) child.Measure(new Size(0, 0));
                 continue;
             }
             if (child is SettingRowGrid) { run.Add(child); continue; }
             Flush();
-            child.Measure(new Size(width, double.PositiveInfinity));
+            if (measure) child.Measure(new Size(width, double.PositiveInfinity));
             _places.Add((child, new Rect(0, y, width, child.DesiredSize.Height)));
             y += child.DesiredSize.Height;
         }
@@ -100,7 +100,7 @@ internal sealed class SettingsFlow : StackPanel
     protected override Size ArrangeOverride(Size final)
     {
         if (!_flowing) return base.ArrangeOverride(final);
-        if (Math.Abs(final.Width - _laidOutWidth) > 0.5) Layout(final.Width);
+        if (Math.Abs(final.Width - _laidOutWidth) > 0.5) Layout(final.Width, measure: false);
         foreach (UIElement child in InternalChildren)
             if (child is SettingDivider) child.Arrange(new Rect(0, 0, 0, 0));
         foreach (var (child, place) in _places)
@@ -112,10 +112,9 @@ internal sealed class SettingsFlow : StackPanel
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-        if (!_flowing) return;
+        if (!_flowing || TryFindResource("Line") is not Brush line) return;
         foreach (var (x, top, bottom) in _columnRules)
             Dividers.DrawVertical(dc, x, top, bottom);
-        if (TryFindResource("Line") is not Brush line) return;
         foreach (var rule in _rules)
             dc.DrawRectangle(line, null, rule);
     }

@@ -285,7 +285,7 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
         var badge = Ui.Badge(IconFor(device.Kind), SoftFor(device.Kind), DeepFor(device.Kind), 26, 8, 14);
         badge.Margin = new Thickness(6, 0, 10, 0);
         title.Children.Add(badge);
-        title.Children.Add(new TextBlock { Text = device.Name, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        title.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = device.Name, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }));
         if (device.Source != "LibreHardwareMonitor")
             title.Children.Add(new TextBlock { Text = "  " + device.Source, Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center });
         UIElement head = indent > 0 ? title : Row(title, Ui.Text("Value", "Eyebrow"), Ui.Text("Min", "Eyebrow"), Ui.Text("Max", "Eyebrow"), 0, header: true);
@@ -302,7 +302,7 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
                 var value = new TextBlock { FontWeight = FontWeights.SemiBold };
                 var min = new TextBlock { Foreground = Ui.Res<Brush>("TextMuted") };
                 var max = new TextBlock { Foreground = Ui.Res<Brush>("TextMuted") };
-                var row = Row(new TextBlock { Text = sensor.Name, TextTrimming = TextTrimming.CharacterEllipsis }, value, min, max, indent + 58);
+                var row = Row(TextFit.TipWhenTrimmed(new TextBlock { Text = sensor.Name, TextTrimming = TextTrimming.CharacterEllipsis }), value, min, max, indent + 58);
                 table.Children.Add(row);
                 children.Add(row);
                 _rows[sensor.Id] = (value, min, max, row, sensor.Name + " " + group.Key, topName + " " + device.Name);

@@ -15,8 +15,8 @@ internal static class Quotes
         var (data, starts) = All.Value;
         int count = starts.Length - 1;
         if (count <= 0) return null;
-        int i = Random.Shared.Next(count);
-        if (i == _last && count > 1) i = (i + 1 + Random.Shared.Next(count - 1)) % count;
+        int i = ScreenshotRunner.Active ? 0 : Random.Shared.Next(count);
+        if (i == _last && count > 1 && !ScreenshotRunner.Active) i = (i + 1 + Random.Shared.Next(count - 1)) % count;
         _last = i;
         var line = System.Text.Encoding.UTF8.GetString(data, starts[i], starts[i + 1] - starts[i]).TrimEnd('\r', '\n');
         int tab = line.IndexOf('\t');

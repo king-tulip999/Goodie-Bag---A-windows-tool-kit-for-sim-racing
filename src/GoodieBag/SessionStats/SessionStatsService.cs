@@ -413,7 +413,7 @@ internal sealed class SessionStatsService : IDisposable
         finally { Foreground(); }
     }
 
-    private static List<(SessionRow Row, List<LapRow> Laps)>? ReadFile(string path, bool traces, CancellationToken cancel)
+    internal static List<(SessionRow Row, List<LapRow> Laps)>? ReadFile(string path, bool traces, CancellationToken cancel)
     {
         using var ibt = IbtFile.Open(path, out var error);
         if (ibt is null) throw new InvalidDataException(error ?? "not a telemetry file");

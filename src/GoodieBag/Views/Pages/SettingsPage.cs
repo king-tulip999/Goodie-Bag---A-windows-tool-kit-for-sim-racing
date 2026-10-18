@@ -530,6 +530,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
     private void OpenLogs()
     {
+        if (!GoodieBag.Services.External.Allowed("open the log folder")) return;
         try
         {
             if (File.Exists(DiagnosticReport.LogPath))
@@ -545,6 +546,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
     private async Task ExportReportAsync()
     {
+        if (!GoodieBag.Services.External.Allowed("save dialog")) return;
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Title = "Export diagnostic report",
@@ -614,7 +616,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
         var folder = Ui.LabeledButton("I.Folder", "Open folder", () => OpenFolder(ConfigStore.Folder));
         folder.ToolTip = TextCase.VerbatimTip(ConfigStore.Folder);
-        var fileRow = Ui.SettingRow("Settings file", @"%APPDATA%\GoodieBag\config.json, next to error.log, backups made by Reset and Import, and iRacing backups.", folder);
+        var fileRow = Ui.SettingRow("Settings file", "Your settings, the error log, backups made by Reset and Import, and iRacing backups, all in one folder.", folder);
         Ui.Anchor(fileRow, "settings.folder");
         section.Children.Add(fileRow);
         section.Children.Add(Ui.Divider());
@@ -628,6 +630,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             _app.Notify("Demo mode", "Demo data isn't exported.", NoticeKind.Info);
             return;
         }
+        if (!GoodieBag.Services.External.Allowed("save dialog")) return;
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Title = "Export settings",
@@ -649,6 +652,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
     private async Task ImportSettingsAsync()
     {
+        if (!GoodieBag.Services.External.Allowed("open dialog")) return;
         var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Import settings", Filter = "Goodie Bag settings (*.json)|*.json|All files (*.*)|*.*", CheckFileExists = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true)
             return;
@@ -837,7 +841,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         var catalog = hw.Catalog;
         access.Children.Add(StatusRow("Sensors", hw.OpenError is null,
             hw.OpenError ?? (!hw.Running ? "Idle: no plugin or open page needs them right now."
-                : $"{catalog?.Temperatures.Count ?? 0} temperature sensors and {catalog?.Fans.Count ?? 0} fans detected.")));
+                : $"{GoodieBag.SimRacing.Race.RaceFormat.Count(catalog?.Temperatures.Count ?? 0, "temperature sensor")} and {GoodieBag.SimRacing.Race.RaceFormat.Count(catalog?.Fans.Count ?? 0, "fan")} detected.")));
     }
 
     private FrameworkElement Explainer()
@@ -1206,6 +1210,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
 
     private static void OpenFolder(string folder)
     {
+        if (!GoodieBag.Services.External.Allowed("open " + folder)) return;
         try
         {
             Directory.CreateDirectory(folder);

@@ -72,13 +72,13 @@ internal static class SiteIcons
         try
         {
             var html = await Http.GetStringAsync(site);
-            foreach (Match link in Regex.Matches(html, @"<link\b[^>]*>", RegexOptions.IgnoreCase))
+            foreach (Match link in Regex.Matches(html, @"<link\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
             {
                 var tag = link.Value;
-                if (!Regex.IsMatch(tag, @"rel\s*=\s*[""'][^""']*icon", RegexOptions.IgnoreCase)) continue;
-                var href = Regex.Match(tag, @"href\s*=\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+                if (!Regex.IsMatch(tag, @"rel\s*=\s*[""'][^""']*icon", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) continue;
+                var href = Regex.Match(tag, @"href\s*=\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
                 if (!href.Success || href.Groups[1].Value.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)) continue;
-                var size = Regex.Match(tag, @"sizes\s*=\s*[""'](\d+)", RegexOptions.IgnoreCase);
+                var size = Regex.Match(tag, @"sizes\s*=\s*[""'](\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
                 list.Add(new Uri(site, System.Net.WebUtility.HtmlDecode(href.Groups[1].Value)));
                 if (size.Success && int.TryParse(size.Groups[1].Value, out int px) && px >= 64) list.Insert(0, list[^1]);
             }

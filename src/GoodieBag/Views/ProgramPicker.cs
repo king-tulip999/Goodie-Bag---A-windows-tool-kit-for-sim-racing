@@ -53,7 +53,7 @@ internal static class ProgramPicker
             foreach (var p in programs.Where(p => f.Length == 0 || p.Name.Contains(f, StringComparison.OrdinalIgnoreCase) || p.Process.Contains(f, StringComparison.OrdinalIgnoreCase)).Take(60))
             {
                 var row = new StackPanel();
-                row.Children.Add(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis }));
                 row.Children.Add(TextCase.Verbatim(new TextBlock { Text = p.Process + ".exe", Style = Ui.Res<Style>("Caption") }));
                 var b = new Button { Style = Ui.Res<Style>("QuietButton"), Content = row, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 6, 10, 6) };
                 var chosen = p;
@@ -115,6 +115,7 @@ internal static class ProgramPicker
 
     public static string? BrowseExe(string filter = "Programs (*.exe)|*.exe|Shortcuts and scripts (*.lnk;*.bat;*.cmd;*.ps1)|*.lnk;*.bat;*.cmd;*.ps1|All files (*.*)|*.*")
     {
+        if (!GoodieBag.Services.External.Allowed("open dialog")) return null;
         var dialog = new Microsoft.Win32.OpenFileDialog { Filter = filter, CheckFileExists = true };
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }

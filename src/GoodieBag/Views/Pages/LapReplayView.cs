@@ -1153,7 +1153,7 @@ internal static class CarShape
     {
         foreach (var (words, length, width) in Sizes)
             foreach (var word in words)
-                if (System.Text.RegularExpressions.Regex.IsMatch(car, $"(?<![a-z0-9]){System.Text.RegularExpressions.Regex.Escape(word)}(?![a-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return (length, width);
+                if (System.Text.RegularExpressions.Regex.IsMatch(car, $"(?<![a-z0-9]){System.Text.RegularExpressions.Regex.Escape(word)}(?![a-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)) return (length, width);
         return Default;
     }
 
@@ -1261,8 +1261,8 @@ internal sealed class ReplayCard : Tile
 
         var swatch = new Border { Width = 4, Margin = new Thickness(0, 0, 10, 0) };
         swatch.SetResourceReference(Border.BackgroundProperty, car.Line.BrushKey);
-        var name = new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Driver : car.Line.Short, Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
-        var sub = new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Short : "", Style = Ui.Res<Style>("Caption"), FontSize = 12, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+        var name = TextFit.TipWhenTrimmed(new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Driver : car.Line.Short, Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis });
+        var sub = TextFit.TipWhenTrimmed(new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Short : "", Style = Ui.Res<Style>("Caption"), FontSize = 12, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis });
         if (car.Line.Reference) sub.Text = sub.Text.Length > 0 ? sub.Text + " · reference" : "Reference";
         sub.ToolTip = sub.Text;
         var time = new TextBlock { Text = StatFormat.LapTime(car.Trace.LapTime), Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Top };

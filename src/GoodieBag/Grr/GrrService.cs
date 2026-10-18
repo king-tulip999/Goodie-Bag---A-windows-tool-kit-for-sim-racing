@@ -54,8 +54,11 @@ internal sealed class GrrService
     private bool Stale => GrrLeagues.All.Any(l => IsStale(l.Id, DateTime.Now));
 
     private bool IsStale(string league, DateTime now) =>
-        now - (FetchedAt(league) ?? DateTime.MinValue) >= RefreshEvery
-        && (!_failed.TryGetValue(league, out var f) || now - f.At >= RetryAfter(f.Count));
+        IsStale(FetchedAt(league), _failed.TryGetValue(league, out var f) ? f : null, now);
+
+    internal static bool IsStale(DateTime? fetched, (DateTime At, int Count)? failed, DateTime now) =>
+        now - (fetched ?? DateTime.MinValue) >= RefreshEvery
+        && (failed is not { } f || now - f.At >= RetryAfter(f.Count));
 
     public static TimeSpan RetryAfter(int failures) =>
         TimeSpan.FromMinutes(Math.Min(RefreshEvery.TotalMinutes, 15 * Math.Pow(2, Math.Clamp(failures - 1, 0, 10))));

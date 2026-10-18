@@ -394,7 +394,7 @@ internal sealed class RaceState
         if (lap.Clean && !lap.Caution && LapMath.Stats(Laps.Laps.Take(Math.Max(0, Laps.Laps.Count - 1)).ToList(), 5) is { Count: >= 3 } stats)
         {
             double pct = (lap.Time / stats.Average - 1) * 100;
-            if (pct > Alerts.Threshold("pace.drop")) Alerts.Fire("pace.drop", Now, "Pace dropping", $"{RaceFormat.LapTime(lap.Time)} · +{pct:0.0} % on your average");
+            if (pct > Alerts.Threshold("pace.drop")) Alerts.Fire("pace.drop", Now, "Pace dropping", $"{RaceFormat.LapTime(lap.Time)} · +{pct:0.0}% on your average");
         }
     }
 

@@ -60,7 +60,7 @@ internal sealed class CustomThemeSection : StackPanel
         {
             string v = name.Text.Trim();
             if (v == (C.Name ?? "")) return;
-            if (C.Profile(C.EditingProfile) is { } editing && v.Length > 0 && C.Profile(v) is null)
+            if (C.Profile(C.EditingProfile) is { } editing && v.Length > 0 && (C.Profile(v) is null || C.Profile(v) == editing))
             {
                 ConfigReferences.ColorSet(_app.Config, editing.Name, v);
                 editing.Name = v;

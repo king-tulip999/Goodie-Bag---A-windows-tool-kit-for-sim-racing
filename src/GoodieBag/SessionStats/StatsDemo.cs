@@ -26,7 +26,7 @@ internal static class StatsDemo
         var now = DateTime.UtcNow;
         int ir = 2140;
         double sr = 3.12;
-        var starts = Enumerable.Range(0, 90).Select(_ => now.AddDays(-rnd.Next(0, 150)).Date.AddHours(rnd.Next(16, 23)).AddMinutes(rnd.Next(0, 60))).OrderBy(t => t).ToList();
+        var starts = Enumerable.Range(0, Services.DemoData.Stress ? 900 : 90).Select(_ => now.AddDays(-rnd.Next(0, 150)).Date.AddHours(rnd.Next(16, 23)).AddMinutes(rnd.Next(0, 60))).OrderBy(t => t).ToList();
         foreach (var start in starts)
         {
             var car = Cars[rnd.Next(Cars.Length)];
