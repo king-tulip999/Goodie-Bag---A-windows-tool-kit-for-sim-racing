@@ -513,7 +513,7 @@ internal static class ScreenshotRunner
     private static async Task LintSizesAsync(MainWindow window, IReadOnlyList<string> pages)
     {
         var size = (window.Width, window.Height);
-        foreach (var (w, h) in new[] { (960.0, 600.0), (2560.0, 1440.0) })
+        foreach (var (w, h) in new[] { (960.0, 600.0), (1600.0, 1000.0), (2560.0, 1440.0) })
         {
             if ((w, h) == size) continue;
             window.Width = w;

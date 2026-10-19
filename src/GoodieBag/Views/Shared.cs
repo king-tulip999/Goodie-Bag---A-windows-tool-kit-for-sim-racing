@@ -782,7 +782,8 @@ internal static class Ui
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var text = new StackPanel { Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = title, Style = Res<Style>("Body"), FontWeight = FontWeights.SemiBold });
+        var heading = new TextBlock { Text = title, Style = Res<Style>("Body"), FontWeight = FontWeights.SemiBold };
+        text.Children.Add(heading);
         if (description is not null)
             text.Children.Add(new TextBlock { Text = description, Style = Res<Style>("Caption"), Margin = new Thickness(0, 2, 0, 0) });
         grid.Children.Add(text);
@@ -799,7 +800,9 @@ internal static class Ui
             fe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             bool titleOnly = text.Children.Count == 1;
-            bool stack = grid.ActualWidth - fe.DesiredSize.Width - 18 < Math.Min(text.DesiredSize.Width - text.Margin.Right, titleOnly ? 100 : SettingTextMin);
+            double room = grid.ActualWidth - fe.DesiredSize.Width - 18;
+            double needed = Math.Max(Math.Min(text.DesiredSize.Width - text.Margin.Right, titleOnly ? 100 : SettingTextMin), LongestWord(heading) + 2);
+            bool stack = room < needed;
             if (stack == stacked) return;
             stacked = stack;
             Grid.SetRow(fe, stack ? 1 : 0);
@@ -810,7 +813,16 @@ internal static class Ui
         }
         grid.SizeChanged += (_, _) => Fit();
         fe.SizeChanged += (_, _) => Fit();
+        text.SizeChanged += (_, _) => Fit();
         return grid;
+    }
+
+    private static double LongestWord(TextBlock tb)
+    {
+        double longest = 0;
+        foreach (var word in tb.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            longest = Math.Max(longest, TextFit.Width(tb, word));
+        return longest;
     }
 
     public static Border Divider() => new SettingDivider { Height = 1, Background = Res<Brush>("Line"), Margin = new Thickness(0, 2, 0, 2) };
