@@ -85,7 +85,7 @@ internal static class ShowcaseRunner
             _start = Clock.Elapsed.TotalSeconds;
 
             await Home();
-            await Modes();
+            await WindowProfiles();
             await Fans();
             await SimRacing();
             await Displays();
@@ -145,37 +145,25 @@ internal static class ShowcaseRunner
         }
     }
 
-    private static async Task Modes()
+    private static async Task WindowProfiles()
     {
-        var page = await Open("Automations and Modes", "modes", "Switch modes", "Automations and Modes");
+        var page = await Open("Window Profiles", "windows", "Window profiles", "Window Profiles");
         if (page is null) return;
-        FrameworkElement? Card(string name) => Find.RowOf(page, name, e => e is Tile && Find.Shown<Button>(e).Any(b => Find.Is(Find.TextOf(b), "Edit")));
-        if (Card("Sim Racing") is { } card && Find.Button<Button>(card, t => Find.Is(t, "Apply")) is { } apply)
+        if (Find.RowOf(page, "RaceRoom on triples", e => e is Tile && Find.Shown<Button>(e).Any(b => Find.Is(Find.TextOf(b), "Edit"))) is not { } card
+            || Find.Button<Button>(card, t => Find.Is(t, "Edit")) is not { } edit)
         {
-            await ClickOn(apply);
-            await Stage.Rendered();
-            await Task.Delay(1000);
-        }
-        else Skip("modes: Apply on Sim Racing");
-        _onLeave = () => W.Services.SetOverlayVisible(false);
-
-        if (Card("Sim Racing") is not { } rebuilt || Find.Button<Button>(rebuilt, t => Find.Is(t, "Edit")) is not { } edit)
-        {
-            Skip("modes: Edit on Sim Racing");
+            Skip("windows: Edit on RaceRoom on triples");
             return;
         }
-        S.Caption("Triggers and changes", "Automations and Modes");
+        S.Caption("Size, spot and presets", "Window Profiles");
         await ClickOn(edit);
         await Stage.Rendered();
-        await Task.Delay(800);
+        await Task.Delay(1400);
         if (Find.Shown<Button>(W).LastOrDefault(b => Find.Is(Find.TextOf(b), "Cancel")) is not { } cancel)
         {
-            Skip("modes: editor Cancel");
+            Skip("windows: editor Cancel");
             return;
         }
-        if (Ancestor<Tile>(cancel) is { } dialog && Find.Shown<ScrollViewer>(dialog).FirstOrDefault(v => v.ScrollableHeight > 0) is { } body)
-            await ScrollTo(body, Math.Min(body.ScrollableHeight, body.ViewportHeight * 0.55), 750);
-        await Task.Delay(500);
         await ClickOn(cancel);
         await Task.Delay(300);
     }
@@ -475,8 +463,7 @@ internal static class ShowcaseRunner
         look.FontScale = 180;
         look.BackgroundOpacity = 88;
         W.Services.OverlaySettingsChanged();
-        W.Services.Modes.MarkApplied("Desk");
-        foreach (var key in new[] { "modes", "fans", "simracing", "stats", "displays", "monitor" })
+        foreach (var key in new[] { "windows", "fans", "simracing", "stats", "displays", "monitor" })
         {
             W.Navigate(key);
             await Stage.Rendered();

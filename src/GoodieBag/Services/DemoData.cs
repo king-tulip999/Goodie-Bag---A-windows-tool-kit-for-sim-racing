@@ -6,8 +6,6 @@ internal static class DemoData
 {
     private const string Triple = "demo:demo-left,-2560,0,2560,1440,165,0;demo-center,0,0,2560,1440,165,0;demo-right,2560,0,2560,1440,165,0";
     private const string Single = "demo:demo-center,0,0,2560,1440,165,0";
-    private const string SimPath = @"C:\Program Files (x86)\iRacing\iRacingSim64DX11.exe";
-    private const string SimHubPath = @"C:\Program Files (x86)\SimHub\SimHubWPF.exe";
     private const string Stream = "demo:demo-center,0,0,2560,1440,144,0;demo-tv,2560,0,3840,2160,60,0";
 
     public static bool Stress { get; } = Environment.GetCommandLineArgs().Contains("--stress", StringComparer.OrdinalIgnoreCase);
@@ -25,22 +23,18 @@ internal static class DemoData
     private static void Lengthen(AppConfig config)
     {
         int n = 0;
-        foreach (var m in config.Modes)
-        {
-            string to = Long(m.Name, ++n);
-            ConfigReferences.Mode(config, m.Name, to);
-            m.Name = to;
-        }
+        foreach (var p in config.WindowProfiles.Profiles)
+            p.Name = Long(p.Name, ++n);
+        foreach (var g in config.WindowProfiles.Groups)
+            g.Name = Long(g.Name, ++n);
         foreach (var p in config.Displays.Profiles)
         {
             string to = Long(p.Name, ++n);
-            ConfigReferences.DisplayProfile(config, p.Name, to);
             p.Name = to;
         }
         foreach (var p in config.Fans.Presets)
         {
             string to = Long(p.Name, ++n);
-            ConfigReferences.FanPreset(config, p.Name, to);
             if (string.Equals(config.Fans.ActivePreset, p.Name, StringComparison.OrdinalIgnoreCase)) config.Fans.ActivePreset = to;
             p.Name = to;
         }
@@ -53,7 +47,6 @@ internal static class DemoData
         foreach (var l in config.Overlay.Layouts)
         {
             string to = Long(l.Name, ++n);
-            ConfigReferences.OverlayLayout(config, l.Name, to);
             if (string.Equals(config.Overlay.ActiveLayout, l.Name, StringComparison.OrdinalIgnoreCase)) config.Overlay.ActiveLayout = to;
             l.Name = to;
         }
@@ -77,58 +70,16 @@ internal static class DemoData
                     new FovSetup { Name = "32\" upgrade idea", Centre = new FovScreen { DiagonalIn = 32 }, DistanceCm = 80 },
                 },
             },
-            Modes =
+            WindowProfiles = new WindowProfileSettings
             {
-                new Mode
+                Groups = { new WindowGroup { Id = "demo-rig", Name = "Rig screens", Hotkey = "Ctrl+Alt+W" } },
+                Profiles =
                 {
-                    Name = "Sim Racing", Hotkey = "Ctrl+Alt+3", Overlay = OverlayMode.Show, FanPreset = "Race",
-                    DisplayProfile = "Triples",
-                    Windows =
-                    {
-                        new WindowRule { Name = "RaceRoom on triples", ProcessName = "RRRE64.exe", DelayMs = 4000, Width = 7680, Height = 1440, X = -2560, Y = 0, RemoveBorders = true },
-                        new WindowRule { Name = "Forza Horizon 4", ProcessName = "ForzaHorizon4.exe", DelayMs = 8000, Width = 7680, Height = 1440, X = -2560, Y = 0, RemoveBorders = true, HideTitleBar = true },
-                        new WindowRule { Name = "SimHub dash", ProcessName = "SimHubWPF.exe", Width = 1280, Height = 480, X = 2560, Y = 960 },
-                    },
-                    Audio = new AudioSnapshot { PlaybackId = "demo-headset", PlaybackName = "Headset (Arctis Nova Pro)", RecordingId = "demo-mic", RecordingName = "Microphone (Arctis Nova Pro)" },
-                    Program = new ModeProgram { Path = SimPath },
-                    Launch = { new LaunchItem { Path = SimHubPath }, new LaunchItem { Path = @"C:\Program Files (x86)\Britton IT Ltd\CrewChiefV4\CrewChiefV4.exe" } },
-                    CloseLaunchedOnExit = true,
-                    Priority = AutoPriority.High,
-                    Triggers = { new AutomationRule { Trigger = TriggerType.WhileRunning, App = "iracingsim64dx11", Name = "iRacing", CooldownSeconds = 0 } },
-                },
-                new Mode
-                {
-                    Name = "Desk", Hotkey = "Ctrl+Alt+1", Overlay = OverlayMode.Hide, FanPreset = "Quiet",
-                    DisplayProfile = "Desk",
-                    Windows = { new WindowRule { Name = "Crew Chief bottom left", ProcessName = "CrewChiefV4.exe", X = 0, Y = 1000 } },
-                    Audio = new AudioSnapshot { PlaybackId = "demo-speakers", PlaybackName = "Speakers (Realtek Audio)", RecordingId = "demo-mic2", RecordingName = "Microphone (Shure MV7)" },
-                    Triggers = { new AutomationRule { Trigger = TriggerType.WindowsStartup, CooldownSeconds = 0 } },
-                },
-                new Mode
-                {
-                    Name = "Forza Horizon 5", Overlay = OverlayMode.Show, FanPreset = "Quiet", DisplayProfile = "Desk",
-                    Program = new ModeProgram { Path = "steam://rungameid/1551360", ProcessName = "forzahorizon5" },
-                    Triggers = { new AutomationRule { Trigger = TriggerType.WhileRunning, App = "forzahorizon5", Name = "Forza Horizon 5", CooldownSeconds = 0 } },
-                },
-                new Mode
-                {
-                    Name = "Streaming", DisplayProfile = "Desk + TV",
-                    Triggers = { new AutomationRule { Trigger = TriggerType.WhileRunning, App = "obs64", Name = "OBS Studio", CooldownSeconds = 0, Enabled = false } },
-                },
-                new Mode
-                {
-                    Name = "League night", OneOff = true, Launch = { new LaunchItem { Path = SimHubPath } }, Message = "League race at 20:00: practice is open.",
-                    Triggers = { new AutomationRule { Trigger = TriggerType.Weekly, Days = { DayOfWeek.Tuesday }, AtMinute = 19 * 60 + 15, OnlyIfRunning = "steam" } },
-                },
-                new Mode
-                {
-                    Name = "Cool the GPU down", OneOff = true, FanPreset = "Race",
-                    Triggers = { new AutomationRule { Trigger = TriggerType.GpuTempAbove, Threshold = 85 } },
-                },
-                new Mode
-                {
-                    Name = "Quiet when away", OneOff = true, FanPreset = "Quiet", Overlay = OverlayMode.Hide,
-                    Triggers = { new AutomationRule { Trigger = TriggerType.Idle, Threshold = 15 } },
+                    new WindowProfile { Name = "RaceRoom on triples", ProcessName = "RRRE64.exe", DelayMs = 4000, Width = 7680, Height = 1440, X = -2560, Y = 0, RemoveBorders = true, Hotkey = "Ctrl+Alt+3" },
+                    new WindowProfile { Name = "Forza Horizon 4", ProcessName = "ForzaHorizon4.exe", DelayMs = 8000, Width = 7680, Height = 1440, X = -2560, Y = 0, RemoveBorders = true, HideTitleBar = true },
+                    new WindowProfile { Name = "SimHub dash", ProcessName = "SimHubWPF.exe", Width = 1280, Height = 480, X = 2560, Y = 960, GroupId = "demo-rig" },
+                    new WindowProfile { Name = "Crew Chief", ProcessName = "CrewChiefV4.exe", X = 2560, Y = 0, GroupId = "demo-rig" },
+                    new WindowProfile { Name = "Assetto Corsa 1080p", ProcessName = "acs.exe", Auto = false, Width = 1920, Height = 1080, X = 320, Y = 180 },
                 },
             },
             Overlay = new OverlaySettings { Visible = true, Corner = OverlayCorner.TopLeft },
@@ -147,6 +98,7 @@ internal static class DemoData
             },
         };
         config.Overlay.Normalize();
+        config.WindowProfiles.Normalize();
 
         var fans = config.Fans;
         fans.Enabled = true;

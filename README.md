@@ -8,11 +8,12 @@ I got sick of switching monitors, audio, fan curves and overlays by hand every t
 
 Every feature is a plugin you can switch off, and when one's off it runs nothing in the background. There are themes (Light, Dark, OLED Pastel, or your own colors), and `Ctrl+F` searches every setting and keybind in the app.
 
-### Automations and Modes
+### Window Profiles
 
-A mode is a whole PC setup: display profile, audio devices, fan preset, overlay, window positions, programs to start or close. Apply one with a click or a keybind, or let it switch on its own when a game starts, on a schedule, when the PC is idle or when it gets hot. Give a mode a game and it becomes a one-click launcher: it sets everything up, starts your helper apps, then the game, and puts things back when you quit.
+Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once. Scripts and a Stream Deck can apply them too, through Goodie Bag's command pipe.
 
-<p align="center"><img src="screenshots/automations-and-modes.png" alt="Automations and Modes" width="100%"></p>
+<p align="center"><img src="screenshots/window-profiles.png" alt="Window Profiles" width="100%"></p>
+<p align="center"><img src="screenshots/window-profile-editor.png" alt="Window profile editor" width="60%"></p>
 
 ### Displays
 
@@ -134,7 +135,7 @@ Goodie Bag is built on these, each under its own licence:
 Inspired by (no code or assets from these are used):
 
 - [Fan Control](https://github.com/Rem0o/FanControl.Releases) by Rem0o: the Fan Control page
-- [Resize Raccoon](https://github.com/mistenkt/resize-raccoon) by mistenkt: Automations and Modes
+- [Resize Raccoon](https://github.com/mistenkt/resize-raccoon) by mistenkt and its fork [Resize Rabbit](https://github.com/rosscarlson/resize-rabbit) by rosscarlson: Window Profiles
 
 Thanks to the [GRR League](https://www.grassrootsracing.org) for letting the GRR plugin use its site data and logo.
 

@@ -198,7 +198,15 @@ public partial class App : Application
         }
 
         if (!demo)
+        {
             SingleInstance.Listen(() => Dispatcher.BeginInvoke(new Action(() => window.ShowFromTray(null))));
+            var services = _services;
+            CommandPipe.Start(name => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!services.WindowProfiles.ApplyNamed(name))
+                    services.Notify("No window profile to apply", $"A script asked for “{name}”, which isn't a window profile or group (or Window Profiles is off).", NoticeKind.Warning);
+            })));
+        }
 
         if (warning is not null)
             _services.Notify("Settings reset", warning, NoticeKind.Warning, important: true);
@@ -272,6 +280,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        CommandPipe.Stop();
         _services?.Dispose();
         SingleInstance.Release();
         base.OnExit(e);

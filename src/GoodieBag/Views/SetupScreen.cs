@@ -181,8 +181,10 @@ internal sealed class SetupScreen : UserControl
         var panel = new StackPanel();
         var list = new StackPanel();
         var switches = new List<CheckBox>();
+        var overlay = _app.Plugins.Find(PluginIds.Overlay);
         foreach (var plugin in PluginManager.InNavOrder(_app.Plugins.All, _app.Config.Ui.NavOrder))
         {
+            if (plugin.Id == PluginIds.Overlay) continue;
             var (soft, deep) = plugin.Colors;
             var row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -202,7 +204,31 @@ internal sealed class SetupScreen : UserControl
             Grid.SetColumn(toggle, 2);
             row.Children.Add(toggle);
             switches.Add(toggle);
-            list.Children.Add(new Border { Style = Ui.Res<Style>("Inset"), Padding = new Thickness(11, 9, 11, 9), Margin = new Thickness(0, 0, 0, 8), Child = row });
+            FrameworkElement body = row;
+            if (plugin.Id == PluginIds.HardwareMonitor && overlay is not null)
+            {
+                var both = new StackPanel();
+                both.Children.Add(row);
+                var sub = new Grid { Margin = new Thickness(41, 9, 0, 0) };
+                sub.ColumnDefinitions.Add(new ColumnDefinition());
+                sub.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var subText = new StackPanel { Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+                subText.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = overlay.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis }));
+                subText.Children.Add(new TextBlock { Text = "FPS, temperatures, load and fan speeds drawn on top of your game, toggled with a keybind.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+                sub.Children.Add(subText);
+                var subToggle = Ui.Switch(_app.Plugins.IsEnabled(overlay), on => _app.Plugins.SetEnabled(overlay, on));
+                subToggle.VerticalAlignment = VerticalAlignment.Center;
+                System.Windows.Automation.AutomationProperties.SetName(subToggle, overlay.Name);
+                Grid.SetColumn(subToggle, 1);
+                sub.Children.Add(subToggle);
+                switches.Add(subToggle);
+                var rule = new Border { BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(41, 9, 0, 0) };
+                rule.SetResourceReference(Border.BorderBrushProperty, "Line");
+                both.Children.Add(rule);
+                both.Children.Add(sub);
+                body = both;
+            }
+            list.Children.Add(new Border { Style = Ui.Res<Style>("Inset"), Padding = new Thickness(11, 9, 11, 9), Margin = new Thickness(0, 0, 0, 8), Child = body });
         }
         panel.Children.Add(list);
 

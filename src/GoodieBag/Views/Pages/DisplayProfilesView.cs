@@ -35,7 +35,7 @@ internal sealed class DisplayProfilesView : Tile
         Grid.SetColumn(save, 1);
         head.Children.Add(save);
         stack.Children.Add(head);
-        var caption = Ui.Text("Saved setups like “Desk” and “Sim rig”: which displays are on, arrangement, resolution, refresh rate, main display, HDR, taskbar, wallpapers and audio devices. Give each a keybind to switch between them, or let a mode pick one.", "Caption");
+        var caption = Ui.Text("Saved setups like “Desk” and “Sim rig”: which displays are on, arrangement, resolution, refresh rate, main display, HDR, taskbar, wallpapers and audio devices. Give each a keybind to switch between them.", "Caption");
         caption.Margin = new Thickness(0, 6, 0, 0);
         stack.Children.Add(caption);
         stack.Children.Add(_grid);
@@ -92,7 +92,7 @@ internal sealed class DisplayProfilesView : Tile
         else
         {
             var preview = new MonitorLayoutView { Height = 110 };
-            preview.SetTiles(ModeLayout.Tiles(_app, profile.Layout));
+            preview.SetTiles(ProfileLayout.Tiles(_app, profile.Layout));
             previewBox.Child = preview;
         }
         stack.Children.Add(previewBox);
@@ -103,8 +103,6 @@ internal sealed class DisplayProfilesView : Tile
         if (profile.Wallpapers.Count > 0) chips.Children.Add(Ui.Chip(profile.Wallpapers.Count == 1 ? "1 wallpaper" : $"{profile.Wallpapers.Count} wallpapers"));
         if (profile.Audio?.PlaybackName is { } speakers) chips.Children.Add(Ui.Chip("Audio: " + speakers));
         if (profile.Volume is { } vol) chips.Children.Add(Ui.Chip($"Volume {vol}%"));
-        var users = _app.DisplayProfiles.UsedBy(profile);
-        if (users.Count > 0) chips.Children.Add(Ui.Chip("Used by " + GoodieBag.Display.DisplayProfileService.UsersText(users),"AccentSoft", "AccentText"));
         if (chips.Children.Count > 0)
             stack.Children.Add(chips);
 
@@ -168,8 +166,7 @@ internal sealed class DisplayProfilesView : Tile
 
     private async Task DeleteAsync(DisplayProfile profile)
     {
-        var users = _app.DisplayProfiles.UsedBy(profile);
-        string message = users.Count == 0 ? "This can't be undone." : $"It's used by {GoodieBag.Display.DisplayProfileService.UsersText(users)}, which will leave displays alone instead.";
+        string message = "This can't be undone.";
         if (!await _window.Confirm($"Delete “{profile.Name}”?", message, "Delete", danger: true))
             return;
         _app.DisplayProfiles.Remove(profile);
@@ -225,7 +222,7 @@ internal sealed class DisplayProfileEditor
         _hdr = profile.Hdr;
         _taskbar = profile.Taskbar;
         _layoutChoice = profile.Layout is null ? 2 : 0;
-        try { _current = isNew ? profile.Layout : app.Displays.CaptureForMode(); } catch { _current = null; }
+        try { _current = isNew ? profile.Layout : app.Displays.CaptureLayout(); } catch { _current = null; }
 
         var stack = new StackPanel();
         stack.Children.Add(Ui.FieldRow("Name", _name, LabelWidth));
@@ -245,14 +242,14 @@ internal sealed class DisplayProfileEditor
         stack.Children.Add(Ui.EditorSection("Audio"));
         stack.Children.Add(new TextBlock { Text = "The devices to switch to with this profile, e.g. headphones at the desk and the rig's speakers on the triples. Saving the current setup fills these in.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
         _volume = profile.Volume;
-        ModeEditor.FillAudio(app, _playback, EDataFlow.Render, profile.Audio?.PlaybackId, profile.Audio?.PlaybackName);
-        ModeEditor.FillAudio(app, _recording, EDataFlow.Capture, profile.Audio?.RecordingId, profile.Audio?.RecordingName);
+        AudioPicker.Fill(app, _playback, EDataFlow.Render, profile.Audio?.PlaybackId, profile.Audio?.PlaybackName);
+        AudioPicker.Fill(app, _recording, EDataFlow.Capture, profile.Audio?.RecordingId, profile.Audio?.RecordingName);
         stack.Children.Add(Ui.FieldRow("Speakers / headset", _playback, LabelWidth));
         stack.Children.Add(Ui.FieldRow("Microphone", _recording, LabelWidth));
         _comms.IsChecked = profile.Audio?.SetCommunications ?? true;
         _comms.Margin = new Thickness(LabelWidth, 4, 0, 4);
         stack.Children.Add(_comms);
-        stack.Children.Add(Ui.FieldRow("Volume", ModeEditor.VolumeControl(_volume, v => _volume = v), LabelWidth));
+        stack.Children.Add(Ui.FieldRow("Volume", AudioPicker.Volume(_volume, v => _volume = v), LabelWidth));
 
         stack.Children.Add(Ui.EditorSection("Wallpapers"));
         stack.Children.Add(new TextBlock { Text = "One per monitor (leave empty to keep whatever it has). Saving the current setup fills these in.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
@@ -276,7 +273,7 @@ internal sealed class DisplayProfileEditor
         }
 
         var buttons = Ui.DialogButtons(window, isNew ? "Save profile" : "Save changes", Validate);
-        Card = Ui.Dialog(window, isNew ? "New display profile" : $"Edit “{profile.Name}”", "Applied with its keybind, from the tray, or by a mode.", stack, buttons, _error, 900);
+        Card = Ui.Dialog(window, isNew ? "New display profile" : $"Edit “{profile.Name}”", "Applied with its keybind or from the tray.", stack, buttons, _error, 900);
     }
 
     private IEnumerable<(string Key, string Name)> WallpaperMonitors()

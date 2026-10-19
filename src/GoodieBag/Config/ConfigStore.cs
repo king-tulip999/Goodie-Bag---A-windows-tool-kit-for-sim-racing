@@ -65,20 +65,10 @@ public static class ConfigStore
         }
     }
 
-    internal static void MergeAutomationsIntoModes(AppConfig config)
-    {
-        const string Old = "automations";
-        if (!config.Plugins.TryGetValue(Old, out bool automationsOn)) return;
-        config.Plugins.Remove(Old);
-        bool modesOn = Plugins.PluginStates.IsEnabled(config.Plugins, Plugins.PluginIds.Modes, byDefault: true);
-        if (automationsOn && !modesOn) config.Plugins.Remove(Plugins.PluginIds.Modes);
-    }
-
     public static AppConfig Normalize(AppConfig config)
     {
         RemoveNullItems(config);
         DisplayProfile.Migrate(config);
-        LegacyAutomations.Migrate(config);
         config.Fans.Normalize();
         if (config.Fans.PresetNamesVersion < 1
             && config.Fans.Presets.FirstOrDefault(p => p.Name == FanSettings.OldDefaultPresetName) is { } balanced
@@ -86,13 +76,13 @@ public static class ConfigStore
         {
             balanced.Name = FanSettings.DefaultPresetName;
             if (config.Fans.ActivePreset == FanSettings.OldDefaultPresetName) config.Fans.ActivePreset = FanSettings.DefaultPresetName;
-            ConfigReferences.FanPreset(config, FanSettings.OldDefaultPresetName, FanSettings.DefaultPresetName);
         }
         config.Fans.PresetNamesVersion = 1;
         config.Overlay.Normalize();
-        MergeAutomationsIntoModes(config);
+        config.WindowProfiles ??= new();
         LegacyWindowsmith.Migrate(config);
-        LegacyLauncher.Migrate(config);
+        LegacyModes.Migrate(config);
+        config.WindowProfiles.Normalize();
         config.Extra?.Remove(ConfigTransfer.Header);
         if (config.Ui.DarkMode is { } dark)
         {
@@ -405,8 +395,6 @@ internal sealed class LenientEnumConverter : JsonConverterFactory
 
     private static readonly Dictionary<Type, object> Fallbacks = new()
     {
-        [typeof(ActionType)] = ActionType.PowerPlan,
-        [typeof(TriggerType)] = TriggerType.Manual,
         [typeof(BackgroundUsage)] = BackgroundUsage.Reduced,
     };
 

@@ -601,10 +601,6 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
             }
             Reload();
         }
-        else
-        {
-            _app.Modes.MarkApplied(null);
-        }
     }
 
     public IEnumerable<(string Name, Func<Task> Enter)> ScreenshotStates()

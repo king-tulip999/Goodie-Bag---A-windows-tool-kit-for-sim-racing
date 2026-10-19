@@ -99,7 +99,7 @@ public partial class MainWindow : Window
     private static (string Page, string Anchor)? Moved(string? key) => key switch
     {
         "overlay" => ("monitor", "monitor.overlay"),
-        "automations" => ("modes", "modes.auto"),
+        "automations" or "modes" or "launcher" => ("windows", "windows.auto"),
         _ => null,
     };
 
@@ -826,6 +826,8 @@ public partial class MainWindow : Window
 
     private void Dismiss(Border toast) =>
         Motion.FadeTo(toast, 0, 220, () => Toasts.Children.Remove(toast));
+
+    internal double ModalRoom => Root.ActualHeight - 90;
 
     internal Task<bool> ShowModal(FrameworkElement content)
     {

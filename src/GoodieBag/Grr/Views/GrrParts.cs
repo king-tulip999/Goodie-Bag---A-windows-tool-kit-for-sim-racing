@@ -334,7 +334,6 @@ internal static class GrrParts
             }), width: 460);
         if (!await window.ShowModal(card)) return;
         app.Save();
-        app.Automations.Refresh();
         app.Grr.SettingsChanged();
     }
 }

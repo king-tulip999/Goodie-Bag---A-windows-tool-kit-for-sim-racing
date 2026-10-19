@@ -1,14 +1,13 @@
 using System.Windows;
 using System.Windows.Threading;
-using GoodieBag.Automations;
 using GoodieBag.Config;
 using GoodieBag.Display;
 using GoodieBag.Hardware;
-using GoodieBag.Modes;
 using GoodieBag.Network;
 using GoodieBag.Overlay;
 using GoodieBag.Plugins;
 using GoodieBag.Processes;
+using GoodieBag.WindowProfiles;
 
 namespace GoodieBag.Services;
 
@@ -31,13 +30,10 @@ internal sealed class AppServices : IDisposable
     public OverlayController Overlay { get; }
     public DisplayService Displays { get; }
     public DisplayProfileService DisplayProfiles { get; }
-    public WindowRuleService WindowRules { get; }
-    public ModeService Modes { get; }
+    public WindowProfileService WindowProfiles { get; }
     public AppWatcher Watcher { get; }
 
     public SimRacing.Telemetry.TelemetryService Telemetry { get; }
-    public ModeSwitcher Switcher { get; }
-    public AutomationService Automations { get; }
 
     public HotkeyService Hotkeys { get; }
 
@@ -57,7 +53,6 @@ internal sealed class AppServices : IDisposable
 
     public event Action? OverlayChanged;
     public event Action? FansChanged;
-    public event Action? ModesChanged;
 
     public event Action? PerformanceChanged;
 
@@ -83,14 +78,9 @@ internal sealed class AppServices : IDisposable
         Displays = new DisplayService(demo);
         MonitorInfo.CustomName = key => Config.Displays.Names.GetValueOrDefault(key);
         DisplayProfiles = new DisplayProfileService(this);
-        Modes = new ModeService(this);
         Watcher = new AppWatcher();
         Telemetry = new SimRacing.Telemetry.TelemetryService(Watcher);
-        WindowRules = new WindowRuleService(this);
-        Modes.ActiveChanged += WindowRules.Refresh;
-        DisplayProfiles.Changed += WindowRules.Refresh;
-        Switcher = new ModeSwitcher(this);
-        Automations = new AutomationService(this);
+        WindowProfiles = new WindowProfileService(this);
         Hotkeys = new HotkeyService(this);
         Plugins = new PluginManager(this, Config);
         Updates = new UpdateService(this);
@@ -109,8 +99,6 @@ internal sealed class AppServices : IDisposable
     {
         Plugins.StartEnabled();
         Hotkeys.RegisterAll();
-        if (fromStartup)
-            Automations.OnWindowsStartup();
         if (withTray)
             Tray = new TrayService(this);
         _tick.Start();
@@ -357,16 +345,6 @@ internal sealed class AppServices : IDisposable
             .ToList();
     }
 
-    public void RaiseModesChanged()
-    {
-        Save();
-        Hotkeys.RegisterAll();
-        Switcher.Refresh();
-        Automations.Refresh();
-        WindowRules.Refresh();
-        ModesChanged?.Invoke();
-    }
-
     public void FlushPendingSave()
     {
         ConfigStore.WaitForWrites();
@@ -384,7 +362,7 @@ internal sealed class AppServices : IDisposable
         FlushPendingSave();
         Safely(() => Tray?.Dispose());
         Tray = null;
-        Safely(WindowRules.Dispose);
+        Safely(WindowProfiles.Dispose);
         Safely(Displays.Dispose);
         Safely(Telemetry.Dispose);
         Safely(Watcher.Dispose);

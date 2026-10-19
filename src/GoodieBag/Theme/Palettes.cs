@@ -49,7 +49,7 @@ internal static class Palettes
         ["Gold"] = Hex("#FFC08A"), ["GoldSoft"] = Hex("#2B241F"), ["GoldDeep"] = Hex("#FFD2AD"), ["GoldEdge"] = Hex("#D99A63"), ["OnGold"] = Hex("#1A120A"),
         ["Apricot"] = Hex("#FFC08A"), ["ApricotSoft"] = Hex("#2B241F"), ["ApricotDeep"] = Hex("#FFD2AD"),
         ["Coral"] = Hex("#F07A35"), ["CoralSoft"] = Hex("#2D1D19"), ["CoralDeep"] = Hex("#FF9A5C"),
-        ["Slate"] = Hex("#B8B8B8"), ["SlateSoft"] = Hex("#202020"), ["SlateDeep"] = Hex("#D0D0D0"),
+        ["Slate"] = Hex("#49C8F5"), ["SlateSoft"] = Hex("#0F2129"), ["SlateDeep"] = Hex("#8ADCFA"),
         ["Plum"] = Hex("#7E7E7E"), ["PlumSoft"] = Hex("#202020"), ["PlumDeep"] = Hex("#B8B8B8"),
         ["Knob"] = Hex("#F0F0F0"), ["SwitchTrack"] = Hex("#2E2E2E"), ["SwitchTrackHover"] = Hex("#393939"),
         ["MeterTrack"] = Hex("#242424"), ["GridLine"] = Hex("#1E1E1E"),
@@ -62,8 +62,8 @@ internal static class Palettes
         ["ActiveModeBg"] = Hex("#DC1A78"), ["ActiveModeFg"] = Hex("#FFFFFF"), ["ActiveModeEdge"] = Hex("#F02D91"), ["ActiveModeHover"] = Hex("#C4146A"),
         ["LogoBg"] = Hex("#DC1A78"), ["LogoFg"] = Hex("#FFFFFF"), ["LogoEdge"] = Hex("#DC1A78"),
         ["SidebarEdge"] = Hex("#242424"),
-        ["InputEdgeHover"] = Hex("#5A5A5A"), ["FocusEdge"] = Hex("#D0D0D0"), ["OnDanger"] = Hex("#1A0808"),
-        ["SegmentBg"] = Hex("#1B1B1B"), ["SegmentEdge"] = Hex("#333333"), ["QuietEdge"] = Hex("#3A3A3A"), ["EyebrowText"] = Hex("#A8A8A8"),
+        ["InputEdgeHover"] = Hex("#5A5A5A"), ["FocusEdge"] = Hex("#49C8F5"), ["OnDanger"] = Hex("#1A0808"),
+        ["SegmentBg"] = Hex("#1B1B1B"), ["SegmentEdge"] = Hex("#333333"), ["QuietEdge"] = Hex("#3A3A3A"), ["EyebrowText"] = Hex("#49C8F5"),
     };
 
     public static readonly IReadOnlyDictionary<string, Color> Custom = new Dictionary<string, Color>

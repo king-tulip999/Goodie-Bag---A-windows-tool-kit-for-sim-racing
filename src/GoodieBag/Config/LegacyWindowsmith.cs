@@ -9,33 +9,28 @@ public sealed class LegacyWindowsmith
     {
         var legacy = config.Windowsmith;
         config.Windowsmith = null;
-        var used = new HashSet<LegacyWindowProfile>();
-        List<LegacyWindowProfile> Named(string? name)
+        if (legacy is null) return;
+        var settings = config.WindowProfiles;
+        var groups = new Dictionary<string, WindowGroup>(StringComparer.Ordinal);
+        foreach (var g in legacy.Groups.Where(g => g.Id.Length > 0))
         {
-            if (name is null || legacy is null) return new();
-            if (legacy.Profiles.FirstOrDefault(p => Same(p.Name, name)) is { } profile) return new() { profile };
-            return legacy.Groups.FirstOrDefault(g => Same(g.Name, name)) is { } group ? legacy.Profiles.Where(p => p.GroupId == group.Id).ToList() : new();
+            var group = new WindowGroup { Name = settings.UniqueName(g.Name.Length > 0 ? g.Name : "Group") };
+            groups[g.Id] = group;
+            settings.Groups.Add(group);
         }
-        foreach (var mode in config.Modes)
+        var added = new List<WindowProfile>();
+        foreach (var p in legacy.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.ProcessName) && settings.Profiles.All(e => e.Id != p.Id)))
         {
-            foreach (var p in Named(mode.WindowProfile))
-            {
-                used.Add(p);
-                mode.Windows.Add(p.ToRule());
-            }
-            mode.WindowProfile = null;
+            var profile = p.ToRule().ToProfile();
+            profile.Name = settings.UniqueName(profile.Name.Length > 0 ? profile.Name : System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName));
+            profile.GroupId = p.GroupId is not null && groups.TryGetValue(p.GroupId, out var group) ? group.Id : null;
+            settings.Profiles.Add(profile);
+            added.Add(profile);
         }
-        var rest = legacy?.Profiles.Where(p => !used.Contains(p) && !string.IsNullOrWhiteSpace(p.ProcessName)).ToList() ?? new();
-        if (rest.Count == 0) return;
-        if (config.Modes.Count == 0)
-            config.Modes.Add(new Mode { Name = "Windows" });
-        foreach (var mode in config.Modes)
-            foreach (var p in rest)
-                if (mode.Windows.All(w => w.Id != p.Id))
-                    mode.Windows.Add(p.ToRule());
+        settings.Groups.RemoveAll(g => settings.Profiles.All(p => p.GroupId != g.Id));
+        LegacyModes.OneAutoPerProgram(settings.Profiles, added);
     }
 
-    private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class LegacyWindowProfile

@@ -122,7 +122,6 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         BuildGeneral();
         BuildPosition();
         BuildMetrics();
-        BuildLook();
         BuildNote();
         UpdateContrast();
     }
@@ -351,7 +350,6 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         icons.Children.Add(delete);
         row.Children.Add(icons);
         stack.Children.Add(row);
-        stack.Children.Add(new TextBlock { Text = "Modes can switch the overlay to a layout, e.g. a compact one for racing.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
         var card = Card(stack);
         Ui.Anchor(card, "overlay.layouts");
         _left.Children.Add(card);
@@ -377,6 +375,14 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         var rename = Ui.LabeledButton("I.Pencil", "Rename items…", () => _ = RenameItemsAsync());
         rename.ToolTip = "Your own names for what the overlay shows (e.g. GPU → 7900 XTX)";
         general.Children.Add(Anchored(Ui.SettingRow("Names", null, rename), "overlay.names"));
+        general.Children.Add(Ui.Divider());
+        general.Children.Add(Anchored(Ui.SettingRow("Layout style", null,
+            Ui.Segmented(new[] { "Expanded", "Compact" }, (int)L.Style, i => { L.Style = (OverlayStyle)i; Changed(); }, "Style",
+                new[] { "One row per group (CPU, GPU, FPS…), easy to read at a glance", "Everything on one line: takes the least room over your game" })), "overlay.style"));
+        general.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 160, 5)), "overlay.font"));
+        general.Children.Add(Anchored(Ui.SettingRow("Background opacity", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5)), "overlay.opacity"));
+        general.Children.Add(Anchored(Ui.SettingRow("Frame-time graph", "Spikes are stutters.",
+            Ui.Switch(L.ShowGraph, v => { L.ShowGraph = v; Changed(); })), "overlay.graph"));
         general.Children.Add(Ui.Divider());
         BuildColors(general);
         _left.Children.Add(Card(general));
@@ -405,25 +411,6 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         position.Children.Add(Ui.SettingRow("Monitor", null, Ui.Combo(monitors, L.Monitor, c => { L.Monitor = c.Id!; Changed(); }, 230)));
         _position = position;
         _right.Children.Add(Card(position));
-    }
-
-    private void BuildLook()
-    {
-        var look = new SettingsFlow();
-        look.Children.Add(Ui.Text("Look", "H2"));
-        look.Children.Add(Anchored(Ui.SettingRow("Layout style", null,
-            Ui.Segmented(new[] { "Expanded", "Compact" }, (int)L.Style, i => { L.Style = (OverlayStyle)i; Changed(); }, "Style",
-                new[] { "One row per group (CPU, GPU, FPS…), easy to read at a glance", "Everything on one line: takes the least room over your game" })), "overlay.style"));
-        look.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 160, 5)), "overlay.font"));
-        look.Children.Add(Anchored(Ui.SettingRow("Overall opacity", "Text included.", Ui.SliderWithValue(20, 100, L.Opacity, "{0:0}%", v => { L.Opacity = (int)v; Changed(); }, 160, 5)), "overlay.opacity"));
-        look.Children.Add(Ui.SettingRow("Background opacity", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5)));
-        look.Children.Add(Anchored(Ui.SettingRow("Horizontal spacing", null,
-            Ui.SliderWithValue(50, 200, L.SpacingX, "{0:0}%", v => { L.SpacingX = (int)v; Changed(); }, 160, 10)), "overlay.spacing"));
-        look.Children.Add(Ui.SettingRow("Vertical spacing", null,
-            Ui.SliderWithValue(50, 200, L.SpacingY, "{0:0}%", v => { L.SpacingY = (int)v; Changed(); }, 160, 10)));
-        look.Children.Add(Anchored(Ui.SettingRow("Frame-time graph", "Spikes are stutters.",
-            Ui.Switch(L.ShowGraph, v => { L.ShowGraph = v; Changed(); })), "overlay.graph"));
-        _right.Children.Add(Card(look));
     }
 
     private void BuildColors(StackPanel colors)
@@ -678,12 +665,11 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private async Task RenameAsync()
     {
         var layout = L;
-        string? name = await _window.Prompt("Rename layout", "Modes using it are updated.", layout.Name, n => n == layout.Name ? null : ValidateName(n, layout));
+        string? name = await _window.Prompt("Rename layout", "A name for this layout.", layout.Name, n => n == layout.Name ? null : ValidateName(n, layout));
         if (name is null || name == layout.Name) return;
         string old = layout.Name;
         layout.Name = name;
         O.ActiveLayout = name;
-        ConfigReferences.OverlayLayout(_app.Config, old, name);
         Changed();
         BuildSettings();
     }
@@ -691,11 +677,10 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private async Task DeleteAsync()
     {
         var layout = L;
-        if (O.Layouts.Count <= 1 || !await _window.Confirm($"Delete “{layout.Name}”?", "Modes that used it keep the current layout instead.", "Delete", danger: true))
+        if (O.Layouts.Count <= 1 || !await _window.Confirm($"Delete “{layout.Name}”?", "This can't be undone.", "Delete", danger: true))
             return;
         O.Layouts.Remove(layout);
         O.ActiveLayout = O.Layouts[0].Name;
-        ConfigReferences.OverlayLayout(_app.Config, layout.Name, null);
         Changed();
         BuildSettings();
     }
@@ -749,7 +734,6 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         {
             return;
         }
-        _preview.Opacity = L.Opacity / 100.0;
         PlacePreview();
     }
 

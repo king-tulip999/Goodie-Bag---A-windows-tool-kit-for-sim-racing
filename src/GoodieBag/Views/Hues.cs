@@ -11,7 +11,7 @@ internal static class Hues
 
     private static readonly Dictionary<string, (string Soft, string Deep)> Tools = new()
     {
-        [Plugins.PluginIds.Modes] = ("Tool1Soft", "Tool1Deep"), [Plugins.PluginIds.Displays] = ("Tool2Soft", "Tool2Deep"),
+        [Plugins.PluginIds.WindowProfiles] = ("Tool1Soft", "Tool1Deep"), [Plugins.PluginIds.Displays] = ("Tool2Soft", "Tool2Deep"),
         [Plugins.PluginIds.HardwareMonitor] = ("Tool4Soft", "Tool4Deep"),
         [Plugins.PluginIds.FanControl] = ("Tool5Soft", "Tool5Deep"), [Plugins.PluginIds.SimRacing] = ("Tool6Soft", "Tool6Deep"),
         [Plugins.PluginIds.SessionStats] = ("Tool7Soft", "Tool7Deep"),

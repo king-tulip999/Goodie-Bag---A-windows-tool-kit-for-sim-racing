@@ -252,5 +252,5 @@ internal static class ThemeManager
         Application.Current?.TryFindResource(key) as Brush ?? fallback;
 
     public static Color ColorOf(string key, Color fallback) =>
-        Brush(key, Brushes.Transparent) is SolidColorBrush s ? s.Color : fallback;
+        Application.Current?.TryFindResource(key) is SolidColorBrush s ? s.Color : fallback;
 }

@@ -3,7 +3,7 @@ using GoodieBag.Plugins;
 
 namespace GoodieBag.Services;
 
-internal enum HotkeyOwner { Mode, DisplayProfile, Plugin, Window, Iracing }
+internal enum HotkeyOwner { WindowProfile, DisplayProfile, Plugin, Window, Iracing }
 
 internal sealed record HotkeyEntry(string Id, IReadOnlyList<string> Path, string Label, string? Note, HotkeyOwner Owner,
     string? PluginId, string Page, object ClashKey, Func<string?> Get, Action<string?> Set, bool Global = true,
@@ -21,11 +21,17 @@ internal static class HotkeyCatalog
     {
         var list = new List<HotkeyEntry>();
 
-        foreach (var mode in config.Modes)
+        foreach (var group in config.WindowProfiles.Groups)
         {
-            var m = mode;
-            list.Add(new HotkeyEntry("mode:" + m.Name, new[] { "Modes", "Apply a mode" }, m.Name, m.OneOff ? "one-off" : null, HotkeyOwner.Mode,
-                PluginIds.Modes, "modes", m, () => m.Hotkey, hk => m.Hotkey = hk));
+            var g = group;
+            list.Add(new HotkeyEntry("windowgroup:" + g.Id, new[] { "Window Profiles", "Apply a group" }, g.Name, "running programs", HotkeyOwner.WindowProfile,
+                PluginIds.WindowProfiles, PluginIds.WindowProfilesPage, g, () => g.Hotkey, hk => g.Hotkey = hk));
+        }
+        foreach (var profile in config.WindowProfiles.Profiles)
+        {
+            var p = profile;
+            list.Add(new HotkeyEntry("window:" + p.Id, new[] { "Window Profiles", "Apply a profile" }, p.Name, p.ProcessName, HotkeyOwner.WindowProfile,
+                PluginIds.WindowProfiles, PluginIds.WindowProfilesPage, p, () => p.Hotkey, hk => p.Hotkey = hk));
         }
 
         foreach (var profile in config.Displays.Profiles)

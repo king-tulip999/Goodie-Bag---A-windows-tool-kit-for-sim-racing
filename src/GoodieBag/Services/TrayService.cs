@@ -102,15 +102,6 @@ internal sealed class TrayService : IDisposable
         }
         _menu.Items.Add(new ToolStripSeparator());
 
-        if (_app.Plugins.IsActive(Plugins.PluginIds.Modes))
-        {
-            var active = _app.Modes.Active;
-            foreach (var mode in _app.Config.Modes)
-            {
-                var target = mode;
-                _menu.Items.Add(new ToolStripMenuItem(mode.Name, null, (_, _) => _ = _app.Modes.ApplyAsync(target)) { Checked = mode == active, ShortcutKeyDisplayString = GoodieBag.Hotkeys.Hotkey.Display(mode.Hotkey) });
-            }
-        }
         if (_app.Plugins.IsActive(Plugins.PluginIds.Displays))
         {
             var profiles = _app.Config.Displays.Profiles;

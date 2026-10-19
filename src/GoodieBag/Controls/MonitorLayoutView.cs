@@ -20,11 +20,18 @@ public sealed class MonitorLayoutView : FrameworkElement
     private static Brush PrimaryStroke => ThemeManager.Brush("Accent", Brushes.SlateBlue);
     private static Brush TextBrush => ThemeManager.Brush("Text", Brushes.Black);
     private static Brush DetailBrush => ThemeManager.Brush("TextMuted", Brushes.Gray);
-    private Pen? _tilePen, _primaryPen;
+    private Pen? _tilePen, _primaryPen, _targetPen;
+    private Rect? _target;
 
     public void SetTiles(IReadOnlyList<LayoutTile> tiles)
     {
         _tiles = tiles;
+        InvalidateVisual();
+    }
+
+    public void SetTarget(Rect? target)
+    {
+        _target = target;
         InvalidateVisual();
     }
 
@@ -42,6 +49,13 @@ public sealed class MonitorLayoutView : FrameworkElement
             minY = Math.Min(minY, t.Y);
             maxX = Math.Max(maxX, t.X + t.Width);
             maxY = Math.Max(maxY, t.Y + t.Height);
+        }
+        if (_target is { } box)
+        {
+            minX = Math.Min(minX, box.X);
+            minY = Math.Min(minY, box.Y);
+            maxX = Math.Max(maxX, box.Right);
+            maxY = Math.Max(maxY, box.Bottom);
         }
         if (maxX - minX <= 0 || maxY - minY <= 0 || w <= 8 || h <= 8)
             return;
@@ -74,6 +88,20 @@ public sealed class MonitorLayoutView : FrameworkElement
             dc.DrawText(label, new Point(r.X + (r.Width - label.Width) / 2, ty));
             if (detail is not null)
                 dc.DrawText(detail, new Point(r.X + (r.Width - detail.Width) / 2, ty + label.Height + 1));
+        }
+        if (_target is { } target)
+        {
+            var edge = ThemeManager.Brush("AccentText", Brushes.SlateBlue);
+            if (_targetPen?.Brush != edge)
+            {
+                _targetPen = new Pen(edge, 2) { DashStyle = new DashStyle(new double[] { 3, 2 }, 0) };
+                _targetPen.Freeze();
+            }
+            var fill = edge.Clone();
+            fill.Opacity = 0.22;
+            fill.Freeze();
+            var r = new Rect(ox + (target.X - minX) * scale + 1, oy + (target.Y - minY) * scale + 1, Math.Max(2, target.Width * scale - 2), Math.Max(2, target.Height * scale - 2));
+            dc.DrawRectangle(fill, _targetPen, r);
         }
     }
 

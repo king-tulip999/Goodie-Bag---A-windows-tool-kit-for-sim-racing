@@ -334,7 +334,6 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         if (name is null || name == old) return;
         preset.Name = name;
         Fans.ActivePreset = name;
-        ConfigReferences.FanPreset(_app.Config, old, name);
         _app.FanSettingsChanged();
     }
 
@@ -342,10 +341,9 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
     {
         var preset = Fans.Active;
         if (preset is null || Fans.Presets.Count <= 1) return;
-        if (!await _window.Confirm($"Delete the “{preset.Name}” preset?", "Modes that switch to it will leave fans alone instead.", "Delete", danger: true))
+        if (!await _window.Confirm($"Delete the “{preset.Name}” preset?", "This can't be undone.", "Delete", danger: true))
             return;
         Fans.Presets.Remove(preset);
-        ConfigReferences.FanPreset(_app.Config, preset.Name, null);
         Fans.ActivePreset = Fans.Presets[0].Name;
         _app.FanSettingsChanged();
         _app.Hotkeys.RegisterAll();

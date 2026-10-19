@@ -7,15 +7,9 @@ public sealed class AppConfig
     public bool ShowNotifications { get; set; } = true;
 
     [JsonPropertyName("profiles")]
-    public List<Mode> Modes { get; set; } = new();
+    public List<LegacyMode>? Modes { get; set; }
 
-    public List<AppProfile>? Apps { get; set; }
-
-    public ModeSwitchingSettings ModeSwitching { get; set; } = new();
-
-    public AutomationSettings? Automations { get; set; }
-
-    public LauncherSettings? Launcher { get; set; }
+    public WindowProfileSettings WindowProfiles { get; set; } = new();
 
     public NetworkSettings Network { get; set; } = new();
 
@@ -80,8 +74,6 @@ public sealed class AppConfig
 public sealed class ActionHotkeys
 {
     public string? ShowWindow { get; set; }
-    public string? NextMode { get; set; }
-    public string? PreviousMode { get; set; }
     public string? NextDisplayProfile { get; set; }
     public string? PreviousDisplayProfile { get; set; }
     public string? FanControl { get; set; }

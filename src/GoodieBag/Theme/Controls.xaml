@@ -102,9 +102,8 @@
     <!-- metadata labels (CPU, SWITCH MODE…): small, semibold, faint -->
     <Style x:Key="Eyebrow" TargetType="TextBlock">
         <Setter Property="th:TextCase.Upper" Value="{DynamicResource Caps}" />
-        <Setter Property="FontFamily" Value="{DynamicResource LabelFont}" />
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{DynamicResource EyebrowText}" />
     </Style>
     <Style x:Key="BigValue" TargetType="TextBlock">

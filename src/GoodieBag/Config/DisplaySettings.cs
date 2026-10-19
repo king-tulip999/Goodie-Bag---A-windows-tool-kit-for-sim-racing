@@ -2,6 +2,8 @@ namespace GoodieBag.Config;
 
 public enum TaskbarMode { Unchanged, AllDisplays, MainOnly }
 
+public enum HdrMode { Unchanged, On, Off }
+
 public sealed class DisplaySettings
 {
     public List<DisplayProfile> Profiles { get; set; } = new();
@@ -29,7 +31,7 @@ public sealed class DisplayProfile
     public static void Migrate(AppConfig config)
     {
         var profiles = config.Displays.Profiles;
-        foreach (var mode in config.Modes.Where(m => m.Display is not null || m.Hdr is HdrMode.On or HdrMode.Off))
+        foreach (var mode in (config.Modes ?? new()).Where(m => m.Display is not null || m.Hdr is HdrMode.On or HdrMode.Off))
         {
             if (mode.DisplayProfile is null)
             {
@@ -42,17 +44,26 @@ public sealed class DisplayProfile
             mode.Display = null;
             mode.Hdr = null;
         }
-        string? ProfileOfMode(string? modeName) =>
-            config.Modes.FirstOrDefault(m => string.Equals(m.Name, modeName, StringComparison.OrdinalIgnoreCase))?.DisplayProfile;
-        foreach (var app in (config.Apps ?? new()).Where(a => a.Overrides?.DisplayFrom is not null))
-        {
-            app.Overrides.DisplayProfile ??= ProfileOfMode(app.Overrides.DisplayFrom);
-            app.Overrides.DisplayFrom = null;
-        }
-        foreach (var action in (config.Automations?.Rules ?? new()).SelectMany(r => r.Actions ?? new()).Where(a => a.Type == ActionType.DisplayLayout))
-        {
-            if (profiles.All(p => !string.Equals(p.Name, action.Target, StringComparison.OrdinalIgnoreCase)) && ProfileOfMode(action.Target) is { } profile)
-                action.Target = profile;
-        }
     }
+}
+
+public sealed class DisplaySnapshot
+{
+    public List<string> Summary { get; set; } = new();
+
+    public List<string> TargetDevicePaths { get; set; } = new();
+
+    public string Paths { get; set; } = "";
+
+    public string Modes { get; set; } = "";
+}
+
+public sealed class AudioSnapshot
+{
+    public string? PlaybackId { get; set; }
+    public string? PlaybackName { get; set; }
+    public string? RecordingId { get; set; }
+    public string? RecordingName { get; set; }
+
+    public bool SetCommunications { get; set; } = true;
 }

@@ -94,7 +94,7 @@ internal static class ConfigTransfer
         var lines = new List<string>
         {
             $"Theme {ThemeName(c.Ui.Theme)}, interface size {c.Ui.InterfaceScale}%, animations {(c.Ui.Animations ? "on" : "off")}",
-            Count(c.Modes.Count, "mode", "modes") + $" ({c.Modes.Count(m => m.Program is not null)} with a program to launch, {c.Modes.Count(m => m.OneOff)} one-off), {Count(c.Modes.Sum(m => m.Triggers.Count), "trigger", "triggers")}",
+            Count(c.WindowProfiles.Profiles.Count, "window profile", "window profiles") + $" ({c.WindowProfiles.Profiles.Count(p => p.Auto)} automatic), {Count(c.WindowProfiles.Groups.Count, "group", "groups")}",
             Count(c.Displays.Profiles.Count, "display profile", "display profiles"),
             $"Fan control {(c.Fans.Enabled ? "on" : "off")}: {Count(c.Fans.Presets.Count, "preset", "presets")}, {Count(c.Fans.Curves.Count, "curve", "curves")}, {Count(c.Fans.Hardware.Count, "fan", "fans")} set up",
             Count(c.Overlay.Layouts.Count, "overlay layout", "overlay layouts"),
@@ -112,9 +112,9 @@ internal static class ConfigTransfer
     public static int Keybinds(AppConfig c)
     {
         var a = c.Hotkeys;
-        return c.Modes.Count(m => Set(m.Hotkey)) + c.Displays.Profiles.Count(p => Set(p.Hotkey))
+        return c.WindowProfiles.Profiles.Count(p => Set(p.Hotkey)) + c.WindowProfiles.Groups.Count(g => Set(g.Hotkey)) + c.Displays.Profiles.Count(p => Set(p.Hotkey))
             + c.Fans.Presets.Count(p => Set(p.Hotkey))
-            + new[] { c.Overlay.Hotkey, c.Overlay.ResetFpsHotkey, c.Ui.SearchKey, a.ShowWindow, a.NextMode, a.PreviousMode,
+            + new[] { c.Overlay.Hotkey, c.Overlay.ResetFpsHotkey, c.Ui.SearchKey, a.ShowWindow,
                 a.NextDisplayProfile, a.PreviousDisplayProfile, a.FanControl, a.NextFanPreset, a.PreviousFanPreset, a.NextOverlayLayout }.Count(Set);
     }
 

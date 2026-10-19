@@ -11,7 +11,8 @@ internal static class PluginIds
     public const string FanControl = "fan-control";
     public const string HardwareMonitor = "hardware-monitor";
     public const string SimRacing = "sim-racing";
-    public const string Modes = "modes";
+    public const string WindowProfiles = "window-profiles";
+    public const string WindowProfilesPage = "windows";
     public const string Displays = "displays";
     public const string SessionStats = "session-stats";
 }
@@ -49,8 +50,6 @@ internal abstract class Plugin
     public abstract string Changes { get; }
 
     public virtual IReadOnlyList<PluginPage> Pages => Array.Empty<PluginPage>();
-
-    public virtual IEnumerable<Automations.PluginTrigger> Triggers(AppServices app) => Array.Empty<Automations.PluginTrigger>();
 
     public virtual IEnumerable<SearchEntry> SearchEntries => Array.Empty<SearchEntry>();
 

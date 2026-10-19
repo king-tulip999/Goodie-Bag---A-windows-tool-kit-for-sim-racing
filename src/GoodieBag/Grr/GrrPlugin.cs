@@ -1,4 +1,3 @@
-using GoodieBag.Automations;
 using GoodieBag.Config;
 using GoodieBag.Grr.Views;
 using GoodieBag.Plugins;
@@ -15,7 +14,7 @@ internal sealed class GrrPlugin : Plugin
 
     public override string Id => PluginId;
     public override string Name => "GRR League";
-    public override string Description => "Your GRR league's next race, championship standings, results and schedule from the GRR website: a dashboard page and an automation trigger before your races.";
+    public override string Description => "Your GRR league's next race, championship standings, results and schedule from the GRR website.";
     public const string LogoIcon = "F.GrrLogo";
 
     public override string Icon => LogoIcon;
@@ -25,9 +24,9 @@ internal sealed class GrrPlugin : Plugin
     public override bool EnabledByDefault => OnByDefault;
 
     public override string Reads =>
-        "The GRR website's league data (schedule, standings, results; its public league feeds) while the GRR League page is on screen, or while a \"Before a GRR race\" rule is on; read again when it's over 6 hours old, or when you press Refresh. The last read is kept in Goodie Bag's settings folder (grr), so it shows at once and offline.";
+        "The GRR website's league data (schedule, standings, results; its public league feeds) while the GRR League page or its home card is on screen; read again when it's over 6 hours old, or when you press Refresh. The last read is kept in Goodie Bag's settings folder (grr), so it shows at once and offline.";
     public override string BackgroundWork =>
-        "Only with a \"Before a GRR race\" automation on: keeps the race times and checks them at most every 6 hours, so the rule runs at the right time. Otherwise never.";
+        "None: it reads only while its page is on screen.";
     public override string Changes => "Nothing on your PC; it only reads the GRR website.";
 
     public override IReadOnlyList<PluginPage> Pages { get; } = new[]
@@ -35,17 +34,9 @@ internal sealed class GrrPlugin : Plugin
         new PluginPage(PageKey, "GRR League", LogoIcon, (app, window) => new GrrPage(app, window)),
     };
 
-    private BeforeGrrRaceTrigger? _trigger;
-
-    public override IEnumerable<PluginTrigger> Triggers(AppServices app)
-    {
-        yield return _trigger ??= new BeforeGrrRaceTrigger(app);
-    }
-
     public override IEnumerable<SearchEntry> SearchEntries { get; } = new SearchEntry[]
     {
         new("GRR League dashboard", "Your league's next race, championship standings, results and schedule from the GRR website, and your driver profile.", "GRR League", PageKey, GrrParts.Anchor, "grr league standings championship results schedule points driver profile cup gt indycar refresh"),
-        new("Before a GRR race", "A mode trigger that fires a set number of minutes before each race of the GRR leagues you pick.", "Automations and Modes", "modes", null, "grr race automation schedule before league trigger"),
     };
 
     public override IReadOnlyCollection<int>? IracingLeagueIds(AppServices app) =>
@@ -64,14 +55,10 @@ internal sealed class GrrPlugin : Plugin
             settings.Leagues = new() { "cup", "gt", "indycar" };
             settings.DriverName = "Sam Driver";
         }
-        Service(app).Changed += app.Automations.Reschedule;
-        app.Automations.Refresh();
     }
 
     protected override void OnStop(AppServices app)
     {
-        if (_service is not null) _service.Changed -= app.Automations.Reschedule;
-        app.Automations.Refresh();
         if (!app.Plugins.IsEnabled(this))
         {
             if (ThemeManager.Current.Id == GrrTheme.Id) app.SetTheme(AppTheme.Dark);

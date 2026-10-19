@@ -13,21 +13,7 @@ internal static class SettingsIndex
 {
     public static readonly IReadOnlyList<SearchEntry> All = new SearchEntry[]
     {
-        new("Modes", "Saved setups: displays, audio, fans, overlay and programs in one click.", "Automations and Modes", "modes", null, "profile profiles monitor setup switch"),
-        new("Mode when Windows starts", "Give a mode a “Windows starts” trigger (in its editor) to apply it when Goodie Bag starts with Windows.", "Automations and Modes", "modes", null, "startup boot default profile trigger"),
-        new("Mode keybinds", "Each mode has its own keybind; set it in the mode's editor.", "Automations and Modes", "modes", null, "hotkey shortcut keybind profile"),
-        new("Scheduled modes", "A mode's triggers can apply it every day, on chosen weekdays or on a date (plugins can add their own schedules).", "Automations and Modes", "modes", null, "schedule time daily weekly date league night race timer automation trigger"),
-        new("Launch a game", "Give a mode a program (its editor's Launch section): Launch applies the mode, starts its programs, then the game.", "Automations and Modes", "modes", null, "launcher launch game shortcut start helpers simhub crewchief close exit"),
-        new("Mode display profile", "Each mode can apply a display profile from the Displays page.", "Automations and Modes", "modes", null, "hdr resolution refresh hz primary monitor display"),
-        new("Mode audio settings", "Each mode can pick the playback device, microphone and volume.", "Automations and Modes", "modes", null, "audio sound speaker headphones microphone mic volume"),
-        new("Mode performance settings", "Each mode can pick a fan preset and overlay layout.", "Automations and Modes", "modes", null, "fan performance overlay"),
-        new("Mode windows", "Force a program's window to an exact size and spot while a mode is active (one game across triple screens, borderless).", "Automations and Modes", "modes", null, "resize window size position borderless triple stretch span game window windowsmith"),
-        new("Mode programs", "Programs a mode starts or closes when applied.", "Automations and Modes", "modes", null, "launch close kill app application script"),
 
-        new("Switch modes while a program runs", "A mode's “while a program runs” trigger applies it while the game runs and brings the previous mode back when it closes.", "Automations and Modes", "modes", null, "app game process exe per-game iracing applications trigger"),
-        new("Switch automatically", "Master switch for every mode's triggers (programs, schedules, idle, temperatures).", "Automations and Modes", "modes", "modes.auto", "auto profile process detect app automations enable disable pause resume"),
-        new("Restore the previous mode", "Go back to the mode from before a program started when it closes.", "Automations and Modes", "modes", "modes.restore", "revert back close"),
-        new("One-off modes", "A mode that runs its changes without becoming the active mode, e.g. idle → quiet fans, GPU hot → max cooling.", "Automations and Modes", "modes", "modes.auto", "automation rule action idle temperature notification toggle overlay"),
 
         new("Displays", "Arrangement, resolution, refresh rate, rotation and main display.", "Displays", "displays", null, "monitor screen arrange"),
         new("Resolution and refresh rate", "Per monitor, with a keep-or-revert prompt.", "Displays", "displays", "displays.details", "hz fps resolution mode rotation orientation"),
@@ -58,7 +44,6 @@ internal static class SettingsIndex
         new("Reset a fan to default", "The reset button on a fan's card: its name, limits and mode in every preset back to default.", "Fans", "fans", "fans.fans", "reset default defaults restore clear fan settings one single"),
         new("Update rate (Hardware Monitor)", "Low, Balanced or Fast on the Performance header: the same app-wide sensor update rate as Settings → Performance.", "Hardware", "monitor", "performance.rate", "polling rate refresh interval low medium high balanced fast update"),
 
-        new("Triggers", "What switches to a mode: a program running, starting or closing, Windows starting, idle, a temperature, a schedule.", "Automations and Modes", "modes", null, "automation rule when trigger idle temperature startup"),
         new("iRacing Overlay", "In-game widgets from iRacing's live telemetry: Relative, Standings, fuel, delta, alerts and more.", "Sim Racing Tools", "simracing", "simracing.hud.panel", "hud race hud overlay relative standings leaderboard fuel strategy out lap delta lap timing flags telemetry iracing widgets"),
         new("iRacing Overlay layouts", "Layouts of HUD widgets that switch by session, car, class or track; arrange them on screen.", "Sim Racing Tools", "simracing", "simracing.hud.panel", "hud layout race qualifying practice endurance multiclass arrange move resize snap rules auto switch"),
         new("iRacing Overlay alerts", "Fuel, pit speed, traffic, flags, incidents and best-lap alerts in groups you can fold and arrange, with thresholds and cooldowns.", "Sim Racing Tools", "simracing", "simracing.hud.panel", "alerts notifications fuel low pit limiter speeding blue flag yellow incident limit personal best groups arrange"),

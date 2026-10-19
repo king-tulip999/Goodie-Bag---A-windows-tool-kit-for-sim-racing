@@ -85,6 +85,8 @@ internal sealed class OverlayRenderer : IDisposable
         }
     }
 
+    private const float Spacing = 0.5f;
+
     public Size Render(OverlayLayout layout, OverlayData data, float scale, Func<Size, Graphics> surface)
     {
         scale *= layout.FontScale / 100f * BaseSize;
@@ -92,7 +94,7 @@ internal sealed class OverlayRenderer : IDisposable
         var colors = PaletteFor(layout);
         var groups = BuildGroups(layout, data);
         Hits?.Clear();
-        float across = layout.SpacingX / 100f, down = layout.SpacingY / 100f;
+        const float across = Spacing, down = Spacing;
 
         float pad = 10 * scale, rowGap = 3 * scale * down, cellGap = 12 * scale * across, labelGap = 8 * scale, groupGap = 16 * scale * across;
         float rowHeight = _valueFont!.GetHeight(_measure);

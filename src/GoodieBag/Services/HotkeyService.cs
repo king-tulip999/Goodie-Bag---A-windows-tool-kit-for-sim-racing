@@ -29,7 +29,7 @@ internal sealed class HotkeyService : IDisposable
         }
 
         var config = _app.Config;
-        bool displays = _app.Plugins.IsActive(Plugins.PluginIds.Displays), modes = _app.Plugins.IsActive(Plugins.PluginIds.Modes);
+        bool displays = _app.Plugins.IsActive(Plugins.PluginIds.Displays), windows = _app.Plugins.IsActive(Plugins.PluginIds.WindowProfiles);
         foreach (var profile in displays ? config.Displays.Profiles : new List<Config.DisplayProfile>())
         {
             var target = profile;
@@ -37,10 +37,16 @@ internal sealed class HotkeyService : IDisposable
         }
         foreach (var hotkey in PluginHotkeys())
             Register(hotkey.Get(), hotkey.Invoke, hotkey.Label);
-        foreach (var mode in modes ? config.Modes : new List<Config.Mode>())
+        if (windows)
         {
-            var target = mode;
-            Register(mode.Hotkey, () => _ = _app.Modes.ApplyAsync(target), mode.Name);
+            var w = config.WindowProfiles;
+            var keys = w.Profiles.Select(p => (p.Hotkey, p.Name)).Concat(w.Groups.Select(g => (g.Hotkey, g.Name)))
+                .Where(k => !string.IsNullOrWhiteSpace(k.Hotkey)).GroupBy(k => Hotkey.Display(k.Hotkey));
+            foreach (var key in keys)
+            {
+                string hotkey = key.First().Hotkey!;
+                Register(hotkey, () => _app.WindowProfiles.ApplyKey(hotkey), "Window profile " + string.Join(", ", key.Select(k => k.Name)));
+            }
         }
         Register(config.Hotkeys.ShowWindow, _app.RequestToggleWindow, "Show / hide Goodie Bag");
 
@@ -77,8 +83,14 @@ internal sealed class HotkeyService : IDisposable
             if (!Equals(except, plugin.Id) && Hotkey.SameKey(hotkey, plugin.Get()))
                 return $"{shown} is already used for “{plugin.Label}”.";
         }
-        if (config.Modes.FirstOrDefault(p => !ReferenceEquals(p, except) && Hotkey.SameKey(p.Hotkey, hotkey)) is { } clash)
-            return $"{shown} is already used by the mode “{clash.Name}”.";
+        if (except is not Config.WindowProfile and not Config.WindowGroup)
+        {
+            var w = config.WindowProfiles;
+            if (w.Profiles.FirstOrDefault(p => Hotkey.SameKey(p.Hotkey, hotkey)) is { } windowProfile)
+                return $"{shown} is already used by the window profile “{windowProfile.Name}”.";
+            if (w.Groups.FirstOrDefault(g => Hotkey.SameKey(g.Hotkey, hotkey)) is { } group)
+                return $"{shown} is already used by the window profile group “{group.Name}”.";
+        }
         if (!Equals(except, HotkeyCatalog.SearchId) && (Hotkey.SameKey(hotkey, config.Ui.SearchKey) || Hotkey.SameKey(hotkey, "Ctrl+K")))
             return $"{shown} is already used for “Search settings” in the Goodie Bag window.";
         if (!Equals(except, HotkeyCatalog.ShowWindowId) && Hotkey.SameKey(hotkey, config.Hotkeys.ShowWindow))
@@ -125,7 +137,7 @@ internal sealed class HotkeyService : IDisposable
         entry.Set(string.IsNullOrWhiteSpace(hotkey) ? null : hotkey);
         switch (entry.Owner)
         {
-            case HotkeyOwner.Mode: _app.RaiseModesChanged(); break;
+            case HotkeyOwner.WindowProfile: _app.WindowProfiles.RaiseChanged(); break;
             case HotkeyOwner.DisplayProfile: _app.DisplayProfiles.RaiseChanged(); break;
             default: _app.Save(); RegisterAll(); break;
         }

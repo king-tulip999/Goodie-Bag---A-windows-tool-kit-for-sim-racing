@@ -119,9 +119,9 @@ internal static class PerfProbe
                     await Task.Delay(500);
                 }
             }
-            window.Navigate("modes");
+            window.Navigate("windows");
             await Task.Delay(2000);
-            await Idle("idle_modes", window, lines);
+            await Idle("idle_windows", window, lines);
             window.Navigate("plugins");
             await Task.Delay(3000);
             await Idle("idle_main_settled", window, lines);

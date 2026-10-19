@@ -168,6 +168,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         foreach (var plugin in PluginManager.InNavOrder(_app.Plugins.All, U.NavOrder))
         {
             var p = plugin;
+            if (p.Id == PluginIds.Overlay) continue;
             var head = new StackPanel { Orientation = Orientation.Horizontal };
             var (soft, deep) = p.Colors;
             head.Children.Add(Ui.Badge(p.Pages.Count > 0 ? p.Pages[0].Icon : p.Icon, soft, deep, 28, 8, 15));
@@ -177,7 +178,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             var sw = Ui.Switch(_app.Plugins.IsEnabled(p), on =>
             {
                 _app.Plugins.SetEnabled(p, on);
-                _app.Notify(on ? $"{p.Name} on" : $"{p.Name} off", on ? (p.Id == PluginIds.Overlay ? "It's in Hardware Monitor → Performance Overlay." : "Its card is on the home page.") : "Its background work has stopped. Settings are kept.", NoticeKind.Success);
+                _app.Notify(on ? $"{p.Name} on" : $"{p.Name} off", on ? "Its card is on the home page." : "Its background work has stopped. Settings are kept.", NoticeKind.Success);
             });
             AutomationProperties.SetName(sw, p.Name);
             var row = new Grid { Margin = new Thickness(0, 8, 0, 4) };
@@ -191,7 +192,33 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             Grid.SetColumn(sw, 1);
             row.Children.Add(sw);
             group.Children.Add(row);
+            if (p.Id == PluginIds.HardwareMonitor && _app.Plugins.Find(PluginIds.Overlay) is { } overlay)
+                group.Children.Add(OverlayRow(overlay));
         }
+    }
+
+    private Grid OverlayRow(Plugin overlay)
+    {
+        var sw = Ui.Switch(_app.Plugins.IsEnabled(overlay), on =>
+        {
+            _app.Plugins.SetEnabled(overlay, on);
+            _app.Notify(on ? $"{overlay.Name} on" : $"{overlay.Name} off", on ? "It's in Hardware Monitor → Performance Overlay." : "Its background work has stopped. Settings are kept.", NoticeKind.Success);
+        });
+        AutomationProperties.SetName(sw, overlay.Name);
+        var row = new Grid { Margin = new Thickness(38, 2, 0, 4) };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new Border { BorderThickness = new Thickness(2, 0, 0, 0), Padding = new Thickness(12, 2, 16, 2) };
+        text.SetResourceReference(Border.BorderBrushProperty, "Line");
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock { Text = overlay.Name, FontWeight = FontWeights.SemiBold });
+        stack.Children.Add(new TextBlock { Text = "Part of Hardware Monitor: FPS, temperatures, load and fan speeds drawn on top of your game.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+        text.Child = stack;
+        row.Children.Add(text);
+        sw.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(sw, 1);
+        row.Children.Add(sw);
+        return row;
     }
 
     private static StackPanel Group(StackPanel section, string title, string anchor)
@@ -603,7 +630,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         var section = Section("Data & Configuration", "I.Folder", "settings.data");
         var transfer = new StackPanel { Orientation = Orientation.Horizontal };
         var export = Ui.LabeledButton("I.Save", "Export…", () => ExportSettings());
-        export.ToolTip = "Saves every setting (theme, modes, fan curves and presets, overlay, keybinds, plugins, layouts…) to a file";
+        export.ToolTip = "Saves every setting (theme, window profiles, fan curves and presets, overlay, keybinds, plugins, layouts…) to a file";
         export.Margin = new Thickness(0, 0, 8, 0);
         transfer.Children.Add(export);
         var import = Ui.LabeledButton("I.Download", "Import…", () => _ = ImportSettingsAsync());
@@ -890,7 +917,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         about.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var text = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
         text.Children.Add(new TextBlock { Text = $"Goodie Bag {UpdateService.Tag(_app.Updates.Installed)}" + (_app.Demo ? " · demo data" : ""), Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold });
-        text.Children.Add(new TextBlock { Text = "A PC control center for sim rigs: modes that switch displays, audio, fans and more automatically, plus plugins for hardware monitoring, the overlay, fan control and sim racing tools.", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+        text.Children.Add(new TextBlock { Text = "A PC control center for sim rigs: window profiles that size and place your games, display profiles, hardware monitoring, the overlay, fan control and sim racing tools.", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
         about.Children.Add(text);
         var project = Ui.LabeledButton("I.ChevronRight", "Project page", () => Ui.OpenUrl(UpdateService.ProjectPage), "GhostButton");
         project.VerticalAlignment = VerticalAlignment.Center;
@@ -1090,7 +1117,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             return;
         }
         if (!await _window.Confirm("Reset Goodie Bag to defaults?",
-                "Everything goes back to how it was on first install: modes and their triggers, launches and window placement, display profiles, " +
+                "Everything goes back to how it was on first install: window profiles and groups, display profiles, " +
                 "fan curves and calibration, overlay layouts, page layouts, the home page order and these settings. Goodie Bag then restarts.\n\n" +
                 "Kept: a copy of your current settings (config.before-reset-….json in the settings folder, rename it to config.json to go back), " +
                 "iRacing backups, the PawnIO driver and the Start with Windows task. Changes already made to Windows (displays, sound) aren't undone.",

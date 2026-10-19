@@ -5,39 +5,49 @@ using GoodieBag.Config;
 using GoodieBag.Processes;
 using GoodieBag.Services;
 
-namespace GoodieBag.Modes;
+namespace GoodieBag.WindowProfiles;
 
 internal enum WindowApplyResult { Applied, NotRunning, NoWindow, AccessDenied, Failed }
 
-internal sealed class WindowRuleService : IDisposable
+internal sealed class WindowProfileService : IDisposable
 {
-    private const string Consumer = "WindowRules";
+    private const string Consumer = "Window profiles";
     private readonly AppServices _app;
     private readonly Dictionary<string, CancellationTokenSource> _watchers = new();
     private readonly object _gate = new();
     private bool _watching;
 
-    public WindowRuleService(AppServices app)
+    public WindowProfileService(AppServices app)
     {
         _app = app;
         _app.Watcher.Started += OnProgramStarted;
     }
 
-    private List<WindowRule> Current =>
-        _app.Plugins.IsActive(Plugins.PluginIds.Modes) && _app.Modes.Active is { } mode ? mode.Windows : new List<WindowRule>();
+    private WindowProfileSettings S => _app.Config.WindowProfiles;
+
+    private bool Active => _app.Plugins.IsActive(Plugins.PluginIds.WindowProfiles);
+
+    private List<WindowProfile> Automatic =>
+        Active && S.AutoApply ? S.Profiles.Where(p => p.Auto && !string.IsNullOrWhiteSpace(p.ProcessName)).ToList() : new List<WindowProfile>();
+
+    public event Action? Changed;
+
+    public void RaiseChanged()
+    {
+        _app.Save();
+        _app.Hotkeys.RegisterAll();
+        Refresh();
+        Changed?.Invoke();
+    }
 
     public void Refresh()
     {
-        var rules = Current;
-        if (rules.Count == 0) StopWatching();
-        else
-        {
-            var ids = rules.Select(r => r.Id).ToHashSet();
-            lock (_gate)
-                foreach (var id in _watchers.Keys.Where(id => !ids.Contains(id)).ToList())
-                    if (_watchers.Remove(id, out var stale)) stale.Cancel();
-        }
-        var names = rules.Where(r => !string.IsNullOrWhiteSpace(r.ProcessName)).Select(r => r.ProcessName).ToList();
+        if (!Active) StopWatching();
+        var ids = S.Profiles.Select(p => p.Id).ToHashSet();
+        lock (_gate)
+            foreach (var id in _watchers.Keys.Where(id => !ids.Contains(id)).ToList())
+                if (_watchers.Remove(id, out var stale)) stale.Cancel();
+        var names = Automatic.Select(p => p.ProcessName).ToList();
         if (!_app.Demo && names.Count > 0)
         {
             _app.Watcher.Acquire(Consumer, names);
@@ -50,34 +60,81 @@ internal sealed class WindowRuleService : IDisposable
         }
     }
 
-    public async Task<List<string>> ApplyRunningAsync(Mode mode)
+    public WindowProfile? FindProfile(string name) => S.Profiles.FirstOrDefault(p => Same(p.Name, name));
+
+    public WindowGroup? FindGroup(string name) => S.Groups.FirstOrDefault(g => Same(g.Name, name));
+
+    public static bool IsRunning(WindowProfile p, HashSet<string> running) =>
+        !string.IsNullOrWhiteSpace(p.ProcessName) && running.Contains(AppWatcher.Normalize(p.ProcessName));
+
+    public bool ApplyNamed(string name)
     {
-        var problems = new List<string>();
-        if (_app.Demo || mode.Windows.Count == 0) return problems;
-        var running = AppWatcher.Snapshot();
-        foreach (var rule in mode.Windows.Where(r => !string.IsNullOrWhiteSpace(r.ProcessName) && running.Contains(AppWatcher.Normalize(r.ProcessName))).ToList())
-            if (Problem(rule, await ApplyAsync(rule, quiet: true)) is { } problem)
-                problems.Add(problem);
-        return problems;
+        if (!Active) return false;
+        if (FindProfile(name) is { } profile) _ = ApplyAsync(profile);
+        else if (FindGroup(name) is { } group) _ = ApplyGroupAsync(group);
+        else return false;
+        return true;
     }
 
-    public static string? Problem(WindowRule r, WindowApplyResult result) => result switch
+    public async Task ApplyGroupAsync(WindowGroup group)
     {
-        WindowApplyResult.Applied => null,
-        WindowApplyResult.NotRunning => $"{r.ProcessName} isn't running.",
-        WindowApplyResult.NoWindow => $"{r.ProcessName} is running but has no window yet.",
-        WindowApplyResult.AccessDenied => $"Windows didn't let Goodie Bag move {r.ProcessName}'s window (it may run as administrator while Goodie Bag doesn't).",
-        _ => $"{r.ProcessName}'s window didn't end up where the rule says. Some games resize themselves; try a delay, or borderless in the game's settings.",
-    };
+        var members = S.Members(group).ToList();
+        if (members.Count == 0)
+        {
+            _app.Notify($"“{group.Name}” is empty", "Add profiles to the group first.", NoticeKind.Info);
+            return;
+        }
+        await ApplyRunningAsync(members, $"“{group.Name}”");
+    }
 
-    public async Task<WindowApplyResult> ApplyAsync(WindowRule rule, bool quiet = false, bool retry = true, bool watch = true)
+    public void ApplyKey(string hotkey)
+    {
+        bool group = S.Groups.Any(g => Hotkeys.Hotkey.SameKey(g.Hotkey, hotkey));
+        var profiles = S.Profiles.Where(p => Hotkeys.Hotkey.SameKey(p.Hotkey, hotkey))
+            .Concat(S.Groups.Where(g => Hotkeys.Hotkey.SameKey(g.Hotkey, hotkey)).SelectMany(S.Members))
+            .Distinct().ToList();
+        if (profiles.Count == 1 && !group) _ = ApplyAsync(profiles[0]);
+        else _ = ApplyRunningAsync(profiles, Hotkeys.Hotkey.Display(hotkey));
+    }
+
+    private async Task ApplyRunningAsync(List<WindowProfile> profiles, string what)
     {
         if (_app.Demo)
         {
-            if (!quiet) _app.Notify("Demo mode", $"This would move {rule.ProcessName}'s window. Nothing is changed in demo mode.", NoticeKind.Info);
+            _app.Notify("Demo mode", $"This would move the windows of {what}. Nothing is changed in demo mode.", NoticeKind.Info);
+            return;
+        }
+        var running = AppWatcher.Snapshot();
+        var targets = profiles.Where(p => IsRunning(p, running)).ToList();
+        if (targets.Count == 0)
+        {
+            _app.Notify($"Nothing to move for {what}", "None of its programs are running.", NoticeKind.Info);
+            return;
+        }
+        var problems = new List<string>();
+        foreach (var p in targets)
+            if (Problem(p, await ApplyAsync(p, quiet: true)) is { } problem) problems.Add(problem);
+        if (problems.Count == 0) _app.Notify($"{what} applied", string.Join(", ", targets.Select(p => p.Label)), NoticeKind.Success);
+        else _app.Notify($"{what}: not every window moved", string.Join("\n", problems), NoticeKind.Warning);
+    }
+
+    public static string? Problem(WindowProfile p, WindowApplyResult result) => result switch
+    {
+        WindowApplyResult.Applied => null,
+        WindowApplyResult.NotRunning => $"{p.ProcessName} isn't running.",
+        WindowApplyResult.NoWindow => $"{p.ProcessName} is running but has no window yet.",
+        WindowApplyResult.AccessDenied => $"Windows didn't let Goodie Bag move {p.ProcessName}'s window.",
+        _ => $"{p.ProcessName}'s window didn't end up where the profile says. Some games resize themselves; try a longer delay, or borderless in the game's settings.",
+    };
+
+    public async Task<WindowApplyResult> ApplyAsync(WindowProfile profile, bool quiet = false, bool retry = true, bool watch = true)
+    {
+        if (_app.Demo)
+        {
+            if (!quiet) _app.Notify("Demo mode", $"This would move {profile.ProcessName}'s window to {Describe(profile)}. Nothing is changed in demo mode.", NoticeKind.Info);
             return WindowApplyResult.Applied;
         }
-        var snapshot = rule.Copy();
+        var snapshot = profile.Copy();
         var result = await Task.Run(async () =>
         {
             for (int attempt = 0; ; attempt++)
@@ -89,29 +146,29 @@ internal sealed class WindowRuleService : IDisposable
         });
         if (!quiet)
         {
-            if (Problem(rule, result) is { } problem) _app.Notify($"“{rule.Label}” not applied", problem, NoticeKind.Warning);
-            else _app.Notify($"“{rule.Label}” applied", $"{rule.ProcessName}: {Describe(rule)}.", NoticeKind.Success);
+            if (Problem(profile, result) is { } problem) _app.Notify($"“{profile.Label}” not applied", problem, NoticeKind.Warning);
+            else _app.Notify($"“{profile.Label}” applied", $"{profile.ProcessName}: {Describe(profile)}.", NoticeKind.Success);
         }
         return result;
     }
 
-    public static string Describe(WindowRule r) =>
-        (r.Width is { } w && r.Height is { } h ? $"{w}×{h}" : "same size") + $" at {r.X}, {r.Y}" + (r.RemoveBorders ? ", borderless" : "");
+    public static string Describe(WindowProfile p) =>
+        (p.Width is { } w && p.Height is { } h ? $"{w}×{h}" : "same size") + $" at {p.X}, {p.Y}" + (p.RemoveBorders ? ", borderless" : "");
 
-    private WindowApplyResult ApplyOnce(WindowRule r, bool watch)
+    private WindowApplyResult ApplyOnce(WindowProfile p, bool watch)
     {
-        var pids = ProcessIds(r.ProcessName);
+        var pids = ProcessIds(p.ProcessName);
         foreach (int pid in pids)
         {
             if (Win32.LargestWindow(pid) is not { } hwnd) continue;
-            var result = MoveAndCheck(hwnd, r);
-            if (result == WindowApplyResult.Applied && watch) Watch(hwnd, pid, r);
+            var result = MoveAndCheck(hwnd, p);
+            if (result == WindowApplyResult.Applied && watch) Watch(hwnd, pid, p);
             return result;
         }
-        if (Win32.PidByTitle(r.Name) is { } titled && Win32.LargestWindow(titled) is { } byTitle)
+        if (Win32.PidByTitle(p.Name) is { } titled && Win32.LargestWindow(titled) is { } byTitle)
         {
-            var result = MoveAndCheck(byTitle, r);
-            if (result == WindowApplyResult.Applied && watch) Watch(byTitle, titled, r);
+            var result = MoveAndCheck(byTitle, p);
+            if (result == WindowApplyResult.Applied && watch) Watch(byTitle, titled, p);
             return result;
         }
         return pids.Count == 0 ? WindowApplyResult.NotRunning : WindowApplyResult.NoWindow;
@@ -126,32 +183,32 @@ internal sealed class WindowRuleService : IDisposable
         return ids;
     }
 
-    private static WindowApplyResult MoveAndCheck(IntPtr hwnd, WindowRule r)
+    private static WindowApplyResult MoveAndCheck(IntPtr hwnd, WindowProfile p)
     {
-        if (r.RemoveBorders) Win32.RemoveBorders(hwnd);
-        var target = Target(hwnd, r);
+        if (p.RemoveBorders) Win32.RemoveBorders(hwnd);
+        var target = Target(hwnd, p);
         if (!Win32.MoveWindow(hwnd, target.X, target.Y, target.W, target.H, true))
             return Marshal.GetLastWin32Error() == 5 ? WindowApplyResult.AccessDenied : WindowApplyResult.Failed;
-        if (r.RemoveBorders) Win32.HideUwpTitleBar(hwnd);
+        if (p.RemoveBorders) Win32.HideUwpTitleBar(hwnd);
         return Win32.Rect(hwnd) == target ? WindowApplyResult.Applied : WindowApplyResult.Failed;
     }
 
-    private static (int X, int Y, int W, int H) Target(IntPtr hwnd, WindowRule r)
+    private static (int X, int Y, int W, int H) Target(IntPtr hwnd, WindowProfile p)
     {
         var now = Win32.Rect(hwnd);
-        int w = r.Width ?? now.W, h = r.Height ?? now.H;
-        if (r.HideTitleBar && Win32.UwpContentOffset(hwnd) is { } shift)
-            return (r.X, r.Y - shift, w, h + shift);
-        return (r.X, r.Y, w, h);
+        int w = p.Width ?? now.W, h = p.Height ?? now.H;
+        if (p.HideTitleBar && Win32.UwpContentOffset(hwnd) is { } shift)
+            return (p.X, p.Y - shift, w, h + shift);
+        return (p.X, p.Y, w, h);
     }
 
-    private void Watch(IntPtr hwnd, int pid, WindowRule r)
+    private void Watch(IntPtr hwnd, int pid, WindowProfile p)
     {
         var cts = new CancellationTokenSource();
         lock (_gate)
         {
-            if (_watchers.Remove(r.Id, out var old)) old.Cancel();
-            _watchers[r.Id] = cts;
+            if (_watchers.Remove(p.Id, out var old)) old.Cancel();
+            _watchers[p.Id] = cts;
         }
         _ = Task.Run(async () =>
         {
@@ -163,8 +220,8 @@ internal sealed class WindowRuleService : IDisposable
                     if (!Win32.IsWindow(hwnd) || Win32.Pid(hwnd) != pid) return;
                     Win32.PerMonitor(() =>
                     {
-                        if (Win32.Rect(hwnd) != Target(hwnd, r))
-                            MoveAndCheck(hwnd, r);
+                        if (Win32.Rect(hwnd) != Target(hwnd, p))
+                            MoveAndCheck(hwnd, p);
                         return 0;
                     });
                 }
@@ -174,7 +231,7 @@ internal sealed class WindowRuleService : IDisposable
             {
                 lock (_gate)
                 {
-                    if (_watchers.TryGetValue(r.Id, out var current) && current == cts) _watchers.Remove(r.Id);
+                    if (_watchers.TryGetValue(p.Id, out var current) && current == cts) _watchers.Remove(p.Id);
                 }
                 cts.Dispose();
             }
@@ -184,19 +241,19 @@ internal sealed class WindowRuleService : IDisposable
     private void OnProgramStarted(string name)
     {
         if (_app.Demo) return;
-        foreach (var rule in Current.Where(r => AppWatcher.Normalize(r.ProcessName) == name).ToList())
-            _ = ApplyWhenStartedAsync(rule);
+        foreach (var p in Automatic.Where(p => AppWatcher.Normalize(p.ProcessName) == name).ToList())
+            _ = ApplyWhenStartedAsync(p);
     }
 
-    private async Task ApplyWhenStartedAsync(WindowRule rule)
+    private async Task ApplyWhenStartedAsync(WindowProfile profile)
     {
         try
         {
-            await Task.Delay(Math.Clamp(rule.DelayMs, 0, 120_000));
-            if (!Current.Contains(rule)) return;
-            var result = await ApplyAsync(rule, quiet: true);
-            if (Problem(rule, result) is { } problem)
-                _app.Notify($"“{rule.Label}” not applied", problem, NoticeKind.Warning);
+            await Task.Delay(Math.Clamp(profile.DelayMs, 0, WindowProfileSettings.MaxDelayMs));
+            if (!Automatic.Contains(profile)) return;
+            var result = await ApplyAsync(profile, quiet: true);
+            if (Problem(profile, result) is { } problem)
+                _app.Notify($"“{profile.Label}” not applied", problem, NoticeKind.Warning);
         }
         catch (Exception ex)
         {
@@ -235,8 +292,11 @@ internal sealed class WindowRuleService : IDisposable
     public void Dispose()
     {
         _app.Watcher.Started -= OnProgramStarted;
+        if (_watching) _app.Watcher.Release(Consumer);
         StopWatching();
     }
+
+    private static bool Same(string a, string b) => string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static class Win32
     {

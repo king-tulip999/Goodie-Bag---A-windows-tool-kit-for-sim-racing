@@ -1,9 +1,10 @@
 using GoodieBag.Audio;
 using GoodieBag.Config;
-using GoodieBag.Modes;
 using GoodieBag.Services;
 
 namespace GoodieBag.Display;
+
+internal sealed record ProfileChange(string Area, string Text);
 
 internal sealed class DisplayProfileService
 {
@@ -152,30 +153,30 @@ internal sealed class DisplayProfileService
         return (problems, displayChanged);
     }
 
-    public List<ModeChange> Preview(DisplayProfile profile, HdrMode? hdrOverride = null, bool withAudio = true)
+    public List<ProfileChange> Preview(DisplayProfile profile, HdrMode? hdrOverride = null, bool withAudio = true)
     {
-        var changes = profile.Layout is not null ? LayoutChanges(profile.Layout) : new List<ModeChange>();
+        var changes = profile.Layout is not null ? LayoutChanges(profile.Layout) : new List<ProfileChange>();
         var hdr = hdrOverride ?? profile.Hdr;
         if (hdr != HdrMode.Unchanged)
-            changes.Add(new ModeChange("Display", hdr == HdrMode.On ? "Turn HDR on" : "Turn HDR off"));
+            changes.Add(new ProfileChange("Display", hdr == HdrMode.On ? "Turn HDR on" : "Turn HDR off"));
         if (profile.Taskbar != TaskbarMode.Unchanged && (_app.Demo || SafeTaskbarOnAll() != (profile.Taskbar == TaskbarMode.AllDisplays)))
-            changes.Add(new ModeChange("Display", profile.Taskbar == TaskbarMode.AllDisplays ? "Show the taskbar on every display" : "Taskbar on the main display only"));
+            changes.Add(new ProfileChange("Display", profile.Taskbar == TaskbarMode.AllDisplays ? "Show the taskbar on every display" : "Taskbar on the main display only"));
         if (profile.Wallpapers.Count > 0)
-            changes.Add(new ModeChange("Display", profile.Wallpapers.Count == 1 ? "Set the wallpaper" : $"Set {profile.Wallpapers.Count} wallpapers"));
+            changes.Add(new ProfileChange("Display", profile.Wallpapers.Count == 1 ? "Set the wallpaper" : $"Set {profile.Wallpapers.Count} wallpapers"));
         if (!withAudio)
             return changes;
         if (_app.Demo)
         {
-            if (profile.Audio?.PlaybackName is { } speakers) changes.Add(new ModeChange("Audio", "Speakers → " + speakers));
+            if (profile.Audio?.PlaybackName is { } speakers) changes.Add(new ProfileChange("Audio", "Speakers → " + speakers));
         }
         else
-            changes.AddRange(AudioManager.Changes(profile.Audio, profile.Volume).Select(c => new ModeChange("Audio", c)));
+            changes.AddRange(AudioManager.Changes(profile.Audio, profile.Volume).Select(c => new ProfileChange("Audio", c)));
         return changes;
     }
 
-    private List<ModeChange> LayoutChanges(DisplaySnapshot layout)
+    private List<ProfileChange> LayoutChanges(DisplaySnapshot layout)
     {
-        var changes = new List<ModeChange>();
+        var changes = new List<ProfileChange>();
         var all = SafeMonitors();
         var target = _app.Displays.Describe(layout);
         var now = all.Where(m => m.Active).ToList();
@@ -189,24 +190,24 @@ internal sealed class DisplayProfileService
             var cur = now.FirstOrDefault(m => m.Key == t.Key);
             if (cur is null)
             {
-                changes.Add(new ModeChange("Display", all.Any(m => m.Key == t.Key)
+                changes.Add(new ProfileChange("Display", all.Any(m => m.Key == t.Key)
                     ? $"Turn on {name} at {t.Width}×{t.Height}, {t.Hz} Hz"
                     : $"{name} isn't connected; the profile can't be applied until it is"));
                 continue;
             }
             if (cur.Width != t.Width || cur.Height != t.Height)
-                changes.Add(new ModeChange("Display", $"{name}: {cur.Width}×{cur.Height} → {t.Width}×{t.Height}"));
+                changes.Add(new ProfileChange("Display", $"{name}: {cur.Width}×{cur.Height} → {t.Width}×{t.Height}"));
             if (cur.Hz != t.Hz && t.Hz > 0)
-                changes.Add(new ModeChange("Display", $"{name}: {cur.Hz} Hz → {t.Hz} Hz"));
+                changes.Add(new ProfileChange("Display", $"{name}: {cur.Hz} Hz → {t.Hz} Hz"));
             if (cur.Rotation != t.Rotation)
-                changes.Add(new ModeChange("Display", $"{name}: rotate to {RotationName(t.Rotation)}"));
+                changes.Add(new ProfileChange("Display", $"{name}: rotate to {RotationName(t.Rotation)}"));
             if (t.Primary && !cur.Primary)
-                changes.Add(new ModeChange("Display", $"{name} becomes the main display"));
+                changes.Add(new ProfileChange("Display", $"{name} becomes the main display"));
             else if (!t.Primary && !cur.Primary && (cur.X - origin.Item1 != t.X || cur.Y - origin.Item2 != t.Y))
-                changes.Add(new ModeChange("Display", $"{name}: moved in the arrangement"));
+                changes.Add(new ProfileChange("Display", $"{name}: moved in the arrangement"));
         }
         foreach (var cur in now.Where(m => target.All(t => t.Key != m.Key)))
-            changes.Add(new ModeChange("Display", $"Turn off {Label(cur.Key, cur.Name)}"));
+            changes.Add(new ProfileChange("Display", $"Turn off {Label(cur.Key, cur.Name)}"));
         return changes;
     }
 
@@ -219,7 +220,7 @@ internal sealed class DisplayProfileService
 
     public void Recapture(DisplayProfile profile)
     {
-        try { profile.Layout = _app.Displays.CaptureForMode(); } catch { }
+        try { profile.Layout = _app.Displays.CaptureLayout(); } catch { }
         if (_app.Demo)
         {
             profile.Audio ??= new AudioSnapshot { PlaybackId = "demo-headset", PlaybackName = "Headset (Arctis Nova Pro)", RecordingId = "demo-mic", RecordingName = "Microphone (Arctis Nova Pro)" };
@@ -240,26 +241,15 @@ internal sealed class DisplayProfileService
 
     public void Renamed(string oldName, string newName)
     {
-        ConfigReferences.DisplayProfile(_app.Config, oldName, newName);
         if (string.Equals(LastApplied, oldName, StringComparison.OrdinalIgnoreCase)) LastApplied = newName;
     }
 
     public void Remove(DisplayProfile profile)
     {
         _app.Config.Displays.Profiles.Remove(profile);
-        ConfigReferences.DisplayProfile(_app.Config, profile.Name, null);
         if (string.Equals(LastApplied, profile.Name, StringComparison.OrdinalIgnoreCase)) LastApplied = null;
         RaiseChanged();
     }
-
-    public List<string> UsedBy(DisplayProfile profile)
-    {
-        bool Same(string? n) => string.Equals(n, profile.Name, StringComparison.OrdinalIgnoreCase);
-        var c = _app.Config;
-        return c.Modes.Where(m => Same(m.DisplayProfile)).Select(m => $"“{m.Name}”").Distinct().ToList();
-    }
-
-    public static string UsersText(List<string> users) => (users.Count == 1 ? "mode " : "modes ") + string.Join(", ", users);
 
     public void RaiseChanged()
     {

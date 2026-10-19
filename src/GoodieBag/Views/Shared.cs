@@ -17,14 +17,7 @@ namespace GoodieBag.Views;
 
 internal interface IKeepsWheel { }
 
-internal static class ModeVisuals
-{
-    private const string IconKey = "I.Layers";
-
-    public static Border Badge(double size = 36) => Ui.Badge(IconKey, "AccentSoft", "AccentText", size, size * 0.3, size * 0.5);
-}
-
-internal static class ModeLayout
+internal static class ProfileLayout
 {
     public static List<LayoutTile> Tiles(AppServices app, DisplaySnapshot snapshot)
     {
@@ -422,12 +415,12 @@ internal static class Ui
         return box;
     }
 
-    public static TextBlock EditorSection(string title) => new()
+    public static TextBlock EditorSection(string title)
     {
-        Text = title,
-        Style = Res<Style>("Eyebrow"),
-        Margin = new Thickness(0, 22, 0, 4),
-    };
+        var block = new TextBlock { Text = title, Style = Res<Style>("H3"), FontSize = 16, Margin = new Thickness(0, 24, 0, 8) };
+        block.SetResourceReference(TextBlock.ForegroundProperty, "EyebrowText");
+        return block;
+    }
 
     public static Grid FieldRow(string label, UIElement control, double labelWidth = 150)
     {
@@ -477,7 +470,7 @@ internal static class Ui
         {
             Style = Res<Style>("LiftedCard"),
             Width = width,
-            MaxHeight = Math.Max(480, window.ActualHeight - 90),
+            MaxHeight = Math.Max(480, window.ModalRoom),
             Padding = new Thickness(26, 22, 16, 20),
             Child = outer,
         };

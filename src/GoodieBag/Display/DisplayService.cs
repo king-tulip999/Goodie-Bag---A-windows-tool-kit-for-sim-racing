@@ -447,7 +447,7 @@ internal sealed class DisplayService : IDisposable
         NotifyChanged();
     }
 
-    public DisplaySnapshot CaptureForMode()
+    public DisplaySnapshot CaptureLayout()
     {
         if (_demo)
         {

@@ -89,15 +89,7 @@ public sealed class OverlayLayout
 
     public int FontScale { get; set; } = 100;
 
-    public int Opacity { get; set; } = 100;
-
     public int BackgroundOpacity { get; set; } = 72;
-
-    public int SpacingX { get; set; } = 100;
-
-    public int SpacingY { get; set; } = 100;
-
-    public int? Spacing { get; set; }
 
     public Dictionary<string, string> GroupNames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -172,12 +164,7 @@ public sealed class OverlayLayout
             Metrics.Add(new OverlayMetricEntry { Metric = missing, Enabled = false });
         Metrics = GroupOrder().SelectMany(g => Metrics.Where(m => GroupOf(m.Metric) == g)).ToList();
         FontScale = Math.Clamp(FontScale, 60, 200);
-        Opacity = Math.Clamp(Opacity, 20, 100);
         BackgroundOpacity = Math.Clamp(BackgroundOpacity, 0, 100);
-        if (Spacing is { } both) SpacingX = SpacingY = both;
-        Spacing = null;
-        SpacingX = Math.Clamp(SpacingX, 50, 200);
-        SpacingY = Math.Clamp(SpacingY, 50, 200);
         GroupNames = new Dictionary<string, string>((GroupNames ?? new()).Where(p => !string.IsNullOrWhiteSpace(p.Value))
             .ToDictionary(p => p.Key, p => p.Value.Trim().Length > 24 ? p.Value.Trim()[..24] : p.Value.Trim()), StringComparer.OrdinalIgnoreCase);
         MetricTags = (MetricTags ?? new()).Where(p => Enum.IsDefined(p.Key)).ToDictionary(p => p.Key, p => (p.Value ?? "").Trim().Length > 16 ? p.Value!.Trim()[..16] : (p.Value ?? "").Trim());

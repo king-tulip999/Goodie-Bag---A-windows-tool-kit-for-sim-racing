@@ -107,7 +107,7 @@ internal sealed class KeybindTree : Tile
         var entries = _app.Hotkeys.Catalog().Where(e => _app.Hotkeys.IsAvailable(e) && _include(e) && e.Path.Count > _skip).ToList();
         if (entries.Count == 0)
         {
-            _root.Children.Add(new TextBlock { Text = "No keybinds yet: modes, display profiles and the overlay add theirs when they're on.", Style = Ui.Res<Style>("Caption") });
+            _root.Children.Add(new TextBlock { Text = "No keybinds yet: window profiles, display profiles and the overlay add theirs when they're on.", Style = Ui.Res<Style>("Caption") });
             return;
         }
         string prefix = string.Join("/", entries[0].Path.Take(_skip));

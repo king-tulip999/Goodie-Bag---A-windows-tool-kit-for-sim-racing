@@ -202,7 +202,7 @@ internal sealed class OverlayController : IDisposable
             var data = new OverlayData(_hardware.Latest, stats, fpsNote, layout.Shows(OverlayMetric.Fans) ? _fans() : Array.Empty<(string, float?)>(), _network.Latest, times);
 
             var size = _renderer.Render(layout, data, scale, _surface!);
-            _window.Present(Position(layout, screen, size, scale), (byte)Math.Round(layout.Opacity * 2.55));
+            _window.Present(Position(layout, screen, size, scale), 255);
 
             if (++_ticks % 4 == 0)
                 _window.KeepOnTop();

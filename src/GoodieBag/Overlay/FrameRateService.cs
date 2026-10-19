@@ -15,6 +15,8 @@ internal sealed class FrameRateService : IDisposable
     private const int DxgiPresentStart = 42;
     private const int DxgiPresentMultiplaneOverlayStart = 55;
     private const int D3D9PresentStart = 1;
+    private static readonly Guid DxgKrnlProvider = new("802EC45A-1E99-4B83-9920-87C98277BA9D");
+    private const int DxgKrnlPresentInfo = 184;
 
     private const double MaxCountedFrameMs = 1000;
 
@@ -77,6 +79,12 @@ internal sealed class FrameRateService : IDisposable
                 new TraceEventProviderOptions { EventIDsToEnable = new List<int> { DxgiPresentStart, DxgiPresentMultiplaneOverlayStart } });
             session.EnableProvider(D3D9Provider, TraceEventLevel.Verbose, ulong.MaxValue,
                 new TraceEventProviderOptions { EventIDsToEnable = new List<int> { D3D9PresentStart } });
+            try
+            {
+                session.EnableProvider(DxgKrnlProvider, TraceEventLevel.Informational, ulong.MaxValue,
+                    new TraceEventProviderOptions { EventIDsToEnable = new List<int> { DxgKrnlPresentInfo } });
+            }
+            catch { }
             session.Source.AllEvents += OnEvent;
 
             var ui = System.Windows.Threading.Dispatcher.CurrentDispatcher;
@@ -202,6 +210,19 @@ internal sealed class FrameRateService : IDisposable
     private void OnEvent(TraceEvent e)
     {
         int id = (int)e.ID;
+        if (e.ProviderGuid == DxgKrnlProvider)
+        {
+            if (id != DxgKrnlPresentInfo)
+                return;
+            lock (_lock)
+            {
+                PruneStale(Environment.TickCount64);
+                if (!_processes.TryGetValue(e.ProcessID, out var kernelProcess))
+                    kernelProcess = _processes[e.ProcessID] = new ProcessFrames();
+                kernelProcess.AddKernel(e.TimeStampRelativeMSec);
+            }
+            return;
+        }
         bool isPresent = e.ProviderGuid == DxgiProvider ? id is DxgiPresentStart or DxgiPresentMultiplaneOverlayStart
                        : e.ProviderGuid == D3D9Provider && id == D3D9PresentStart;
         if (!isPresent)
@@ -292,6 +313,14 @@ internal sealed class FrameRateService : IDisposable
             _sinceLastFrame.Restart();
         }
 
+        private SwapChainFrames? _kernel;
+
+        public void AddKernel(double timeMs)
+        {
+            (_kernel ??= new SwapChainFrames()).Add(timeMs);
+            _sinceLastFrame.Restart();
+        }
+
         public void PruneSwapChains(long nowMs, long idleMs)
         {
             if (_swapChains.Count < 2)
@@ -337,6 +366,8 @@ internal sealed class FrameRateService : IDisposable
                 if (now - chain.LastSeenTicks < 2500 && (main is null || chain.RecentCount > main.RecentCount))
                     main = chain;
             }
+            if (main is null && _kernel is { } kernel && now - kernel.LastSeenTicks < 2500)
+                main = kernel;
             return main;
         }
     }

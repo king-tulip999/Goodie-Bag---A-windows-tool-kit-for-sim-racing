@@ -184,7 +184,7 @@ internal static class ScreenshotRunner
 
     private static readonly (string Name, string Kind, string Glyph)[] NavIconKinds =
     {
-        ("Automations and Modes", "modes", "I.Layers"),
+        ("Window Profiles", "windows", "I.Triple"),
         ("Displays", "displays", "I.Monitor"),
         ("Hardware Monitor", "hardware-monitor", "I.Heartbeat"),
         ("Overlay", "overlay", "I.Overlay"),
