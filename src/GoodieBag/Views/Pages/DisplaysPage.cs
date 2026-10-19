@@ -657,5 +657,15 @@ internal sealed class DisplaysPage : UserControl, IPage, IScreenshotStates
             _window.CloseModal(false);
             return Task.CompletedTask;
         });
+        yield return ("profile-new", () =>
+        {
+            _profiles.OpenNew();
+            return Task.CompletedTask;
+        });
+        yield return ("profile-new-closed", () =>
+        {
+            _window.CloseModal(false);
+            return Task.CompletedTask;
+        });
     }
 }

@@ -20,6 +20,7 @@ Pick a program and give its window an exact size and spot: a game stretched acro
 Turn monitors on and off, arrange them, and set resolution, refresh rate, HDR, taskbar, wallpapers and audio. Save it all as profiles (mine are *Desk* and *Sim rig*) and switch between them with a hotkey.
 
 <p align="center"><img src="screenshots/displays.png" alt="Displays" width="100%"></p>
+<p align="center"><img src="screenshots/display-profile-editor.png" alt="Display profile editor" width="60%"></p>
 
 ### Fan Control
 
@@ -32,7 +33,6 @@ Curves, presets, calibration and an emergency failsafe. Fans go back to the BIOS
 A dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with every sensor your PC exposes. The **Performance Overlay** (FPS, 1% lows, temps, usage) lives here too, and you can drag things into whatever order you want.
 
 <p align="center"><img src="screenshots/performance-overlay.png" alt="Performance Overlay" width="100%"></p>
-<p align="center"><img src="screenshots/hardware-monitor.png" alt="Hardware Monitor" width="100%"></p>
 
 ### Sim Racing Tools (iRacing)
 

@@ -172,6 +172,8 @@ internal sealed class DisplayProfilesView : Tile
         _app.DisplayProfiles.Remove(profile);
     }
 
+    public void OpenNew() => SaveCurrentAsync();
+
     public void OpenEditor(int index)
     {
         var profiles = _app.Config.Displays.Profiles;
