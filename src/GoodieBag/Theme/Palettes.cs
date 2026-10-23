@@ -39,10 +39,10 @@ internal static class Palettes
         ["Bg"] = Hex("#000000"), ["Panel"] = Hex("#0E0E0E"), ["Surface"] = Hex("#151515"), ["SurfaceAlt"] = Hex("#1B1B1B"),
         ["TileRaised"] = Hex("#222222"), ["Hover"] = Hex("#2A2A2A"), ["HoverRaised"] = Hex("#303030"),
         ["TileHighlight"] = Hex("#2A2A2A"), ["TileEdge"] = Hex("#3A3A3A"),
-        ["Line"] = Hex("#242424"), ["LineStrong"] = Hex("#333333"),
-        ["Heading"] = Hex("#F0F0F0"), ["Text"] = Hex("#DADADA"), ["TextMuted"] = Hex("#9E9E9E"), ["TextFaint"] = Hex("#7E7E7E"),
+        ["Line"] = Hex("#2E2E2E"), ["LineStrong"] = Hex("#3C3C3C"),
+        ["Heading"] = Hex("#E6E6E6"), ["Text"] = Hex("#D2D2D2"), ["TextMuted"] = Hex("#A0A0A0"), ["TextFaint"] = Hex("#8A8A8A"),
         ["Accent"] = Hex("#DC1A78"), ["AccentHover"] = Hex("#C4146A"), ["AccentPressed"] = Hex("#96104F"), ["AccentEdge"] = Hex("#F02D91"),
-        ["OnAccent"] = Hex("#FFFFFF"), ["AccentSoft"] = Hex("#2E1A25"), ["AccentSoftHover"] = Hex("#3C2230"), ["AccentText"] = Hex("#FF6EB4"),
+        ["OnAccent"] = Hex("#FFFFFF"), ["AccentSoft"] = Hex("#3D1C2E"), ["AccentSoftHover"] = Hex("#3C2230"), ["AccentText"] = Hex("#FF6EB4"),
         ["ButtonEdge"] = Hex("#3A3A3A"),
         ["Sage"] = Hex("#7FCB4F"), ["SageSoft"] = Hex("#13241A"), ["SageDeep"] = Hex("#9BDE68"),
         ["Warn"] = Hex("#E8AE3C"), ["WarnSoft"] = Hex("#2A2216"), ["WarnDeep"] = Hex("#F2C76E"),
@@ -50,7 +50,7 @@ internal static class Palettes
         ["Gold"] = Hex("#FFC08A"), ["GoldSoft"] = Hex("#2B241F"), ["GoldDeep"] = Hex("#FFD2AD"), ["GoldEdge"] = Hex("#D99A63"), ["OnGold"] = Hex("#1A120A"),
         ["Apricot"] = Hex("#FFC08A"), ["ApricotSoft"] = Hex("#2B241F"), ["ApricotDeep"] = Hex("#FFD2AD"),
         ["Coral"] = Hex("#F07A35"), ["CoralSoft"] = Hex("#2D1D19"), ["CoralDeep"] = Hex("#FF9A5C"),
-        ["Slate"] = Hex("#49C8F5"), ["SlateSoft"] = Hex("#0F2129"), ["SlateDeep"] = Hex("#8ADCFA"),
+        ["Slate"] = Hex("#49C8F5"), ["SlateSoft"] = Hex("#14303C"), ["SlateDeep"] = Hex("#8ADCFA"),
         ["Plum"] = Hex("#7E7E7E"), ["PlumSoft"] = Hex("#202020"), ["PlumDeep"] = Hex("#B8B8B8"),
         ["Knob"] = Hex("#F0F0F0"), ["SwitchTrack"] = Hex("#2E2E2E"), ["SwitchTrackHover"] = Hex("#393939"),
         ["MeterTrack"] = Hex("#242424"), ["GridLine"] = Hex("#1E1E1E"),
@@ -64,7 +64,7 @@ internal static class Palettes
         ["LogoBg"] = Hex("#DC1A78"), ["LogoFg"] = Hex("#FFFFFF"), ["LogoEdge"] = Hex("#DC1A78"),
         ["SidebarEdge"] = Hex("#242424"),
         ["InputEdgeHover"] = Hex("#5A5A5A"), ["FocusEdge"] = Hex("#49C8F5"), ["OnDanger"] = Hex("#1A0808"),
-        ["SegmentBg"] = Hex("#1B1B1B"), ["SegmentEdge"] = Hex("#333333"), ["QuietEdge"] = Hex("#3A3A3A"), ["EyebrowText"] = Hex("#49C8F5"),
+        ["SegmentBg"] = Hex("#1B1B1B"), ["SegmentEdge"] = Hex("#333333"), ["QuietEdge"] = Hex("#3A3A3A"), ["EyebrowText"] = Hex("#7FBFD6"),
     };
 
     public static readonly IReadOnlyDictionary<string, Color> Custom = new Dictionary<string, Color>

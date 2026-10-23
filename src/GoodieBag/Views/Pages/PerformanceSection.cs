@@ -179,6 +179,7 @@ internal sealed class PerformanceSection : UserControl, IPage
         });
         label.Children.Add(texts);
         row.Children.Add(label);
+        segmented.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(segmented);
         if (_openSettings is not null)
         {

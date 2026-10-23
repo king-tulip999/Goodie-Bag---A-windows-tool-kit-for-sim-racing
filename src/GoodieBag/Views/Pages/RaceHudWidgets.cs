@@ -844,28 +844,51 @@ internal sealed class RaceHudWidgets
     {
         if (_hoverSetting == settingId) return;
         _hoverSetting = settingId;
+        _highlightBoxes.Clear();
         DrawHighlight();
     }
+
+    private readonly List<System.Drawing.RectangleF> _highlightBoxes = new();
+    private Point? _lastHover;
 
     private void DrawHighlight()
     {
         if (_previewHighlight is null) return;
-        _previewHighlight.Children.Clear();
-        if (_hoverSetting is not { } id || _dragging || Selected() is not { } w || HudCatalog.Find(w.Kind) is not { } def) return;
+        var shown = _previewHighlight.Children;
+        if (_hoverSetting is not { } id || _dragging || Selected() is not { } w || HudCatalog.Find(w.Kind) is not { } def)
+        {
+            if (shown.Count > 0) shown.Clear();
+            return;
+        }
         var names = def.EditorDef.RegionsOf(id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var boxes = (_painter.Regions ?? new()).Where(r => names.Contains(r.Id)).Select(r => r.Box).ToList();
         foreach (var group in (_painter.Items ?? new()).Where(i => names.Contains(i.Key)).GroupBy(i => i.Key))
             boxes.Add(group.Select(i => i.Box).Aggregate(System.Drawing.RectangleF.Union));
-        double s = _previewScale;
-        foreach (var box in boxes)
+        if (boxes.Count > 0)
         {
-            var mark = new Border { Width = Math.Max(4, box.Width * s + 4), Height = Math.Max(4, box.Height * s + 4), BorderThickness = new Thickness(2) };
+            _highlightBoxes.Clear();
+            _highlightBoxes.AddRange(boxes);
+        }
+        double s = _previewScale;
+        while (shown.Count > _highlightBoxes.Count) shown.RemoveAt(shown.Count - 1);
+        while (shown.Count < _highlightBoxes.Count)
+        {
+            var mark = new Border { BorderThickness = new Thickness(2), SnapsToDevicePixels = true };
             mark.SetResourceReference(Border.BorderBrushProperty, "AccentText");
             var fill = (Ui.Res<Brush>("AccentSoft") as SolidColorBrush)?.Clone();
-            if (fill is not null) { fill.Opacity = 0.35; mark.Background = fill; }
-            Canvas.SetLeft(mark, box.X * s - 2);
-            Canvas.SetTop(mark, box.Y * s - 2);
-            _previewHighlight.Children.Add(mark);
+            if (fill is not null) { fill.Opacity = 0.35; fill.Freeze(); mark.Background = fill; }
+            shown.Add(mark);
+        }
+        for (int i = 0; i < _highlightBoxes.Count; i++)
+        {
+            var box = _highlightBoxes[i];
+            var mark = (Border)shown[i];
+            double left = Math.Round(box.X * s - 2), top = Math.Round(box.Y * s - 2);
+            double width = Math.Max(4, Math.Round(box.Right * s + 2) - left), height = Math.Max(4, Math.Round(box.Bottom * s + 2) - top);
+            if (mark.Width != width) mark.Width = width;
+            if (mark.Height != height) mark.Height = height;
+            if (Canvas.GetLeft(mark) != left) Canvas.SetLeft(mark, left);
+            if (Canvas.GetTop(mark) != top) Canvas.SetTop(mark, top);
         }
     }
 
@@ -882,6 +905,8 @@ internal sealed class RaceHudWidgets
             if (_press is not { } press)
             {
                 if (_click is not null || editor is null) return;
+                if (_lastHover is { } last && (at - last).Length < 0.5) return;
+                _lastHover = at;
                 var hover = SettingAt(editor, at);
                 host.Cursor = hover is null ? null : ItemAt(at) is not null ? Cursors.SizeAll : Cursors.Hand;
                 Highlight(hover);
@@ -897,7 +922,7 @@ internal sealed class RaceHudWidgets
             Reorder(w, press.Key, press.Id, at);
             ShowDrag(press.Key, press.Id, at);
         };
-        host.MouseLeave += (_, _) => { if (_press is null) Highlight(null); };
+        host.MouseLeave += (_, _) => { _lastHover = null; if (_press is null) Highlight(null); };
         host.MouseLeftButtonDown += (_, e) =>
         {
             var at = e.GetPosition(host);

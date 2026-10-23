@@ -151,8 +151,8 @@ internal static class StatsSessions
     internal static void ColumnBar(Grid table, int row, int col, double gap)
     {
         var bar = new Border { Width = 2, Height = 12, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(gap / 2 - 1, 0, 0, 0), Opacity = 0.55, IsHitTestVisible = false };
-        bar.SetResourceReference(Border.BackgroundProperty, "Accent");
+            Margin = new Thickness(gap / 2 - 1, 0, 0, 0), IsHitTestVisible = false };
+        bar.SetResourceReference(Border.BackgroundProperty, "LineStrong");
         Grid.SetRow(bar, row);
         Grid.SetColumn(bar, col);
         table.Children.Add(bar);

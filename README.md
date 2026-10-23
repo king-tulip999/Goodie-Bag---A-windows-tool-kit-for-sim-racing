@@ -12,68 +12,43 @@ Every feature is a plugin you can switch off, and when one's off it runs nothing
 
 Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once.
 
-<p align="center"><img src="screenshots/window-profiles.png" alt="Window Profiles" width="100%"></p>
-<p align="center"><img src="screenshots/window-profile-editor.png" alt="Window profile editor" width="60%"></p>
-
 ### Displays
 
-Turn monitors on and off, arrange them, and set resolution, refresh rate, HDR, taskbar, wallpapers and audio. Save it all as profiles (mine are *Desk* and *Sim rig*) and switch between them with a hotkey.
-
-<p align="center"><img src="screenshots/displays.png" alt="Displays" width="100%"></p>
-<p align="center"><img src="screenshots/display-profile-editor.png" alt="Display profile editor" width="60%"></p>
+Turn monitors on and off, arrange them, duplicate one onto another, give them your own names, and set resolution, refresh rate, HDR, taskbar, wallpapers and audio. Save it all as profiles (mine are *Desk* and *Sim rig*) and switch between them with a hotkey.
 
 ### Fan Control
 
-Curves, presets, calibration and an emergency failsafe. Fans go back to the BIOS / driver when you quit.
-
-<p align="center"><img src="screenshots/fan-control.png" alt="Fan Control" width="100%"></p>
+Curves, presets, calibration and an emergency failsafe. When you quit you can keep your curves running in a small background helper (its own tray icon), or hand the fans back to the BIOS / driver.
 
 ### Hardware Monitor
 
 A dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with every sensor your PC exposes. The **Performance Overlay** (FPS, 1% lows, temps, usage) lives here too, and you can drag things into whatever order you want.
 
-<p align="center"><img src="screenshots/performance-overlay.png" alt="Performance Overlay" width="100%"></p>
-
 ### Sim Racing Tools (iRacing)
 
 #### iRacing Overlay
 
-Relative, Standings, Fuel, Lap timing, Weather, Wind, Session, Race events, Multiclass traffic, Alerts and more. Every widget can be set up however you like, with layouts that switch by car / class / track, and an in-game editor (`Ctrl+Alt+E`) so you never have to leave the car.
-
-<p align="center"><img src="screenshots/all-overlays.png" alt="Every iRacing Overlay widget" width="100%"></p>
-<p align="center"><img src="screenshots/iracing-overlay.png" alt="iRacing Overlay settings" width="100%"></p>
+Relative, Standings, Fuel & strategy, Lap timing & delta, Lap history, Tires, Weather, Wind, Session, Race events, Multiclass traffic, Alerts and a Data block for any single value. Every widget can be set up however you like, with layouts that switch by car / class / track, and an in-game editor (`Ctrl+Alt+E`) so you never have to leave the car.
 
 #### iRacing Setup Manager
 
-All your setups sorted by car and class. Rename, move, import share packs and pick up new downloads.
-
-<p align="center"><img src="screenshots/iracing-setup-manager.png" alt="iRacing Setup Manager" width="100%"></p>
+All your setups sorted by car and class. Rename, move, import share packs and pick up new downloads. A fuel calculator for the selected car works out the race laps, fuel and stops.
 
 #### iRacing Controller
 
 iRacing's settings in plain language, plus your in-sim keybinds per control profile. Everything gets backed up before it's changed.
 
-<p align="center"><img src="screenshots/iracing-controller.png" alt="iRacing Controller" width="100%"></p>
-
 #### FOV Calculator
 
 Single and triple screens, compare rigs, and write the result straight into iRacing.
-
-<p align="center"><img src="screenshots/fov-calculator.png" alt="FOV Calculator" width="100%"></p>
 
 #### Trading Paints and Garage 61
 
 Launch them with Goodie Bag or when iRacing starts.
 
-<p align="center"><img src="screenshots/companion-apps.png" alt="Trading Paints and Garage 61" width="100%"></p>
-
 ### Session Stats
 
-Your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. It also reads your old iRacing telemetry files, so your history doesn't start from zero.
-
-<p align="center"><img src="screenshots/session-stats.png" alt="Session Stats" width="100%"></p>
-<p align="center"><img src="screenshots/session-laps.png" alt="A session's laps and sectors" width="100%"></p>
-<p align="center"><img src="screenshots/lap-replay.png" alt="Lap analysis and replay" width="100%"></p>
+Your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. Tire wear is tracked per run from the pit-stall readings. It also reads your old iRacing telemetry files, so your history doesn't start from zero, and can switch on iRacing's telemetry recording and clear out files it has already read.
 
 ## Getting started
 
@@ -107,13 +82,11 @@ Works on Windows 10 and 11 (x64).
 
 - **Updates:** Settings → About & updates checks on start, daily, weekly or only when you click **Check now**. When there's an update, **Install and restart** downloads it, checks the checksum and swaps the exe. Your settings are kept.
 - **Reset:** Settings → Data & configuration → **Reset Goodie Bag**. Your old settings are saved as `config.before-reset-<date>.json`, and **Export / Import** lets you back them up or move them to another PC.
-- **Uninstall:** turn off **Start with Windows**, quit from the tray, then delete `GoodieBag.exe` and `%APPDATA%\GoodieBag`. If you installed PawnIO, remove it from Windows Settings → Apps.
+- **Uninstall:** turn off **Start with Windows**, quit from the tray (choose **Stop and quit** if fan control is on), then delete `GoodieBag.exe` and `%APPDATA%\GoodieBag`. If you installed PawnIO, remove it from Windows Settings → Apps.
 
 ## GRR League plugin
 
 If you race in the GRR league, turn on the GRR League plugin (Settings → Plugins). It shows your next race, the championship, results and the schedule from the GRR website without leaving the app. It's off by default, so nobody else sees it.
-
-<p align="center"><img src="grr.png" alt="GRR League page" width="100%"></p>
 
 ## Credits
 
@@ -127,7 +100,7 @@ Goodie Bag is built on these, each under its own licence:
 | [Lucide](https://lucide.dev) | Icons (some adapted) | ISC |
 | [Barlow](https://github.com/jpt/barlow) by Jeremy Tribby | GRR theme font | SIL Open Font License 1.1 |
 | [webgl-noise](https://github.com/ashima/webgl-noise) by Ashima Arts and Stefan Gustavson | 3D simplex noise in the topography background | MIT |
-| [SIMRacingApps](https://github.com/SIMRacingApps/SIMRacingAppsServer) by Jeffrey Gilliam | Track centreline and pit lane routes for the track map | Apache 2.0 |
+| [SIMRacingApps](https://github.com/SIMRacingApps/SIMRacingAppsServer) by Jeffrey Gilliam | Track centreline and pit lane routes for Session Stats' track maps | Apache 2.0 |
 | Track map drawings by [iRacing](https://www.iracing.com), collected in [racing-track-maps-vector](https://github.com/meowmachine/racing-track-maps-vector) by meowmachine | Track maps for Session Stats | © iRacing.com Motorsport Simulations, LLC |
 | [Quotes-500K](https://github.com/ShivaliGoel/Quotes-500K) by Shivali Goel, Rishi Madhok and Shweta Garg | Quotes (from *Proposing Contextually Relevant Quotes for Images*, ECIR 2018) | Shared for educational and research use |
 | [PawnIO](https://pawnio.eu) | Optional driver for CPU and motherboard sensors (not bundled; installed separately) | See its site |

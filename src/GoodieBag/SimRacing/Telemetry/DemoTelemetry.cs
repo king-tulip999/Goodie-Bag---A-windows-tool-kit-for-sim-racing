@@ -87,13 +87,15 @@ internal sealed class DemoTelemetry
         return (h % 2001) / 1000.0 - 1;
     }
 
-    private static double LapTime(int car) => car is >= 1 and <= 8 ? 97.4 + car * 0.18 : 107.2 + (car - 9) * 0.16;
+    private static double LapTime(int car) => car is >= 1 and <= 8 ? 97.4 + car * 0.05 : 107.2 + (car - 9) * 0.045;
+
+    private static double LapOf(int car, int lap) => LapTime(car) + 0.3 + 0.7 * Noise(car, lap) - 0.035 * Math.Min(lap, 40);
 
     private static double Dist(int car, double t)
     {
         double lap = LapTime(car);
         double grid = -(car - 1) * 0.006;
-        double swing = 0.012 * Math.Sin(t / 47 + car * 1.7);
+        double swing = 0.03 * Math.Sin(t / 40 + car * 1.7) + 0.008 * Math.Sin(t / 14 + car * 2.9);
         double cycle = t + car * 97;
         double stopped = Math.Floor(cycle / 1500) * 40 + Math.Clamp(cycle % 1500, 0, 40) - Math.Clamp(car * 97 % 1500, 0, 40);
         return Math.Max(0, (t - stopped) / lap + grid + swing);
@@ -149,9 +151,9 @@ internal sealed class DemoTelemetry
             f.CarEstTime[i] = pct * _session.ByCar[i].ClassEstLapTime!.Value;
             f.CarF2Time[i] = (leaderDist - d) * 100;
             int laps = (int)Math.Floor(d);
-            f.CarLastLap[i] = laps > 0 ? LapTime(i) + 0.45 * Noise(i, laps) + 0.3 : -1;
+            f.CarLastLap[i] = laps > 0 ? LapOf(i, laps) : -1;
             double best = double.MaxValue;
-            for (int l = 1; l <= laps; l++) best = Math.Min(best, LapTime(i) + 0.45 * Noise(i, l) + 0.3);
+            for (int l = 1; l <= laps; l++) best = Math.Min(best, LapOf(i, l));
             f.CarBestLap[i] = laps > 0 ? best : -1;
             f.CarTyreCompound[i] = 0;
             f.CarFlags[i] = i == 5 ? RaceFlags.Repair : i == 9 ? RaceFlags.Black : RaceFlags.None;

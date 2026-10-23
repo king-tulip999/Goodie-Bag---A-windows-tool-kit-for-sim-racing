@@ -773,9 +773,7 @@ internal static class StatsSections
         foreach (var (def, result) in headline) right.Children.Add(Metric(def, result, 30));
         var hero = StatsLayout.Pair(left, right, 900, 4, 6, 40, center: true)!;
         var body = racecraft.Children.Count > 0 ? Stack(hero, racecraft) : hero;
-        var tile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(28, 24, 28, 26), Child = body };
-        tile.SetResourceReference(Border.BorderBrushProperty, "AccentEdge");
-        return tile;
+        return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(28, 24, 28, 26), Child = body };
     }
 
     private static FrameworkElement? PickPair(StatsCharts.Data charts, SessionStatsService service, Action changed)

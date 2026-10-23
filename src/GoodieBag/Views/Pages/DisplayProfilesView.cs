@@ -112,10 +112,8 @@ internal sealed class DisplayProfilesView : Tile
             if (changes.Count > 0)
             {
                 stack.Children.Add(new TextBlock { Text = "Applying it will", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 8, 0, 4) });
-                foreach (var change in changes.Take(4))
+                foreach (var change in changes)
                     stack.Children.Add(Ui.ChangeLine(change.Text, change.Area));
-                if (changes.Count > 4)
-                    stack.Children.Add(new TextBlock { Text = $"…and {changes.Count - 4} more", Style = Ui.Res<Style>("Caption") });
             }
         }
 
