@@ -12,17 +12,37 @@ Every feature is a plugin you can switch off, and when one's off it runs nothing
 
 Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once.
 
+<p>
+  <img src="screenshots/window-profiles.png" alt="Window Profiles" width="49%">
+  <img src="screenshots/window-profile-editor.png" alt="Window profile editor" width="49%">
+</p>
+
 ### Displays
 
 Turn monitors on and off, arrange them, duplicate one onto another, give them your own names, and set resolution, refresh rate, HDR, taskbar, wallpapers and audio. Save it all as profiles (mine are *Desk* and *Sim rig*) and switch between them with a hotkey.
+
+<p>
+  <img src="screenshots/displays.png" alt="Displays" width="49%">
+  <img src="screenshots/display-profile-editor.png" alt="Display profile editor" width="49%">
+</p>
 
 ### Fan Control
 
 Curves, presets, calibration and an emergency failsafe. When you quit you can keep your curves running in a small background helper (its own tray icon), or hand the fans back to the BIOS / driver.
 
+<p>
+  <img src="screenshots/fan-control.png" alt="Fan Control" width="49%">
+  <img src="screenshots/fan-curves.png" alt="Fan curves" width="49%">
+</p>
+
 ### Hardware Monitor
 
 A dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with every sensor your PC exposes. The **Performance Overlay** (FPS, 1% lows, temps, usage) lives here too, and you can drag things into whatever order you want.
+
+<p>
+  <img src="screenshots/hardware-monitor.png" alt="Hardware Monitor dashboard" width="49%">
+  <img src="screenshots/performance-overlay.png" alt="Performance Overlay" width="49%">
+</p>
 
 ### Sim Racing Tools (iRacing)
 
@@ -30,17 +50,30 @@ A dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with eve
 
 Relative, Standings, Fuel & strategy, Lap timing & delta, Lap history, Tires, Weather, Wind, Session, Race events, Multiclass traffic, Alerts and a Data block for any single value. Every widget can be set up however you like, with layouts that switch by car / class / track, and an in-game editor (`Ctrl+Alt+E`) so you never have to leave the car.
 
+<p>
+  <img src="screenshots/iracing-overlay.png" alt="iRacing Overlay" width="49%">
+  <img src="screenshots/overlay-widget-editor.png" alt="Overlay widget editor" width="49%">
+</p>
+
+![Every iRacing Overlay widget](screenshots/all-overlays.png)
+
 #### iRacing Setup Manager
 
 All your setups sorted by car and class. Rename, move, import share packs and pick up new downloads. A fuel calculator for the selected car works out the race laps, fuel and stops.
+
+![iRacing Setup Manager](screenshots/iracing-setup-manager.png)
 
 #### iRacing Controller
 
 iRacing's settings in plain language (search, see what differs from iRacing's defaults and reset it), plus your in-sim keybinds per control profile. Everything gets backed up before it's changed.
 
+![iRacing Controller](screenshots/iracing-controller.png)
+
 #### FOV Calculator
 
 Single and triple screens, compare rigs, and write the result straight into iRacing.
+
+![FOV Calculator](screenshots/fov-calculator.png)
 
 #### Trading Paints and Garage 61
 
@@ -49,6 +82,15 @@ Launch them with Goodie Bag or when iRacing starts.
 ### Session Stats
 
 Your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season, with a picture of each car. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. Tire wear is tracked per run from the pit-stall readings. It also reads your old iRacing telemetry files, so your history doesn't start from zero, and can switch on iRacing's telemetry recording and clear out files it has already read.
+
+![Session Stats](screenshots/session-stats.png)
+
+<p>
+  <img src="screenshots/session-laps.png" alt="Session laps" width="49%">
+  <img src="screenshots/lap-analysis.png" alt="Lap analysis" width="49%">
+</p>
+
+![Lap replay](screenshots/lap-replay.png)
 
 ## Getting started
 
@@ -87,6 +129,8 @@ Works on Windows 10 and 11 (x64).
 ## GRR League plugin
 
 If you race in the GRR league, turn on the GRR League plugin (Settings → Plugins). It shows your next race, the championship, results and the schedule from the GRR website without leaving the app. It's off by default, so nobody else sees it.
+
+![GRR League](screenshots/grr-league.png)
 
 ## Credits
 

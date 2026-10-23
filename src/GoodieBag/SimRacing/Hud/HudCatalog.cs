@@ -27,10 +27,10 @@ internal static class HudCatalog
         new("tyres", "Tires", "Pressures, temperatures (inner / middle / outer) and wear for each corner.", 280, 180, () => new TyresWidget())
             { MinW = 180, MinH = 124, DefaultHz = 2, Options = TyresWidget.Options, Editor = Editors.TyresEditor.Def,
               Limits = "iRacing updates tire data in the pit box, not while driving." },
-        new("weather", "Weather & track", "The sky, track wetness and rain, air and track temperature, humidity, and the wind as an arrow turning with your car.", 340, 124, () => new WeatherWidget())
+        new("weather", "Weather & track", "The sky, track wetness and rain, air and track temperature, humidity, and the wind as a pointer turning with your car.", 340, 124, () => new WeatherWidget())
             { MinW = 140, MinH = 80, DefaultHz = 5, Options = WeatherWidget.Options, Editor = Editors.WeatherEditor.Def,
               Limits = "No forecast: iRacing doesn't publish one." },
-        new("wind", "Wind", "The wind's speed with an arrow pointing where it blows, turning with your car: red for a headwind, amber across, green behind.", 150, 150, () => new WindWidget())
+        new("wind", "Wind", "A pointer in a dotted dial showing where the wind blows, with its speed under it, turning with your car: red for a headwind, amber across, green behind.", 150, 150, () => new WindWidget())
             { MinW = 70, MinH = 70, DefaultHz = 5, Options = WindWidget.Options, Editor = Editors.WindEditor.Def,
               Limits = "iRacing gives the wind at the start / finish line, the same all round the track." },
         new("laps", "Lap history", "Your laps with deltas, what happened on them, fuel used, and consistency.", 320, 260, () => new LapsWidget())

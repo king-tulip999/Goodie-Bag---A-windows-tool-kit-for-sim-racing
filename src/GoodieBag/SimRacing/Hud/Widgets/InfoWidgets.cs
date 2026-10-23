@@ -260,8 +260,8 @@ internal sealed class WeatherWidget : HudWidget
     public static IReadOnlyList<HudOption> Options { get; } = new[]
     {
         HudOption.Choice("temp", "Temperatures in", "units", new HudChoice("units", "Overlay units"), new HudChoice("c", "°C"), new HudChoice("f", "°F"), new HudChoice("both", "°C and °F")),
-        HudOption.Bool("wind", "Wind", true, "An arrow pointing where the wind blows, the speed inside: red for a headwind, amber across, green behind"),
-        HudOption.Bool("turn", "Arrow turns with the car", true, "On: up = straight ahead. Off: up = north."),
+        HudOption.Bool("wind", "Wind", true, "A pointer in a dotted dial showing where the wind blows, the speed under it: red for a headwind, amber across, green behind"),
+        HudOption.Bool("turn", "Pointer turns with the car", true, "On: up = straight ahead. Off: up = north."),
     };
 
     private readonly (string Label, string Value)[] _cells = new (string, string)[3];
@@ -390,37 +390,53 @@ internal static class WindArrow
         ? (r == WindRelation.Calm ? p.P.Muted : p.P.AccentText)
         : r switch { WindRelation.Head => p.P.DangerText, WindRelation.Cross => p.P.WarnText, WindRelation.Tail => p.P.GoodText, _ => p.P.Muted };
 
-    private static readonly PointF[] Chevron = new PointF[3];
+    private static readonly PointF[] Pointer = new PointF[4];
+    private static readonly (float Along, float Across)[] PointerShape = { (0.55f, 0f), (-0.52f, 0.43f), (-0.29f, 0f), (-0.52f, -0.43f) };
+    private static readonly (float X, float Y)[] ManyDots = Circle(36), FewDots = Circle(24);
+
+    private static (float X, float Y)[] Circle(int count) => Enumerable.Range(0, count)
+        .Select(i => ((float)Math.Sin(i * Math.PI * 2 / count), (float)-Math.Cos(i * Math.PI * 2 / count))).ToArray();
 
     public static void Draw(HudPainter p, RectangleF box, double? speed, double? towardRad, double headingRad, string colors, HudUnits units, bool showUnit, string speedUnit = "units")
     {
-        float size = Math.Min(box.Width, box.Height);
-        float cx = box.X + box.Width / 2, cy = box.Y + box.Height / 2;
-        float stroke = Math.Max(2, size * 0.055f), r = size / 2 - stroke * 1.4f;
         var relation = towardRad is { } t ? Relation(speed, t, headingRad) : WindRelation.Calm;
         var color = ColorOf(p, relation, colors);
-        if (towardRad is { } toward)
-        {
-            double bearing = (toward - headingRad) * 180 / Math.PI;
-            float ux = (float)Math.Sin(bearing * Math.PI / 180), uy = (float)-Math.Cos(bearing * Math.PI / 180);
-            float tip = r + stroke * 0.4f, back = r - r * 0.3f, side = r * 0.29f;
-            Chevron[0] = new PointF(cx + ux * back - uy * side, cy + uy * back + ux * side);
-            Chevron[1] = new PointF(cx + ux * tip, cy + uy * tip);
-            Chevron[2] = new PointF(cx + ux * back + uy * side, cy + uy * back - ux * side);
-            p.G.DrawLines(p.Pen(color, stroke), Chevron);
-        }
         double? shown = speed is not { } s ? null : speedUnit switch
         {
             "kmh" => s * 3.6, "mph" => s * 2.23694, "ms" => s,
             _ => RaceFormat.SpeedValue(s, units),
         };
         string unit = speedUnit switch { "kmh" => "km/h", "mph" => "mph", "ms" => "m/s", _ => RaceFormat.SpeedUnit(units) };
-        var font = p.Font(MathF.Max(10, size * 0.27f), false);
+        var font = p.Font(MathF.Max(10, Math.Min(box.Width, box.Height) * 0.2f), false);
         string text = shown is { } x ? x.ToString("0", System.Globalization.CultureInfo.InvariantCulture) : RaceFormat.Missing;
         float lh = p.LineHeight(font), uh = showUnit ? p.LineHeight(p.Tiny) : 0;
-        var numberBox = new RectangleF(cx - r, cy - (lh + uh) / 2, r * 2, lh);
+        float size = Math.Max(8, Math.Min(box.Width, box.Height - lh - uh));
+        float top = box.Y + (box.Height - size - lh - uh) / 2;
+        float cx = box.X + box.Width / 2, cy = top + size / 2;
+        float dot = Math.Max(1f, size * 0.017f), r = size / 2 - dot;
+        var dialColor = HudPalette.Alpha(p.P.Muted, 170);
+        var dial = p.Brush(dialColor);
+        foreach (var (dx, dy) in size < 70 ? FewDots : ManyDots)
+            p.G.FillEllipse(dial, cx + dx * r - dot, cy + dy * r - dot, dot * 2, dot * 2);
+        var tick = p.Pen(dialColor, Math.Max(1.5f, r * 0.05f));
+        p.G.DrawLine(tick, cx, cy - r, cx, cy - r * 0.8f);
+        p.G.DrawLine(tick, cx, cy + r, cx, cy + r * 0.8f);
+        p.G.DrawLine(tick, cx - r, cy, cx - r * 0.8f, cy);
+        p.G.DrawLine(tick, cx + r, cy, cx + r * 0.8f, cy);
+        if (towardRad is { } toward)
+        {
+            double bearing = toward - headingRad;
+            float ux = (float)Math.Sin(bearing), uy = (float)-Math.Cos(bearing);
+            for (int i = 0; i < Pointer.Length; i++)
+            {
+                var (along, across) = PointerShape[i];
+                Pointer[i] = new PointF(cx + (ux * along - uy * across) * r, cy + (uy * along + ux * across) * r);
+            }
+            p.G.FillPolygon(p.Brush(color), Pointer);
+        }
+        var numberBox = new RectangleF(box.X, top + size, box.Width, lh);
         p.Text(text, font, color, numberBox, HAlign.Center, VAlign.Center, false);
-        if (showUnit) p.Text(unit.ToUpperInvariant(), p.Tiny, p.LabelColor, new RectangleF(cx - r, numberBox.Bottom - 2, r * 2, uh), HAlign.Center, VAlign.Center, false);
+        if (showUnit) p.Text(unit.ToUpperInvariant(), p.Tiny, p.LabelColor, new RectangleF(box.X, numberBox.Bottom - 2, box.Width, uh), HAlign.Center, VAlign.Center, false);
     }
 }
 
@@ -428,11 +444,11 @@ internal sealed class WindWidget : HudWidget
 {
     public static IReadOnlyList<HudOption> Options { get; } = new[]
     {
-        HudOption.Bool("turn", "Turns with the car", true, "On: the arrow points where the wind blows as you drive (down = a headwind). Off: up = north."),
+        HudOption.Bool("turn", "Turns with the car", true, "On: the pointer shows where the wind blows as you drive (down = a headwind). Off: up = north."),
         HudOption.Choice("colors", "Colors", "headtail", new HudChoice("headtail", "By headwind / crosswind / tailwind", "Red at the nose, amber across, green behind"), new HudChoice("accent", "The accent color")),
         HudOption.Choice("speedUnit", "Speed in", "units", new HudChoice("units", "Overlay units"), new HudChoice("kmh", "km/h"), new HudChoice("mph", "mph"), new HudChoice("ms", "m/s")),
         HudOption.Bool("unit", "Unit label", false),
-        HudOption.Bool("title", "Title", false, "“Wind” over the arrow"),
+        HudOption.Bool("title", "Title", false, "“Wind” over the dial"),
     };
 
     public override void Draw(HudPainter p, HudView v)
