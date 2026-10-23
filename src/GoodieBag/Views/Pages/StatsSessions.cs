@@ -71,7 +71,7 @@ internal static class StatsSessions
                 var local = s.StartUtc.ToLocalTime();
                 Cell(table, row, 0, Caption(Dates.ShortTime(local)));
                 Cell(table, row, 1, Caption(TypeName(s.Type)));
-                Cell(table, row, 2, Body(s.Car));
+                Cell(table, row, 2, CarPictures.Beside(Body(s.Car), s.Car, 22, 8));
                 Cell(table, row, 3, Body(s.Place, "TextMuted"));
                 Cell(table, row, 4, Caption(s.Laps.ToString(CultureInfo.CurrentCulture)), true);
                 Cell(table, row, 5, Time(s.Best), true);

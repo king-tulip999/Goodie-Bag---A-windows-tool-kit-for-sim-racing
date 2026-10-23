@@ -1119,11 +1119,12 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             _fanSignature = "";
             Tick();
             UpdateLayout();
-            foreach (var open in _openLimits.ToList()) open();
+            _openLimits.FirstOrDefault()?.Invoke();
             return Task.CompletedTask;
         });
         yield return ("curves-open", () =>
         {
+            foreach (var drop in _limitPopups) drop.IsOpen = false;
             foreach (var open in _openCurves.ToList()) open();
             return Task.CompletedTask;
         });

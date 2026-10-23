@@ -19,7 +19,7 @@
     <Geometry x:Key="I.Overlay">M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM6.5 7.5h6v4h-6z</Geometry>
     <Geometry x:Key="I.Activity">M22 12h-4l-3 9L9 3l-3 9H2</Geometry>
     <!-- a heart-rate trace (Hardware Monitor's page) -->
-    <Geometry x:Key="I.Heartbeat">M2 13h4.5l1.5-2.5 1.5 2.5h1l1.5-9 2.5 16 1.8-9.5 1.2 2.5H22</Geometry>
+    <Geometry x:Key="I.HeartPulse">M2 9.5a5.5 5.5 0 0 1 9.591-3.676 0.56 0.56 0 0 0 0.818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 0.019L5 15c-1.5-1.5-3-3.2-3-5.5M3.22 13H9.5l0.5-1 2 4.5 2-7 1.5 3.5h5.27</Geometry>
     <!-- Settings: three horizontal slider tracks, each with a round knob at a different position (gaps around the knobs) -->
     <Geometry x:Key="I.Tune">M3 6h2.4M10.6 6H21M3 12h9.4M17.6 12H21M3 18h5.4M13.6 18H21M10 6a2 2 0 1 1-4 0a2 2 0 1 1 4 0zM17 12a2 2 0 1 1-4 0a2 2 0 1 1 4 0zM13 18a2 2 0 1 1-4 0a2 2 0 1 1 4 0z</Geometry>
     <Geometry x:Key="I.Settings">M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0z</Geometry>
@@ -106,6 +106,9 @@
     <Geometry x:Key="I.Flag">M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7</Geometry>
     <Geometry x:Key="I.Checkered">M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7M4 9s1-1 4-1 5 2 8 2 4-1 4-1M8 2v12M12 3v12M16 4v12</Geometry>
     <Geometry x:Key="I.Stats">M3 3v16a2 2 0 0 0 2 2h16M8 17v-3M13 17V5M18 17V9</Geometry>
+    <Geometry x:Key="I.Candles">M9 5v4M9 15v2M17 3v2M17 13v3M3 3v16a2 2 0 0 0 2 2h16M8 9h2a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM16 5h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z</Geometry>
+    <Geometry x:Key="I.Compass">M12.99 6.74l1.93 3.44M19.136 12a10 10 0 0 1-14.271 0M21 21l-2.16-3.84M3 21l8.02-14.26M14 5a2 2 0 1 1-4 0a2 2 0 1 1 4 0z</Geometry>
+    <Geometry x:Key="I.RaceOverlay">M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM5.5 20l5.7-6.8M18.5 20l-5.7-6.8M5 7.4h0.01M7.2 7.4h3.3M5 9.6h0.01M7.2 9.6h3.3M5 11.8h0.01M7.2 11.8h3.3M12 14.5v1.2M12 17v1.8</Geometry>
     <Geometry x:Key="I.Trophy">M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2z</Geometry>
     <Geometry x:Key="I.Calendar">M8 2v4M16 2v4M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM3 10h18</Geometry>
     <!-- Settings → Keybinds -->

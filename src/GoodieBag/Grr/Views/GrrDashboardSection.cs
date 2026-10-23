@@ -40,7 +40,7 @@ internal sealed class GrrDashboardSection : StackPanel
         return part switch { Part.Standings => _standingsCard, Part.Results => _resultsCard, Part.Schedule => _scheduleCard, _ => null };
     }
 
-    public GrrDashboardSection(AppServices app, MainWindow window)
+    public GrrDashboardSection(AppServices app, MainWindow window, bool leagueTabs = true)
     {
         _app = app;
         _window = window;
@@ -53,16 +53,27 @@ internal sealed class GrrDashboardSection : StackPanel
         edit.Margin = new Thickness(8, 0, 0, 0);
         edit.ToolTip = "Your driver name on the GRR website and the leagues you follow";
         right.Children.Add(edit);
-        var toolbar = Ui.SplitRow(_leaguePicker, right);
-        toolbar.Margin = new Thickness(0, 0, 0, Gap);
-        Children.Add(toolbar);
+        LeagueTabs = leagueTabs;
+        if (leagueTabs)
+        {
+            var toolbar = Ui.SplitRow(_leaguePicker, right);
+            toolbar.Margin = new Thickness(0, 0, 0, Gap);
+            Children.Add(toolbar);
+        }
+        else
+        {
+            right.VerticalAlignment = VerticalAlignment.Center;
+            Tools = right;
+        }
         Children.Add(_content);
         SizeChanged += (_, e) => { if (e.WidthChanged && Shape() != _shape) Build(); };
     }
 
+    internal FrameworkElement? Tools { get; }
+
     private string? League => _app.Config.Grr.DashboardLeagueOrNull();
 
-    internal bool LeagueTabs { get; init; } = true;
+    internal bool LeagueTabs { get; }
 
     internal void ShowLeague()
     {

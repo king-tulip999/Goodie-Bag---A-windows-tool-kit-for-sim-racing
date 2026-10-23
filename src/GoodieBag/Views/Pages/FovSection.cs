@@ -586,7 +586,7 @@ internal sealed class FovSection : StackPanel
         {
             Text = S.Compare.Count == 0
                 ? "Add setups to see them in the top-down view in their own color, with their numbers next to yours. Tip: compare a copy of your rig, then change your rig."
-                : $"Drawn in the top-down view in their color (click a color to change it, × to remove a setup). Click a row to edit that setup. Up to {SimRacingSettings.MaxCompare}.",
+                : $"Drawn in the top-down view in their color (click a color to change it, the bin to remove a setup). Click a row to edit that setup. Up to {SimRacingSettings.MaxCompare}.",
             Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0),
         });
     }

@@ -6,7 +6,7 @@ I got sick of switching monitors, audio, fan curves and overlays by hand every t
 
 ## What's in it
 
-Every feature is a plugin you can switch off, and when one's off it runs nothing in the background. There are themes (Light, Dark, OLED Pastel, or your own colors), and `Ctrl+F` searches every setting and keybind in the app.
+Every feature is a plugin you can switch off, and when one's off it runs nothing in the background. There are themes (Light, Dark, or your own colors, with presets to start from), and `Ctrl+F` searches every setting and keybind in the app.
 
 ### Window Profiles
 

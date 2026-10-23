@@ -61,6 +61,7 @@
     <Resource Include="Assets\Fonts\*" />
     <Resource Include="Assets\GrrLogo.png" />
     <Resource Include="Assets\CarTop*.png" />
+    <Resource Include="Assets\Cars\*.png" />
   </ItemGroup>
 
   <!-- Topography background: the pixel shader is compiled by fxc.exe from the Windows 10 / 11 SDK on every build that

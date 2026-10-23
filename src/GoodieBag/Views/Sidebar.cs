@@ -15,7 +15,7 @@ internal sealed class Sidebar : Border
 {
     public const double PanelWidth = 264;
 
-    private const double RowHeight = 50, SubRowHeight = 40, Indent = 26, IconSize = 30, SubIconSize = 21, TextSize = 17, SubTextSize = 15.5;
+    private const double RowHeight = 60, SubRowHeight = 52, Indent = 14, IconSize = 48, SubIconSize = 48, TextSize = 17, SubTextSize = 15.5, PictureWidth = 2.5;
 
     public event Action<string>? PageClicked;
     public event Action<string, string>? SectionClicked;
@@ -82,7 +82,7 @@ internal sealed class Sidebar : Border
         row.Box.MouseLeftButtonUp += (_, e) => { if (!dragging()) { e.Handled = true; PageClicked?.Invoke(p.Key); } };
         OnActivate(row.Box, () => PageClicked?.Invoke(p.Key));
         var subList = new StackPanel();
-        var guide = new Border { BorderThickness = new Thickness(1, 0, 0, 0), Margin = new Thickness(Indent, 2, 0, 6), Padding = new Thickness(6, 0, 0, 0), Child = subList };
+        var guide = new Border { BorderThickness = new Thickness(1, 0, 0, 0), Margin = new Thickness(Indent, 2, 0, 6), Padding = new Thickness(4, 0, 0, 0), Child = subList };
         guide.SetResourceReference(BorderBrushProperty, "Line");
         var subHost = new Border { ClipToBounds = true, Child = guide, Visibility = Visibility.Collapsed };
         var group = new Group { Page = p, Row = row, SubHost = subHost, SubList = subList };
@@ -225,7 +225,8 @@ internal sealed class Sidebar : Border
     {
         var bar = new Border { Width = 3, HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Hidden };
         bar.SetResourceReference(BackgroundProperty, colors.Deep);
-        var glyph = new NavIcon { Glyph = icon, Width = iconSize, Height = iconSize, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(sub ? 10 : 12, 0, sub ? 10 : 12, 0), IsActive = true };
+        double iconWidth = NavIcon.IsPicture(icon) ? iconSize * PictureWidth : iconSize;
+        var glyph = new NavIcon { Glyph = icon, Width = iconWidth, Height = iconSize, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(sub ? 4 : 6, 0, sub ? 8 : 10, 0), IsActive = true };
         glyph.SetResourceReference(NavIcon.ForegroundProperty, colors.Deep);
         var text = TextFit.TipWhenTrimmed(new TextBlock
         {

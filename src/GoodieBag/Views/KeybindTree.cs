@@ -12,7 +12,7 @@ namespace GoodieBag.Views;
 
 internal sealed class KeybindTree : Tile
 {
-    private const double RowIndent = 40, RowHeight = 42, KeyWidth = 186, CellWidth = 460, CellGap = 16;
+    private const double RowIndent = 40, RowHeight = 42, KeyWidth = 164, CellWidth = 460, CellGap = 16;
     private readonly AppServices _app;
     private readonly Action<string>? _navigate;
     private readonly Func<HotkeyEntry, bool> _include;

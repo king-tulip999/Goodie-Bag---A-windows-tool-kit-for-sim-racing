@@ -89,6 +89,7 @@ public static class ConfigStore
             if (dark) config.Ui.Theme = AppTheme.Dark;
             config.Ui.DarkMode = null;
         }
+        UiSettings.DropPastelTheme(config.Ui);
         if (config.Overlay.ColorsVersion < 1)
         {
             foreach (var layout in config.Overlay.Layouts.Where(l => l.Colors == OverlayLayout.For(config.Ui.Theme) && string.IsNullOrEmpty(l.ColorSet)))

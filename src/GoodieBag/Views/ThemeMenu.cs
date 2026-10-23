@@ -108,25 +108,6 @@ internal static class ThemeMenu
         menu.IsOpen = true;
     }
 
-    public static void OpenPastelMenu(FrameworkElement anchor, Action<string?> use)
-    {
-        string? current = Services.AppServices.Current?.Config.Ui.PastelPreset;
-        bool on = ThemeManager.Current.Id == AppTheme.OledPastel;
-        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom, MinWidth = Math.Max(220, anchor.ActualWidth) };
-        var own = new MenuItem { Header = Header("OLED Pastel (default)", Themes.OledPastel), IsChecked = on && current is null };
-        own.Click += (_, _) => use(null);
-        menu.Items.Add(own);
-        menu.Items.Add(new Separator());
-        foreach (var (name, colors) in CustomPalette.Presets)
-        {
-            var n = name;
-            var item = new MenuItem { Header = Header(n, Themes.OledPastel with { Colors = CustomPalette.Build(colors) }), IsChecked = on && string.Equals(current, n, StringComparison.OrdinalIgnoreCase) };
-            item.Click += (_, _) => use(n);
-            menu.Items.Add(item);
-        }
-        menu.IsOpen = true;
-    }
-
     private static void AddSets(MenuItem into, Func<string, bool> isChecked, Action<string> pick)
     {
         into.Items.Add(new Separator());

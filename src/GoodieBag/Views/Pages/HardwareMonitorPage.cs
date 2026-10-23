@@ -31,7 +31,7 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         Content = _scroll;
         _view = new SectionView(() => _scroll);
 
-        _view.Empty = new SectionDef("", "Hardware Monitor", "Every section is off. Switch them on again in Settings → Plugins.", "I.Heartbeat",
+        _view.Empty = new SectionDef("", "Hardware Monitor", "Every section is off. Switch them on again in Settings → Plugins.", "I.HeartPulse",
             Hues.Tool(PluginIds.HardwareMonitor, Hues.Accent), () => new Border());
         _view.Heading.Margin = new Thickness(0, 0, 0, Ui.HeaderGap);
         _body.Children.Add(_view.Heading);

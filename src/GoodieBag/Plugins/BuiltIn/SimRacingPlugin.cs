@@ -52,7 +52,7 @@ internal sealed class SimRacingPlugin : Plugin
             if (Hud is null) return;
             if (Hud.Editing) Hud.EndEdit(keep: true); else Hud.BeginEdit();
         }, "iRacing Overlay");
-        yield return new PluginHotkey("hud.quickedit", "In-game editor for the iRacing Overlay", () => h.QuickEditHotkey, k => h.QuickEditHotkey = k, () =>
+        yield return new PluginHotkey("hud.quickedit", "iRacing Overlay in-game editor", () => h.QuickEditHotkey, k => h.QuickEditHotkey = k, () =>
         {
             if (Hud is { } hud) GoodieBag.Views.HudQuickEditor.Toggle(app, hud);
         }, "iRacing Overlay", Config.RaceHudSettings.QuickEditDefault);

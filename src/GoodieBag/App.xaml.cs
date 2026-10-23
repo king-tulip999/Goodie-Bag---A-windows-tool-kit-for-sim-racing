@@ -140,7 +140,6 @@ public partial class App : Application
         if (!Theme.Themes.Exists(config.Ui.Theme))
             config.Ui.Theme = AppTheme.Dark;
         Theme.Themes.SetOledCustom(config.Ui.OledCustom);
-        Theme.Themes.SetPastelPreset(config.Ui.PastelPreset);
         ThemeManager.Apply(config.Ui.Theme);
         PerfProbe.Mark("theme");
 

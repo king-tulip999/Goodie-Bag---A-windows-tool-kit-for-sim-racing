@@ -624,7 +624,7 @@ internal static class StatsSections
 
         string? variety = string.Join(" · ", new[] { Count(Get("car.unique"), "car"), Count(Get("track.unique"), "track") }.OfType<string>());
         var rankings = new StatGrid { MinTileWidth = 280, Gap = 32, Columns = 3 };
-        rankings.Children.Add(Chart("Cars", "By driving time", StatsCharts.Ranked(charts.Cars, "Accent", "No cars in this range")));
+        rankings.Children.Add(Chart("Cars", "By driving time", StatsCharts.Ranked(charts.Cars, "Accent", "No cars in this range", cars: true)));
         rankings.Children.Add(Chart("Tracks", "By driving time", StatsCharts.Ranked(charts.Tracks, "Slate", "No tracks in this range")));
         rankings.Children.Add(Chart("Classes", "By driving time", StatsCharts.Ranked(charts.Classes, "Gold", "No classes in this range")));
         var cars = Section("Cars & tracks", "I.Flag", variety.Length > 0 ? variety : null, null, Stack(rankings, PersonalBests(charts, q, Get("combo.top"))));
@@ -742,14 +742,25 @@ internal static class StatsSections
     private static Tile Hero(StatsCharts.Data charts, StatQuery q, List<(StatDef Def, StatResult Result)> headline, StatGrid racecraft)
     {
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(new TextBlock { Text = "Personal best", Style = Ui.Res<Style>("Eyebrow") });
+        var best = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        best.Children.Add(new TextBlock { Text = "Personal best", Style = Ui.Res<Style>("Eyebrow") });
+        if (charts.Bests.FirstOrDefault() is { } shown && CarPictures.Picture(shown.Car, 112, 300) is { } picture)
+        {
+            picture.Margin = new Thickness(24, 0, 0, 0);
+            var top = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(picture, Dock.Right);
+            top.Children.Add(picture);
+            top.Children.Add(best);
+            left.Children.Add(top);
+        }
+        else left.Children.Add(best);
         if (charts.Bests.FirstOrDefault() is { } pb)
         {
             var lap = new TextBlock { Text = StatFormat.LapTime(pb.Best), Style = Ui.Res<Style>("BigValue"), FontSize = 48, Margin = new Thickness(0, 4, 0, 0) };
             lap.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
-            left.Children.Add(lap);
-            left.Children.Add(new TextBlock { Text = pb.Car, Style = Ui.Res<Style>("H3"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
-            left.Children.Add(new TextBlock { Text = pb.Config.Length > 0 ? $"{pb.Track} · {pb.Config}" : pb.Track, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap });
+            best.Children.Add(lap);
+            best.Children.Add(new TextBlock { Text = pb.Car, Style = Ui.Res<Style>("H3"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+            best.Children.Add(new TextBlock { Text = pb.Config.Length > 0 ? $"{pb.Track} · {pb.Config}" : pb.Track, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap });
             var facts = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
             void Fact(FrameworkElement element) { element.Margin = new Thickness(0, 0, 10, 4); element.VerticalAlignment = VerticalAlignment.Center; facts.Children.Add(element); }
             if (pb.InRange && q.From > 0)
@@ -821,7 +832,7 @@ internal static class StatsSections
             Grid.SetRow(rule, row);
             Grid.SetColumnSpan(rule, 6);
             table.Children.Add(rule);
-            Cell(Text(pb.Car, "Body"), 0);
+            Cell(CarPictures.Beside(Text(pb.Car, "Body"), pb.Car, 22, 8), 0);
             var track = Text(pb.Config.Length > 0 ? $"{pb.Track} · {pb.Config}" : pb.Track, "Body");
             track.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             Cell(track, 1);
@@ -1163,7 +1174,7 @@ internal static class StatsCharts
         return grid;
     }
 
-    public static FrameworkElement Ranked(List<Ranking> items, string fill, string empty)
+    public static FrameworkElement Ranked(List<Ranking> items, string fill, string empty, bool cars = false)
     {
         if (items.Count == 0) return Ui.Text(empty, "Caption");
         var stack = new StackPanel();
@@ -1183,7 +1194,13 @@ internal static class StatsCharts
             System.Windows.Documents.Typography.SetNumeralAlignment(value, FontNumeralAlignment.Tabular);
             DockPanel.SetDock(value, Dock.Right);
             line.Children.Add(value);
-            line.Children.Add(new TextBlock { Text = name, Style = Ui.Res<Style>("Body"), FontSize = 13, FontWeight = place == 1 ? FontWeights.SemiBold : FontWeights.Normal });
+            if (cars && CarPictures.Slotted(item.Label, 20) is { } picture)
+            {
+                picture.Margin = new Thickness(0, 0, 8, 0);
+                DockPanel.SetDock(picture, Dock.Left);
+                line.Children.Add(picture);
+            }
+            line.Children.Add(new TextBlock { Text = name, Style = Ui.Res<Style>("Body"), FontSize = 13, FontWeight = place == 1 ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center });
             stack.Children.Add(line);
             var track = new Grid { Height = 6, Margin = new Thickness(22, 0, 0, 0), ToolTip = line.ToolTip };
             track.SetResourceReference(Panel.BackgroundProperty, "MeterTrack");

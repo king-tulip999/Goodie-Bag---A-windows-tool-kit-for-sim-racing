@@ -11,7 +11,7 @@ internal sealed class HardwareMonitorPlugin : Plugin
     public override string Id => PluginIds.HardwareMonitor;
     public override string Name => "Hardware Monitor";
     public override string Description => "Performance panels (live readings, two-minute history, FPS and frame times) and every sensor your PC exposes with min / max.";
-    public override string Icon => "I.Activity";
+    public override string Icon => "I.HeartPulse";
     public override (string Soft, string Deep) Colors => ("SlateSoft", "SlateDeep");
     public override int Order => 50;
     public override string Reads =>
@@ -22,7 +22,7 @@ internal sealed class HardwareMonitorPlugin : Plugin
 
     public override IReadOnlyList<PluginPage> Pages { get; } = new[]
     {
-        new PluginPage("monitor", "Hardware Monitor", "I.Heartbeat", (app, window) => new HardwareMonitorPage(app, window), PageSensors.Basic, HardwareMonitorPage.SectionsFor),
+        new PluginPage("monitor", "Hardware Monitor", "I.HeartPulse", (app, window) => new HardwareMonitorPage(app, window), PageSensors.Basic, HardwareMonitorPage.SectionsFor),
     };
 
 

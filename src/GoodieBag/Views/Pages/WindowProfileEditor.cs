@@ -100,7 +100,7 @@ internal sealed class WindowProfileEditor
         stack.Children.Add(Ui.FieldRow("", _keepSize, LabelWidth));
         stack.Children.Add(Ui.FieldRow("Position", Pair("X", _x, "Y", _y), LabelWidth,
             "Desktop pixels: 0, 0 is the main display's top left, so screens to its left are negative."));
-        stack.Children.Add(new Tile { Style = Ui.Res<Style>("Inset"), Padding = new Thickness(8), Margin = new Thickness(LabelWidth, 6, 0, 4), Width = Ui.FieldWidth, HorizontalAlignment = HorizontalAlignment.Left, Child = _preview });
+        stack.Children.Add(new Tile { Style = Ui.Res<Style>("Inset"), Padding = new Thickness(8), Margin = new Thickness(LabelWidth, 6, 0, 4), MinWidth = Ui.FieldWidth, HorizontalAlignment = HorizontalAlignment.Stretch, Child = _preview });
 
         stack.Children.Add(Ui.EditorSection("Window"));
         _borders = new CheckBox { Content = "Remove borders", IsChecked = profile.RemoveBorders, ToolTip = "Strips the frame and title bar. Only for games without a borderless option of their own." };
@@ -139,7 +139,7 @@ internal sealed class WindowProfileEditor
         test.ToolTip = "Move the program's window with these values now, without saving";
         test.Margin = new Thickness(0, 0, 8, 0);
         buttons.Children.Insert(0, test);
-        Card = Ui.Dialog(window, isNew ? "New window profile" : $"Edit “{profile.Name}”", "Applied when the program starts, with its keybind, from the tray or with Apply.", stack, buttons, _error, 840);
+        Card = Ui.Dialog(window, isNew ? "New window profile" : $"Edit “{profile.Name}”", "Applied when the program starts, with its keybind, from the tray or with Apply.", stack, buttons, _error, 720);
     }
 
     private static List<MonitorInfo> Monitors(AppServices app)

@@ -733,6 +733,11 @@ internal sealed class SetupManagerSection : StackPanel
         var stack = new DockPanel();
 
         var title = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        if (CarPictures.Picture(car.Dir, 40, 160) is { } picture)
+        {
+            picture.Margin = new Thickness(0, 0, 14, 0);
+            title.Children.Add(picture);
+        }
         var name = Ui.Text(car.Name, "H2");
         name.VerticalAlignment = VerticalAlignment.Center;
         title.Children.Add(name);

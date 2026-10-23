@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using GoodieBag.Controls;
 using GoodieBag.Services;
 using GoodieBag.Views;
 
@@ -19,7 +20,7 @@ internal sealed class GrrPage : UserControl, IPage, IScreenshotStates, ISectione
 
     private static readonly Dictionary<string, string> Icons = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["cup"] = "I.Trophy", ["gt"] = "I.Checkered", ["indycar"] = "I.Gauge",
+        ["cup"] = NavIcon.CarGlyph + "grr-cup", ["gt"] = NavIcon.CarGlyph + "grr-gt", ["indycar"] = NavIcon.CarGlyph + "grr-indycar",
     };
 
     public GrrPage(AppServices app, MainWindow window)
@@ -27,10 +28,10 @@ internal sealed class GrrPage : UserControl, IPage, IScreenshotStates, ISectione
         _app = app;
         _scroll = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = Ui.PageFrame(_body), Focusable = false };
         Content = _scroll;
-        var header = new Grid { Margin = new Thickness(0, 0, 0, Ui.HeaderGap) };
-        header.Children.Add(_title);
+        _dashboard = new GrrDashboardSection(app, window, leagueTabs: false);
+        var header = Ui.SplitRow(_title, _dashboard.Tools!);
+        header.Margin = new Thickness(0, 0, 0, Ui.HeaderGap);
         _body.Children.Add(header);
-        _dashboard = new GrrDashboardSection(app, window) { LeagueTabs = false };
         Ui.Anchor(_dashboard, GrrParts.Anchor);
         _body.Children.Add(_dashboard);
         SyncTitle();

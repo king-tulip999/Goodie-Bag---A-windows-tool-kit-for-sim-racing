@@ -233,16 +233,6 @@ internal sealed class AppServices : IDisposable
         Overlay.InvalidateColors();
     }
 
-    public void UsePastelPreset(string? name)
-    {
-        Config.Ui.PastelPreset = Theme.CustomPalette.Preset(name) is null ? null : name;
-        Theme.Themes.SetPastelPreset(Config.Ui.PastelPreset);
-        if (Config.Ui.Theme != AppTheme.OledPastel) { SetTheme(AppTheme.OledPastel); return; }
-        Save();
-        Theme.ThemeManager.Apply(Config.Ui.Theme);
-        Overlay.InvalidateColors();
-    }
-
     public void OledCustomChanged()
     {
         Theme.Themes.SetOledCustom(Config.Ui.OledCustom);

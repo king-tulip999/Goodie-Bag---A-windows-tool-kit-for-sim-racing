@@ -23,14 +23,16 @@ internal static class StatsSessionView
         var page = new StackPanel();
 
         var head = new StackPanel();
-        head.Children.Add(new TextBlock { Text = s.Car, Style = Ui.Res<Style>("H2"), TextWrapping = TextWrapping.Wrap });
-        head.Children.Add(new TextBlock { Text = s.Place, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        titles.Children.Add(new TextBlock { Text = s.Car, Style = Ui.Res<Style>("H2"), TextWrapping = TextWrapping.Wrap });
+        titles.Children.Add(new TextBlock { Text = s.Place, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        head.Children.Add(CarPictures.Beside(titles, s.Car, 64, 18, slot: false));
         var facts = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         FrameworkElement Fact(string label, string value, string? brush = null)
         {
             var cell = new StackPanel { Margin = new Thickness(0, 0, 28, 8) };
             var v = new TextBlock { Text = value, Style = Ui.Res<Style>("BigValue"), FontSize = 20 };
-            if (brush is not null) v.SetResourceReference(TextBlock.ForegroundProperty, brush);
+            v.SetResourceReference(TextBlock.ForegroundProperty, brush ?? "Heading");
             cell.Children.Add(v);
             cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption") });
             facts.Children.Add(cell);

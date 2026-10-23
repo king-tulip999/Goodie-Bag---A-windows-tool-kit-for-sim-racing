@@ -53,7 +53,7 @@ internal sealed class SettingsFlow : StackPanel
             if (run.Count == 0) return;
             int rows = (int)Math.Ceiling(run.Count / (double)columns);
             int cols = (int)Math.Ceiling(run.Count / (double)rows);
-            int share = Math.Max(cols, 2);
+            int share = cols;
             double cell = (width - ColumnGap * (share - 1)) / share, top = y;
             for (int r = 0; r < rows; r++)
             {

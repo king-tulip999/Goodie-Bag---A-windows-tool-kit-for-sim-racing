@@ -186,7 +186,12 @@ internal static class ScreenshotRunner
     {
         ("Window Profiles", "windows", "I.Triple"),
         ("Displays", "displays", "I.Monitor"),
-        ("Hardware Monitor", "hardware-monitor", "I.Heartbeat"),
+        ("Hardware Monitor", "hardware-monitor", "I.HeartPulse"),
+        ("Session Stats", "session-stats", "I.Candles"),
+        ("iRacing Overlay", "iracing-overlay", "I.RaceOverlay"),
+        ("FOV calculator", "fov", "I.Compass"),
+        ("iRacing Controller", "iracing-controller", "I.Keyboard"),
+        ("GRR League", "grr", "F.GrrLogo"),
         ("Overlay", "overlay", "I.Overlay"),
         ("Fan Control", "fan-control", "I.Fan"),
         ("Sim Racing", "sim-racing", "I.FormulaWheel"),
@@ -513,7 +518,7 @@ internal static class ScreenshotRunner
     private static async Task LintSizesAsync(MainWindow window, IReadOnlyList<string> pages)
     {
         var size = (window.Width, window.Height);
-        foreach (var (w, h) in new[] { (960.0, 600.0), (1600.0, 1000.0), (2560.0, 1440.0) })
+        foreach (var (w, h) in new[] { (MainWindow.MinWindowWidth, MainWindow.MinWindowHeight), (1600.0, 1000.0), (2560.0, 1440.0) })
         {
             if ((w, h) == size) continue;
             window.Width = w;
@@ -551,7 +556,7 @@ internal static class ScreenshotRunner
         window.Navigate(window.FirstPage);
         var ui = AppServices.Current!.Config.Ui;
         int scale = ui.InterfaceScale;
-        foreach (var (w, h, size) in new[] { (1280, 1040, 100), (1280, 820, 100), (1100, 740, 100), (1040, 680, 100), (1040, 680, 90), (960, 600, 110) })
+        foreach (var (w, h, size) in new[] { (1600, 1040, 100), (1500, 820, 100), (1400, 760, 100), (1280, 720, 100), (1280, 720, 90), (1280, 720, 110) })
         {
             try
             {

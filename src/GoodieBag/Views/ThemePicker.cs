@@ -11,14 +11,12 @@ namespace GoodieBag.Views;
 
 internal sealed class ThemePicker : UniformGrid
 {
-    public ThemePicker(AppTheme selected, Action<AppTheme> pick, int columns = 3, double height = 64, Action<string?>? oled = null, Action<string?>? pastel = null)
+    public ThemePicker(AppTheme selected, Action<AppTheme> pick, int columns = 3, double height = 64, Action<string?>? oled = null)
     {
         Columns = columns;
         foreach (var theme in Themes.All)
         {
-            Action<FrameworkElement>? menu = theme.Id == AppTheme.Custom && oled is not null ? anchor => ThemeMenu.OpenOledMenu(anchor, oled)
-                : theme.Id == AppTheme.OledPastel && pastel is not null ? anchor => ThemeMenu.OpenPastelMenu(anchor, pastel)
-                : null;
+            Action<FrameworkElement>? menu = theme.Id == AppTheme.Custom && oled is not null ? anchor => ThemeMenu.OpenOledMenu(anchor, oled) : null;
             Children.Add(Swatch(theme, theme.Id == selected, pick, height, menu));
         }
     }

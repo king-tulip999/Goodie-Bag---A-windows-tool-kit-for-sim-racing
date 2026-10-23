@@ -82,15 +82,7 @@ internal static class Themes
         TrackBoost = 1.5,
     };
 
-    public static readonly ThemeSpec OledPastel = new()
-    {
-        Id = AppTheme.OledPastel, Name = "OLED Pastel", Dark = true, Colors = Palettes.OledPastel, Partner = AppTheme.Light,
-        CardEdge = Hairline, LogoEdge = new(1.5),
-        Glow = true, GlowStrength = 0.35, StepsClimb = false, Track = TrackShape.Chicane,
-        TrackBoost = 1.5,
-    };
-
-    public static readonly ThemeSpec[] BuiltIn = { Light, Dark, Custom, OledPastel };
+    public static readonly ThemeSpec[] BuiltIn = { Light, Dark, Custom };
 
     private static ThemeSpec[] _all = BuiltIn;
 
@@ -123,14 +115,6 @@ internal static class Themes
         OverlayPresets.ClearCache();
     }
 
-    public static void SetPastelPreset(string? name)
-    {
-        var preset = CustomPalette.Preset(name);
-        var spec = preset is { } colors ? OledPastel with { Colors = CustomPalette.Build(colors), Dark = CustomPalette.IsDark(colors) } : OledPastel;
-        _all = _all.Select(t => t.Id == AppTheme.OledPastel ? spec : t).ToArray();
-        OverlayPresets.ClearCache();
-    }
-
     public const string OledDefaultSet = "#default";
 
     public static ThemeSpec ForSet(AppTheme id, string? set)
@@ -140,9 +124,6 @@ internal static class Themes
         if (Services.AppServices.Current?.Config.Ui.OledCustom.Profile(set) is not { } profile) return For(id);
         return Custom with { Name = profile.Name, Colors = CustomPalette.Build(profile.Colors), Dark = CustomPalette.IsDark(profile.Colors) };
     }
-
-    public static ThemeSpec? OledSibling(ThemeSpec spec) =>
-        spec.Id == AppTheme.Custom ? For(AppTheme.OledPastel) : spec.Id == AppTheme.OledPastel ? For(AppTheme.Custom) : null;
 
     public const string DefaultCustomName = "Custom";
 

@@ -110,7 +110,6 @@ public readonly struct AppTheme : IEquatable<AppTheme>
     public static readonly AppTheme Light = new("Light");
     public static readonly AppTheme Dark = new("Dark");
     public static readonly AppTheme Custom = new("CustomTheme");
-    public static readonly AppTheme OledPastel = new("OledPastel");
 
     internal static readonly AppTheme[] Numbered = { Light, Dark, Light, Dark, Custom };
 
@@ -226,6 +225,21 @@ public sealed class UiSettings
     public static readonly int[] InterfaceScales = { 90, 100, 110 };
 
     public const double BaseScale = 0.81;
+
+    private static readonly AppTheme OldPastelTheme = new("OledPastel");
+
+    internal static void DropPastelTheme(UiSettings ui)
+    {
+        bool onPastel = ui.Theme == OldPastelTheme;
+        if (onPastel) ui.Theme = AppTheme.Custom;
+        if (onPastel && !ui.OledCustom.InUse && GoodieBag.Theme.CustomPalette.Preset(ui.PastelPreset ?? "Pastel") is { } colors)
+        {
+            ui.OledCustom.Colors = colors.Copy();
+            ui.OledCustom.Name = GoodieBag.Theme.CustomPalette.Presets.First(p => p.Colors == colors).Name;
+            ui.OledCustom.Enabled = true;
+        }
+        ui.PastelPreset = null;
+    }
 
     internal static int MigrateScale(int old) => new[] { 80, 90, 100 }.OrderBy(o => Math.Abs(o - old)).First() switch { 80 => 90, 90 => 100, _ => 110 };
 

@@ -302,8 +302,8 @@ internal static class MonkeyRunner
             return;
         }
         window.WindowState = WindowState.Normal;
-        window.Width = rnd.Next(960, 2561);
-        window.Height = rnd.Next(600, 1441);
+        window.Width = rnd.Next((int)MainWindow.MinWindowWidth, 2561);
+        window.Height = rnd.Next((int)MainWindow.MinWindowHeight, 1441);
         Log($"{_step} window {window.Width}x{window.Height}");
     }
 

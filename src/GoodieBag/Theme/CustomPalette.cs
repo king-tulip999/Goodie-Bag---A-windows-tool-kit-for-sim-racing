@@ -7,6 +7,7 @@ internal static class CustomPalette
 {
     public static readonly (string Name, ThemeColors Colors)[] Presets =
     {
+        ("Pastel", Make("#000000", "#6E6380", "#E6DEEE", "#F2A7C6", "#9EEBD4", "#8FE3B4", "#F6D28B", "#FF7070")),
         ("Sunrise", Make("#000000", "#7A5A4E", "#FFF1E6", "#FF7A45", "#FFC857", "#7BD88F", "#FFB224", "#FF4D4D")),
         ("Peach", Make("#000000", "#7D6258", "#FFF3EE", "#FFAB91", "#FFD7BA", "#9BE3B0", "#FFCF70", "#FF6B6B")),
         ("Midnight", Make("#03050C", "#4A5578", "#E8ECFA", "#5B7CFA", "#A5B8FF", "#4ADE80", "#FBBF24", "#F87171")),

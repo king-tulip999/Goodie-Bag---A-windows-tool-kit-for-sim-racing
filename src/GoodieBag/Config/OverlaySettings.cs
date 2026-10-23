@@ -40,7 +40,7 @@ public readonly struct OverlayColorPreset : IEquatable<OverlayColorPreset>
         null or "" or "app" => Light,
         "dark" or "default" => Dark,
         "light" => Light,
-        "highcontrast" => CustomTheme,
+        "highcontrast" or "oledpastel" => CustomTheme,
         "custom" => Custom,
         "followapp" => App,
         _ => For(AppTheme.Named(name)),

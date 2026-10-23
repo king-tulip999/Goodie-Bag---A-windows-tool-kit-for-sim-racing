@@ -78,9 +78,9 @@ internal sealed class SimRacingPage : UserControl, IPage, IScreenshotStates, ICa
     private static readonly PageSection[] Tools =
     {
         new("setups", "iRacing Setup Manager", "I.Folder", ("GoldSoft", "GoldDeep")),
-        new("hud", "iRacing Overlay", "I.Checkered", ("ApricotSoft", "ApricotDeep")),
-        new("fov", "FOV calculator", "I.Triple", ("CoralSoft", "CoralDeep")),
-        new("iracing", "iRacing Controller", "I.Shield", ("SlateSoft", "SlateDeep")),
+        new("hud", "iRacing Overlay", "I.RaceOverlay", ("ApricotSoft", "ApricotDeep")),
+        new("fov", "FOV calculator", "I.Compass", ("CoralSoft", "CoralDeep")),
+        new("iracing", "iRacing Controller", "I.Keyboard", ("SlateSoft", "SlateDeep")),
         new("tradingpaints", "Trading Paints", "I.Palette", ("PlumSoft", "PlumDeep")),
         new("garage61", "Garage 61", "I.Activity", ("SageSoft", "SageDeep")),
     };

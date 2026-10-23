@@ -266,7 +266,7 @@ internal sealed class RaceHudWidgets
         if (!_inPage)
         {
             _nav.Children.Add(Eyebrow("Overlay"));
-            _nav.Children.Add(Item("Hud Settings", _general, null, () => { _general = true; Host?.Pick(null); Fill(); }));
+            _nav.Children.Add(Item("Settings", _general, null, () => { _general = true; Host?.Pick(null); Fill(); }));
         }
         _nav.Children.Add(Eyebrow(layout is null ? "Widgets" : $"Widgets · {layout.Name}"));
         foreach (var w in widgets)
@@ -285,7 +285,7 @@ internal sealed class RaceHudWidgets
             body.Children.Add(new TextBlock { Text = "No widgets in this layout yet: add one.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap });
         else if (_general || widgets.FirstOrDefault(x => x.Id == _selected) is not { } picked)
         {
-            body.Children.Add(TitleCard("Hud Settings", "For every widget in every layout.", null));
+            body.Children.Add(TitleCard("Overlay settings", "For every widget in every layout.", null));
             body.Children.Add(RaceHudSection.HudSettings(_app, Changed, Fill, null));
         }
         else
@@ -451,7 +451,7 @@ internal sealed class RaceHudWidgets
             Changed();
             if (_preview is not null) DrawPreview(w);
         });
-        own.ToolTip = "Off: the overlay's Background (Hud Settings)";
+        own.ToolTip = "Off: the overlay's Background (Overlay settings)";
         var bgRow = new StackPanel { Orientation = Orientation.Horizontal };
         own.Margin = new Thickness(0, 0, 12, 0);
         own.VerticalAlignment = VerticalAlignment.Center;

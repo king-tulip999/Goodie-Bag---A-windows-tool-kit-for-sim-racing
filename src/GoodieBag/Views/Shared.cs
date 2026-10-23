@@ -425,6 +425,20 @@ internal static class Ui
     public const double FieldWidth = 440;
     private const double FieldLine = 34;
 
+    public const double DialogShare = 0.85, DialogGrowth = 1.5, DialogEdge = 24;
+
+    public static double DialogWidth(double baseWidth, double room)
+    {
+        if (double.IsNaN(baseWidth) || baseWidth <= 0) return baseWidth;
+        if (double.IsNaN(room) || room <= 0) return baseWidth;
+        double wanted = Math.Min(room * DialogShare, baseWidth * DialogGrowth);
+        double width = Math.Max(baseWidth, wanted);
+        return Math.Max(Math.Min(baseWidth, room - 2 * DialogEdge), Math.Min(width, room - 2 * DialogEdge));
+    }
+
+    public static readonly DependencyProperty DialogBaseWidthProperty =
+        DependencyProperty.RegisterAttached("DialogBaseWidth", typeof(double), typeof(Ui), new PropertyMetadata(double.NaN));
+
     public static Grid FieldRow(string label, UIElement control, double labelWidth = 150, string? hint = null)
     {
         var grid = new Grid { Margin = new Thickness(0, 5, 0, 5) };
@@ -1144,9 +1158,16 @@ internal static class ExeIcons
 
 internal sealed class FieldBox : Decorator
 {
+    public static readonly DependencyProperty FillProperty = DependencyProperty.RegisterAttached("Fill", typeof(bool), typeof(FieldBox),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    public static void SetFill(DependencyObject d, bool value) => d.SetValue(FillProperty, value);
+
+    private double Widest => (bool)GetValue(FillProperty) ? double.PositiveInfinity : Ui.FieldWidth;
+
     protected override Size MeasureOverride(Size constraint)
     {
-        double width = Math.Min(constraint.Width, Ui.FieldWidth);
+        double width = Math.Min(constraint.Width, Widest);
         if (Child is null) return new Size(0, 0);
         Child.Measure(new Size(width, constraint.Height));
         return new Size(double.IsInfinity(width) ? Child.DesiredSize.Width : width, Child.DesiredSize.Height);
@@ -1154,7 +1175,7 @@ internal sealed class FieldBox : Decorator
 
     protected override Size ArrangeOverride(Size arrangeSize)
     {
-        var size = new Size(Math.Min(arrangeSize.Width, Ui.FieldWidth), arrangeSize.Height);
+        var size = new Size(Math.Min(arrangeSize.Width, Widest), arrangeSize.Height);
         Child?.Arrange(new Rect(size));
         return size;
     }

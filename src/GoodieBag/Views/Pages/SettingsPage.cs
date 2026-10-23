@@ -286,7 +286,8 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var text = new StackPanel();
             text.Children.Add(head);
-            text.Children.Add(new TextBlock { Text = p.Description, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 3, 16, 0) });
+            if (p.Id is not (PluginIds.SimRacing or PluginIds.HardwareMonitor))
+                text.Children.Add(new TextBlock { Text = p.Description, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 3, 16, 0) });
             row.Children.Add(text);
             sw.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(sw, 1);
@@ -498,7 +499,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         var look = Section("Appearance", "I.Palette", "settings.look");
         look.Children.Add(new TextBlock { Text = "Theme", Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
         look.Children.Add(new Border { Height = 10 });
-        look.Children.Add(new ThemePicker(U.Theme, _app.SetTheme, columns: 2, height: 64, oled: _app.UseOledColors, pastel: _app.UsePastelPreset) { Margin = new Thickness(0, 0, -10, 4) });
+        look.Children.Add(new ThemePicker(U.Theme, _app.SetTheme, columns: 2, height: 64, oled: _app.UseOledColors) { Margin = new Thickness(0, 0, -10, 4) });
         look.Children.Add(Ui.Divider());
         var custom = new CustomThemeSection(_app, _window);
         Ui.Anchor(custom, "settings.customcolors");

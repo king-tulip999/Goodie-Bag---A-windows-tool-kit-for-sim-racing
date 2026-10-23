@@ -26,7 +26,7 @@ internal interface IHudEditorHost
 
 internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdit, IHudEditorHost
 {
-    private static readonly string[] Tabs = { "Widgets", "Alerts", "Fuel", "Hud Settings" };
+    private static readonly string[] Tabs = { "Widgets", "Alerts", "Fuel", "Overlay settings" };
     private const int WidgetsTab = 0, AlertsTabIndex = 1, FuelTabIndex = 2, SettingsTab = 3;
 
     private readonly AppServices _app;

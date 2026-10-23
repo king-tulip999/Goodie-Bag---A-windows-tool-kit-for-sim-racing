@@ -508,11 +508,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         var head = new StackPanel();
         var title = Ui.Text("What to show", "H2");
         title.Margin = new Thickness(0, 0, 0, 4);
-        var tip = new DockPanel { VerticalAlignment = VerticalAlignment.Center };
-        var info = new Icon { Data = Ui.Res<Geometry>("I.Info"), Width = 14, Height = 14, Foreground = Ui.Res<Brush>("AccentText"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 6, 0) };
-        DockPanel.SetDock(info, Dock.Left);
-        tip.Children.Add(info);
-        tip.Children.Add(new TextBlock { Text = "Values and group names can be dragged into a new order in the live preview", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap });
+        var tip = Ui.IconText("I.Info", new TextBlock { Text = "Values and group names can be dragged into a new order in the live preview", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap }, "TextMuted");
         head.Children.Add(title);
         head.Children.Add(tip);
         metrics.Children.Add(head);

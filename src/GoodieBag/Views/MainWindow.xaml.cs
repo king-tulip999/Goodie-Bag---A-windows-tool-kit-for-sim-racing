@@ -206,7 +206,7 @@ public partial class MainWindow : Window
 
     internal static double SidebarDips(double scale) => (Sidebar.PanelWidth + 16) * scale;
 
-    internal const double BaseMinWidth = 960;
+    internal const double MinWindowWidth = 1280, MinWindowHeight = 720;
 
     internal void ApplySidebarSide()
     {
@@ -424,8 +424,6 @@ public partial class MainWindow : Window
     {
         if (Themes.Variant(ThemeManager.Current) is { } variant)
             return Ui.IconButton(ThemeManager.Current.Dark ? "I.Sun" : "I.Moon", $"Switch to {variant.Name}", () => _app.SetTheme(variant.Id));
-        if (Themes.OledSibling(ThemeManager.Current) is { } sibling)
-            return Ui.IconButton(sibling.Id == Config.AppTheme.OledPastel ? "I.Palette" : "I.Sparkles", $"Switch to {sibling.Name}", () => _app.SetTheme(sibling.Id));
         return null;
     }
 
@@ -462,7 +460,8 @@ public partial class MainWindow : Window
     {
         double scale = _app.Config.Ui.ScaleFactor;
         Root.LayoutTransform = Math.Abs(scale - 1) < 0.001 ? Transform.Identity : new ScaleTransform(scale, scale);
-        MinWidth = BaseMinWidth + SidebarDips(scale);
+        MinWidth = MinWindowWidth;
+        MinHeight = MinWindowHeight;
         if (rebuild) Dispatcher.BeginInvoke(new Action(OnThemeChanged), DispatcherPriority.Background);
     }
 
@@ -1004,6 +1003,9 @@ public partial class MainWindow : Window
         _modal?.TrySetResult(false);
         _modal = new TaskCompletionSource<bool>();
         ClosePopupsOf(ModalContent);
+        if (double.IsNaN((double)content.GetValue(Ui.DialogBaseWidthProperty)) && !double.IsNaN(content.Width))
+            content.SetValue(Ui.DialogBaseWidthProperty, content.Width);
+        FieldBox.SetFill(content, true);
         ModalContent.Content = content;
         PlaceModal();
         ModalLayer.Visibility = Visibility.Visible;
@@ -1033,6 +1035,8 @@ public partial class MainWindow : Window
         double right = Math.Max(0, ContentArea.ActualWidth - at.X - PageArea.ActualWidth);
         double bottom = Math.Max(0, ContentArea.ActualHeight - at.Y - PageArea.ActualHeight);
         ModalContent.Margin = new Thickness(Math.Max(0, at.X), Math.Max(0, at.Y), right, bottom);
+        if (ModalContent.Content is FrameworkElement card && (double)card.GetValue(Ui.DialogBaseWidthProperty) is var baseWidth && !double.IsNaN(baseWidth))
+            card.Width = Ui.DialogWidth(baseWidth, PageArea.ActualWidth);
     }
 
     internal void CloseModal(bool result)

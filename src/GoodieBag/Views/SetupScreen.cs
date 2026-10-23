@@ -131,8 +131,7 @@ internal sealed class SetupScreen : UserControl
         });
 
         stack.Children.Add(Section("Look", "I.Palette", "Pick a theme; this screen shows the one you pick.",
-            new ThemePicker(_app.Config.Ui.Theme, PickTheme, columns: 2, height: 64, oled: set => { _app.UseOledColors(set); PickTheme(AppTheme.Custom); },
-                pastel: preset => { _app.UsePastelPreset(preset); PickTheme(AppTheme.OledPastel); }) { Margin = new Thickness(0, 2, -10, -10) }));
+            new ThemePicker(_app.Config.Ui.Theme, PickTheme, columns: 2, height: 64, oled: set => { _app.UseOledColors(set); PickTheme(AppTheme.Custom); }) { Margin = new Thickness(0, 2, -10, -10) }));
         stack.Children.Add(Section("Start", "I.Power", null, StartOptions()));
 
         var finish = new Button
