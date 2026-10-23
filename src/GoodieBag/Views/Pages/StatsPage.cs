@@ -744,14 +744,17 @@ internal static class StatsSections
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var best = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         best.Children.Add(new TextBlock { Text = "Personal best", Style = Ui.Res<Style>("Eyebrow") });
+        DockPanel? top = null;
+        FrameworkElement? carPicture = null;
         if (charts.Bests.FirstOrDefault() is { } shown && CarPictures.Picture(shown.Car, 112, 300) is { } picture)
         {
             picture.Margin = new Thickness(24, 0, 0, 0);
-            var top = new DockPanel { LastChildFill = true };
+            top = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(picture, Dock.Right);
             top.Children.Add(picture);
             top.Children.Add(best);
             left.Children.Add(top);
+            carPicture = picture;
         }
         else left.Children.Add(best);
         if (charts.Bests.FirstOrDefault() is { } pb)
@@ -759,6 +762,8 @@ internal static class StatsSections
             var lap = new TextBlock { Text = StatFormat.LapTime(pb.Best), Style = Ui.Res<Style>("BigValue"), FontSize = 48, Margin = new Thickness(0, 4, 0, 0) };
             lap.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
             best.Children.Add(lap);
+            if (top is not null && carPicture is not null)
+                PictureOnlyWithRoom(top, carPicture, lap);
             best.Children.Add(new TextBlock { Text = pb.Car, Style = Ui.Res<Style>("H3"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
             best.Children.Add(new TextBlock { Text = pb.Config.Length > 0 ? $"{pb.Track} · {pb.Config}" : pb.Track, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap });
             var facts = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -785,6 +790,24 @@ internal static class StatsSections
         var hero = StatsLayout.Pair(left, right, 900, 4, 6, 40, center: true)!;
         var body = racecraft.Children.Count > 0 ? Stack(hero, racecraft) : hero;
         return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(28, 24, 28, 26), Child = body };
+    }
+
+    private static void PictureOnlyWithRoom(FrameworkElement row, FrameworkElement picture, FrameworkElement keep)
+    {
+        double need = 0;
+        row.SizeChanged += (_, e) =>
+        {
+            if (need <= 0)
+            {
+                var any = new Size(double.PositiveInfinity, double.PositiveInfinity);
+                picture.Measure(any);
+                keep.Measure(any);
+                need = picture.DesiredSize.Width + keep.DesiredSize.Width;
+                row.InvalidateMeasure();
+            }
+            var shown = e.NewSize.Width >= need ? Visibility.Visible : Visibility.Collapsed;
+            if (picture.Visibility != shown) picture.Visibility = shown;
+        };
     }
 
     private static FrameworkElement? PickPair(StatsCharts.Data charts, SessionStatsService service, Action changed)
@@ -1255,6 +1278,14 @@ internal static class StatsCharts
 
     public static FrameworkElement Consistency(List<SessionSpread> sessions) => new ConsistencyChart(sessions) { Height = 230 };
 
+    internal static string AxisLap(double seconds, double step)
+    {
+        string text = StatFormat.LapTime(seconds + 0.0004);
+        int decimals = step >= 1 ? 0 : Math.Abs(step * 10 - Math.Round(step * 10)) < 1e-9 ? 1 : 2;
+        int dot = text.LastIndexOf('.');
+        return dot < 0 ? text : decimals == 0 ? text[..dot] : text[..Math.Min(text.Length, dot + 1 + decimals)];
+    }
+
     internal static (double Lo, double Hi, double Step) LapScale(double lo, double hi)
     {
         double span = Math.Max(0.2, hi - lo);
@@ -1310,7 +1341,7 @@ internal static class StatsCharts
             {
                 double y = Math.Round(Y(v)) + 0.5;
                 dc.DrawLine(grid, new Point(Left, y), new Point(w - Right, y));
-                var label = Text(StatFormat.LapTime(v));
+                var label = Text(AxisLap(v, step));
                 dc.DrawText(label, new Point(Left - 8 - label.Width, y - label.Height / 2));
             }
             dc.DrawLine(new Pen(Ui.Res<Brush>("LineStrong"), 1), new Point(Left, ActualHeight - Bottom + 0.5), new Point(w - Right, ActualHeight - Bottom + 0.5));

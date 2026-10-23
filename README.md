@@ -6,7 +6,7 @@ I got sick of switching monitors, audio, fan curves and overlays by hand every t
 
 ## What's in it
 
-Every feature is a plugin you can switch off, and when one's off it runs nothing in the background. There are themes (Light, Dark, or your own colors, with presets to start from), and `Ctrl+F` searches every setting and keybind in the app.
+Every feature is a plugin you can switch off, and when one's off it runs nothing in the background. Every tool sits in a sidebar (drag to reorder, left or right side), with its sections listed under it. There are themes (Light, Dark, or your own colors, with presets to start from), and `Ctrl+F` searches every setting and keybind in the app.
 
 ### Window Profiles
 
@@ -36,7 +36,7 @@ All your setups sorted by car and class. Rename, move, import share packs and pi
 
 #### iRacing Controller
 
-iRacing's settings in plain language, plus your in-sim keybinds per control profile. Everything gets backed up before it's changed.
+iRacing's settings in plain language (search, see what differs from iRacing's defaults and reset it), plus your in-sim keybinds per control profile. Everything gets backed up before it's changed.
 
 #### FOV Calculator
 
@@ -48,7 +48,7 @@ Launch them with Goodie Bag or when iRacing starts.
 
 ### Session Stats
 
-Your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. Tire wear is tracked per run from the pit-stall readings. It also reads your old iRacing telemetry files, so your history doesn't start from zero, and can switch on iRacing's telemetry recording and clear out files it has already read.
+Your iRacing history, kept on your PC. Laps, time, results, ratings, incidents and personal bests by week / month / season, with a picture of each car. Open any session for its laps and sectors, then compare laps on telemetry traces or a top-down replay. You can export a lap to share and import other people's. Tire wear is tracked per run from the pit-stall readings. It also reads your old iRacing telemetry files, so your history doesn't start from zero, and can switch on iRacing's telemetry recording and clear out files it has already read.
 
 ## Getting started
 

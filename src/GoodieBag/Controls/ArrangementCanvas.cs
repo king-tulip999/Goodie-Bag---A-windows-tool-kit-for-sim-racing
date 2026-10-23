@@ -152,7 +152,7 @@ public sealed class ArrangementCanvas : Canvas
             FontFamily = ThemeManager.DisplayFace.FontFamily,
         });
         stack.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = tile.Name, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 0, 6, 0) }));
-        stack.Children.Add(new TextBlock { Text = tile.Detail, FontSize = 11, Opacity = 0.65, HorizontalAlignment = HorizontalAlignment.Center });
+        stack.Children.Add(new TextBlock { Text = tile.Detail, FontSize = 11.5, Opacity = 0.8, HorizontalAlignment = HorizontalAlignment.Center });
         grid.Children.Add(stack);
         if (tile.Primary)
         {
@@ -164,7 +164,7 @@ public sealed class ArrangementCanvas : Canvas
                 Margin = new Thickness(6),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
-                Child = new TextBlock { Text = "Main", FontSize = 10, Foreground = ThemeManager.Brush("OnAccent", Brushes.Black), FontWeight = FontWeights.SemiBold },
+                Child = new TextBlock { Text = "Main", FontSize = 11, Foreground = ThemeManager.Brush("OnAccent", Brushes.Black), FontWeight = FontWeights.SemiBold },
             });
         }
     }

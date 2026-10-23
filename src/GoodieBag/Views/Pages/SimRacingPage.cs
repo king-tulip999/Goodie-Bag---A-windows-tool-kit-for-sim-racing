@@ -47,8 +47,8 @@ internal sealed class SimRacingPage : UserControl, IPage, IScreenshotStates, ICa
         _fov = new FovSection(app, window);
         _view.Add(Def("fov", "The correct field of view for your seat and screens, so speed, distance and apexes look real.",
             () => _fov, "simracing.fov"));
-        _view.Add(Def("iracing", "Every iRacing setting with a plain-language description, a health check, the triple-screen layout and backups.",
-            () => _controller = new IracingControllerSection(_app, _window, () => S.Current), "simracing.iracing"));
+        _view.Add(Def("iracing", "Every iRacing setting with a plain-language description, a health check and backups.",
+            () => _controller = new IracingControllerSection(_app, _window), "simracing.iracing"));
         _view.Add(Def("setups", "Your car setups by car: find, rename, move, import and share them with league mates without File Explorer.",
             () => _setups = new SetupManagerSection(_app, _window), "simracing.setups",
             () => _setups?.OnShown(), () => _setups?.OnHidden()));

@@ -65,7 +65,7 @@ internal static class GrrTheme
         ["TileRaised"] = Hex("#1A251A"), ["Hover"] = Hex("#1F2B1F"), ["HoverRaised"] = Hex("#243224"),
         ["TileHighlight"] = Hex("#263329"), ["TileEdge"] = Hex("#263329"),
         ["Line"] = Hex("#1E2820"), ["LineStrong"] = Hex("#4A5A4D"),
-        ["Heading"] = Hex("#F4F6F4"), ["Text"] = Hex("#E8ECE8"), ["TextMuted"] = Hex("#89948A"), ["TextFaint"] = Hex("#7A867C"),
+        ["Heading"] = Hex("#F4F6F4"), ["Text"] = Hex("#E8ECE8"), ["TextMuted"] = Hex("#98A399"), ["TextFaint"] = Hex("#839085"),
         ["Accent"] = Hex("#75FF00"), ["AccentHover"] = Hex("#67DE0C"), ["AccentPressed"] = Hex("#44BD00"), ["AccentEdge"] = Hex("#75FF00"),
         ["OnAccent"] = Hex("#071000"), ["AccentSoft"] = Hex("#192A10"), ["AccentSoftHover"] = Hex("#1D340F"), ["AccentText"] = Hex("#8CFF33"),
         ["ButtonEdge"] = Hex("#263329"),

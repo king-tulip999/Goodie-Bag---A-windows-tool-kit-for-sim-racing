@@ -999,7 +999,7 @@ internal static class Ui
             if (hit[start])
             {
                 run.SetResourceReference(TextElement.BackgroundProperty, "WarnSoft");
-                run.SetResourceReference(TextElement.ForegroundProperty, "Warn");
+                run.SetResourceReference(TextElement.ForegroundProperty, "WarnDeep");
                 run.FontWeight = FontWeights.SemiBold;
             }
             block.Inlines.Add(run);

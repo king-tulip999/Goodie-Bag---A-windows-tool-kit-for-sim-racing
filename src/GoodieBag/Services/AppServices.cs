@@ -95,7 +95,7 @@ internal sealed class AppServices : IDisposable
         _saveDebounce.Tick += (_, _) => { _saveDebounce.Stop(); SaveInBackground(); };
     }
 
-    public void Start(bool withTray, bool fromStartup)
+    public void Start(bool withTray)
     {
         Plugins.StartEnabled();
         Hotkeys.RegisterAll();

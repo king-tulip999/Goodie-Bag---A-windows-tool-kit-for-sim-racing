@@ -123,7 +123,7 @@ internal sealed class WindowProfileEditor
         if (!settings.AutoApply)
         {
             var off = Ui.FieldHint("Applying automatically is off for every profile (switch at the top of the page).", LabelWidth);
-            off.Foreground = Ui.Res<System.Windows.Media.Brush>("Warn");
+            off.Foreground = Ui.Res<System.Windows.Media.Brush>("WarnDeep");
             stack.Children.Add(off);
         }
         stack.Children.Add(Ui.FieldRow("Delay", _delay, LabelWidth, "Waits this long after the program starts."));

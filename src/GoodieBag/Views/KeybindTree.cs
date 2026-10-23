@@ -12,7 +12,7 @@ namespace GoodieBag.Views;
 
 internal sealed class KeybindTree : Tile
 {
-    private const double RowIndent = 40, RowHeight = 42, KeyWidth = 164, CellWidth = 460, CellGap = 16;
+    private const double RowIndent = 40, RowHeight = 42, KeyWidth = 164, CellWidth = 460, CellGap = 16, GroupWidth = 540;
     private readonly AppServices _app;
     private readonly Action<string>? _navigate;
     private readonly Func<HotkeyEntry, bool> _include;
@@ -134,12 +134,17 @@ internal sealed class KeybindTree : Tile
         if (leaves.Count > 0)
             host.Children.Add(Stacks(leaves, hue));
         bool first = leaves.Count == 0;
-        foreach (var name in GroupNames(entries, depth))
+        var names = GroupNames(entries, depth);
+        Panel groups = depth > _skip && names.Count > 1
+            ? new MasonryPanel { MinColumnWidth = GroupWidth, Gap = CellGap, MaxColumns = 3, Stable = true }
+            : host;
+        foreach (var name in names)
         {
             var inside = entries.Where(e => e.Path.Count > depth && e.Path[depth] == name).ToList();
-            host.Children.Add(Group(name, Join(parentKey, name), inside, depth, HueOf(name, depth - _skip, inside, hue), first));
+            groups.Children.Add(Group(name, Join(parentKey, name), inside, depth, HueOf(name, depth - _skip, inside, hue), first));
             first = false;
         }
+        if (groups != host) host.Children.Add(groups);
         return host;
     }
 
@@ -188,7 +193,10 @@ internal sealed class KeybindTree : Tile
             }
             var holder = new Border { BorderThickness = new Thickness(2, 0, 0, 0), Padding = new Thickness(8, 0, 0, 0), Child = column };
             holder.SetResourceReference(Border.BorderBrushProperty, hue.Soft);
-            panel.Children.Add(holder);
+            var cell = new Grid();
+            cell.ColumnDefinitions.Add(new ColumnDefinition { MaxWidth = CellWidth + CellGap });
+            cell.Children.Add(holder);
+            panel.Children.Add(cell);
         }
         return panel;
     }

@@ -154,7 +154,7 @@ internal sealed class RaceHudWidgets
     {
         _selected = Layout?.Widgets.FirstOrDefault(w => w.Kind == kind)?.Id ?? _selected;
         _general = false;
-        if (Selected() is { } w && HudCatalog.Find(w.Kind) is { } def) Reveal(w, def, settingId);
+        if (Selected() is { } w && HudCatalog.Find(w.Kind) is { } def) Reveal(def, settingId);
     }
 
     internal void Point(string kind, string settingId)
@@ -629,7 +629,7 @@ internal sealed class RaceHudWidgets
         _presets?.Show(def.EditorDef.PresetName(def, w));
     }
 
-    private void Reveal(HudWidgetConfig w, HudWidgetDef def, string settingId)
+    private void Reveal(HudWidgetDef def, string settingId)
     {
         var editor = def.EditorDef;
         if (editor.GroupOf(settingId) is not { } group) return;
@@ -945,7 +945,7 @@ internal sealed class RaceHudWidgets
             if (_click is { } click)
             {
                 _click = null;
-                if ((at - click).Length < 4 && editor is not null && SettingAt(editor, at) is { } id && HudCatalog.Find(w.Kind) is { } def) Reveal(w, def, id);
+                if ((at - click).Length < 4 && editor is not null && SettingAt(editor, at) is { } id && HudCatalog.Find(w.Kind) is { } def) Reveal(def, id);
                 return;
             }
             if (_press is not { } press) return;
@@ -953,7 +953,7 @@ internal sealed class RaceHudWidgets
             _press = null;
             EndDrag(host);
             if (dragged) Commit(w, press.Key);
-            else if (editor?.SettingForRegion(press.Key) is { } id && HudCatalog.Find(w.Kind) is { } def) Reveal(w, def, id);
+            else if (editor?.SettingForRegion(press.Key) is { } id && HudCatalog.Find(w.Kind) is { } def) Reveal(def, id);
         };
         host.LostMouseCapture += (_, _) =>
         {

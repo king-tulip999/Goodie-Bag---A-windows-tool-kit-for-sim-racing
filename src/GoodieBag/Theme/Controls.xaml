@@ -395,6 +395,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource TextMuted}" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -432,7 +433,7 @@
         <Setter Property="Padding" Value="9,3" />
         <Setter Property="Background" Value="{DynamicResource QuietBg}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BtnEdge}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -751,7 +752,7 @@
         <Setter Property="Height" Value="34" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
         <Setter Property="MaxDropDownHeight" Value="320" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
         <Setter Property="ItemContainerStyle" Value="{StaticResource ComboItem}" />
@@ -864,7 +865,7 @@
         <Setter Property="MinHeight" Value="24" />
         <Setter Property="IsMoveToPointEnabled" Value="True" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
@@ -1125,7 +1126,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
-                    <c:Tile Background="{TemplateBinding Background}" CornerRadius="{DynamicResource R.Tooltip}" c:Tile.Chamfer="True" Padding="10,6" Margin="0,0,0,6" MaxWidth="320">
+                    <c:Tile Background="{TemplateBinding Background}" BorderBrush="{DynamicResource TooltipEdge}" BorderThickness="1" CornerRadius="{DynamicResource R.Tooltip}" c:Tile.Chamfer="True" Padding="10,6" Margin="0,0,0,6" MaxWidth="320">
                         <ContentPresenter>
                             <ContentPresenter.Resources>
                                 <Style TargetType="TextBlock">

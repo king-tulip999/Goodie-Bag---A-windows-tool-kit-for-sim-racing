@@ -7,7 +7,6 @@ using System.Windows.Media;
 using GoodieBag.Config;
 using GoodieBag.Controls;
 using GoodieBag.Services;
-using GoodieBag.SimRacing;
 using GoodieBag.SimRacing.IracingFiles;
 using GoodieBag.SimRacing.Race;
 using GoodieBag.Theme;
@@ -16,7 +15,7 @@ namespace GoodieBag.Views.Pages;
 
 internal sealed class IracingControllerSection : StackPanel
 {
-    private static readonly string[] Tabs = { "All settings", "Keybinds", "Overview", "Triple screens", "Backups" };
+    private static readonly string[] Tabs = { "All settings", "Keybinds", "Overview and Backups" };
     private const int MaxRows = 80;
     private static readonly HashSet<string> HiddenSections = new(StringComparer.OrdinalIgnoreCase) { "renderer|AutoCfg", "renderer|Debug" };
     private const string WideSection = "renderer|Graphics Options";
@@ -24,7 +23,6 @@ internal sealed class IracingControllerSection : StackPanel
 
     private readonly AppServices _app;
     private readonly MainWindow _window;
-    private readonly Func<FovSetup> _fov;
     private readonly Workspace _ws;
     private readonly StackPanel _tab = new();
     private readonly StackPanel _tabTools = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -39,11 +37,10 @@ internal sealed class IracingControllerSection : StackPanel
     private const double SideNavMin = 1080;
     private Action? _draftsChanged;
 
-    public IracingControllerSection(AppServices app, MainWindow window, Func<FovSetup> fov)
+    public IracingControllerSection(AppServices app, MainWindow window)
     {
         _app = app;
         _window = window;
-        _fov = fov;
         _ws = new Workspace(app.Config.SimRacing.IracingController, app.Demo);
         _ws.Load();
         Build();
@@ -121,9 +118,11 @@ internal sealed class IracingControllerSection : StackPanel
         {
             case 0: AllSettings(); break;
             case 1: _tab.Children.Add(IracingKeybindsView.Build(_app, _ws)); break;
-            case 2: Overview(); break;
-            case 3: Triples(); break;
-            default: BackupsTab(); break;
+            default:
+                Overview();
+                _tab.Children.Add(Ui.EditorSection("Backups"));
+                BackupsTab();
+                break;
         }
     }
 
@@ -173,7 +172,7 @@ internal sealed class IracingControllerSection : StackPanel
         {
             Text = running ? "iRacing is running. It rewrites its files when it closes, so close it first, then write."
                 : _ws.Demo ? "Demo: nothing is written." : "Everything is backed up before writing.",
-            Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>(running ? "Warn" : "TextMuted"),
+            Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>(running ? "WarnDeep" : "TextMuted"),
         });
         grid.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal };
@@ -274,7 +273,8 @@ internal sealed class IracingControllerSection : StackPanel
         if (layout.Count > 0)
             _tab.Children.Add(FindingCard(Rating.Concerning, "iRacing changed your triple-screen layout",
                 $"{layout.Count} value{(layout.Count == 1 ? "" : "s")} differ from the layout you saved ({string.Join(", ", layout.Take(4).Select(d => d.Setting.Def.Label))}). This often happens after a driver update or a crash.",
-                ("Put it back", () => { LayoutGuard.StageRestore(Session!, S.SavedLayout); ShowTab(); })));
+                ("Put it back", () => { LayoutGuard.StageRestore(Session!, S.SavedLayout); ShowTab(); }),
+                ("Forget saved layout", () => { S.SavedLayout = new(StringComparer.OrdinalIgnoreCase); _app.Save(); ShowTab(); })));
 
         foreach (var f in report.Findings)
         {
@@ -966,7 +966,7 @@ internal sealed class IracingControllerSection : StackPanel
                 text.Children.Add(shown);
             }
             Note(s.Def.Danger, "Danger", "I.Alert");
-            Note(s.IsChanged ? s.Def.Caution : null, "Warn");
+            Note(s.IsChanged ? s.Def.Caution : null, "WarnDeep");
             Note(s.IsInert ? s.Def.DependsOn?.Message : null, "TextFaint");
             if (words.Length > 0 && words.Any(w => s.Key.Contains(w, StringComparison.OrdinalIgnoreCase)))
             {
@@ -1101,105 +1101,6 @@ internal sealed class IracingControllerSection : StackPanel
             panel.Children.Add(reset);
         }
         return panel;
-    }
-
-    private void Triples()
-    {
-        var ses = Session!;
-        if (ses.Find(IracingPaths.MonitorRenderer, "MonitorSetup", "NumMonitors") is null)
-        {
-            _tab.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Child = new TextBlock { Text = "The triple-screen settings live in the Monitor graphics file (rendererDX11Monitor.ini), which isn't loaded. Pick Monitor graphics above.", Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap } });
-            return;
-        }
-
-        double screen = LayoutGuard.Number(ses, "ScreenWidth", 0), monitor = LayoutGuard.Number(ses, "MonitorWidth", 0),
-            dist = LayoutGuard.Number(ses, "ViewingDist", 0), angle = LayoutGuard.Number(ses, "ScreenAngles", 0), count = LayoutGuard.Number(ses, "NumMonitors", 1);
-        double ideal = LayoutGuard.IdealAngle(Math.Max(screen, monitor), dist);
-
-        var r = FovCalculator.Calculate(_fov());
-        var setup = _fov();
-        var labels = new Dictionary<string, string>
-        {
-            ["NumMonitors"] = "Screens", ["ScreenWidth"] = "Visible width of one screen", ["MonitorWidth"] = "Full width of one monitor, with bezels",
-            ["ViewingDist"] = "Eyes to the center screen", ["ScreenAngles"] = "Side screen angle", ["MonitorType"] = "Curved", ["RadiusOfCurvature"] = "Curve radius",
-        };
-        var calc = FovExchange.IracingValues(setup, r).Select(v => (v.Key, v.Value, Label: labels.GetValueOrDefault(v.Key, v.Key))).ToList();
-
-        var card = new StackPanel();
-        card.Children.Add(Ui.Text("iRacing's screen setup", "H3"));
-        card.Children.Add(new TextBlock { Text = "What iRacing uses to draw the side screens at the right angle ([MonitorSetup] in rendererDX11Monitor.ini), next to what the FOV calculator above works out for your rig.", Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) });
-        var table = new Grid();
-        foreach (var w in new[] { new GridLength(1, GridUnitType.Star), new GridLength(140), new GridLength(140) })
-            table.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
-        int row = 0;
-        void Cell(string text, int col, bool head = false, string? brush = null)
-        {
-            var t = new TextBlock { Text = text, Margin = new Thickness(0, 4, 0, 4), TextAlignment = col == 0 ? TextAlignment.Left : TextAlignment.Right };
-            if (head) t.Style = Ui.Res<Style>("Eyebrow");
-            if (brush is not null) t.Foreground = Ui.Res<Brush>(brush);
-            Grid.SetRow(t, row);
-            Grid.SetColumn(t, col);
-            table.Children.Add(t);
-        }
-        table.RowDefinitions.Add(new RowDefinition());
-        Cell("Setting", 0, true); Cell("In iRacing", 1, true); Cell("FOV calculator", 2, true);
-        int differ = 0;
-        foreach (var (key, value, label) in calc)
-        {
-            if (ses.Find(IracingPaths.MonitorRenderer, "MonitorSetup", key) is not { } s) continue;
-            row++;
-            table.RowDefinitions.Add(new RowDefinition());
-            bool same = Setting.SameValue(s.Draft, value);
-            if (!same) differ++;
-            Cell(label, 0);
-            Cell(s.Show(s.Draft), 1);
-            Cell(s.Show(value), 2, brush: same ? null : "AccentText");
-        }
-        card.Children.Add(table);
-        card.Children.Add(new TextBlock
-        {
-            Text = count >= 3 ? $"Ideal side angle for iRacing's current values: {ideal:0}° (each side screen square-on to your eyes)." : "iRacing is set to a single screen.",
-            Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 8, 0, 0),
-        });
-        var use = Ui.LabeledButton("I.Download", differ == 0 ? "iRacing already matches" : "Use the calculator's values", () =>
-        {
-            foreach (var (key, value, _) in calc)
-                if (ses.Find(IracingPaths.MonitorRenderer, "MonitorSetup", key) is { } s) ses.SetDraft(s, value);
-            ShowTab();
-        }, "SoftButton");
-        use.IsEnabled = differ > 0;
-        use.HorizontalAlignment = HorizontalAlignment.Left;
-        use.Margin = new Thickness(0, 12, 0, 0);
-        card.Children.Add(use);
-        _tab.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 12), Child = card });
-
-        var guard = new StackPanel();
-        guard.Children.Add(Ui.Text("Layout guard", "H3"));
-        guard.Children.Add(new TextBlock { Text = "iRacing sometimes resets the triple layout (after a driver update, with the side screens off, or after a crash). Save yours and the Overview tells you when it changes, with one click to put it back.", Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) });
-        var diffs = LayoutGuard.Differences(ses, S.SavedLayout);
-        if (S.SavedLayout.Count == 0)
-            guard.Children.Add(new TextBlock { Text = "No layout saved yet.", Style = Ui.Res<Style>("Caption") });
-        else if (diffs.Count == 0)
-            guard.Children.Add(Ui.IconText("I.Check", new TextBlock { Text = "The file matches your saved layout.", TextWrapping = TextWrapping.Wrap }, "SageDeep"));
-        else
-            foreach (var d in diffs)
-                guard.Children.Add(new TextBlock { Text = $"{d.Setting.Def.Label}: {d.Setting.Show(d.Setting.Applied)} now, {d.Setting.Show(d.Saved)} saved", Foreground = Ui.Res<Brush>("Warn") });
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-        var save = Ui.LabeledButton("I.Save", S.SavedLayout.Count == 0 ? "Save this layout" : "Save the current file as my layout", () =>
-        {
-            S.SavedLayout = LayoutGuard.Capture(ses);
-            _app.Save();
-            ShowTab();
-        }, "SoftButton");
-        buttons.Children.Add(save);
-        if (diffs.Count > 0)
-        {
-            var restore = Ui.LabeledButton("I.Restore", "Put my layout back", () => { LayoutGuard.StageRestore(ses, S.SavedLayout); ShowTab(); }, "PrimaryButton");
-            restore.Margin = new Thickness(8, 0, 0, 0);
-            buttons.Children.Add(restore);
-        }
-        guard.Children.Add(buttons);
-        _tab.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Child = guard });
     }
 
     private void BackupsTab()

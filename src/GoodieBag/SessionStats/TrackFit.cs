@@ -136,7 +136,7 @@ internal static class TrackFit
             return (xs, ys);
         }
         double width = Math.Max(0.1, map.Width * sim.Scale);
-        var driven = lines.Select(l => Lateral(centre, l.X, l.Y, l.Step, l.Length)).ToList();
+        var driven = lines.Select(l => Lateral(centre, l.X, l.Y)).ToList();
         var half = Enumerable.Repeat(width / 2, nd).ToArray();
         var surface = map.Surface.Where(f => f.Length >= 3).Select(f => { var (px, py) = Placed(f); return Spline(px, py, closed: true, 1.5); }).ToList();
         var pit = new List<(double[], double[], bool)>();
@@ -188,7 +188,7 @@ internal static class TrackFit
 
     internal readonly record struct Driven(int[] At, double[] Side);
 
-    internal static Driven Lateral((double X, double Y)[] centre, double[] x, double[] y, double step, double length)
+    internal static Driven Lateral((double X, double Y)[] centre, double[] x, double[] y)
     {
         int nd = centre.Length, n = Math.Min(x.Length, y.Length);
         var at = new int[n];

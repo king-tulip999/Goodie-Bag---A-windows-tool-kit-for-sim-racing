@@ -159,13 +159,16 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
         });
     }
 
+    private const double HoverLead = 8;
+
     private static Grid Row(UIElement name, UIElement value, UIElement min, UIElement max, double indent, bool header = false)
     {
-        var grid = new Grid { Margin = new Thickness(indent, header ? 0 : 3, 0, header ? 0 : 3) };
+        double lead = header ? 0 : HoverLead;
+        var grid = new Grid { Margin = new Thickness(indent - lead, 0, -lead, 0), Background = Brushes.Transparent };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110 + lead) });
         int col = 0;
         foreach (var e in new[] { name, value, min, max })
         {
@@ -174,8 +177,15 @@ internal sealed class SensorsSection : UserControl, IPage, IScreenshotStates, IC
                 t.TextAlignment = TextAlignment.Right;
                 t.VerticalAlignment = VerticalAlignment.Center;
             }
+            if (!header && e is FrameworkElement fe)
+                fe.Margin = new Thickness(col == 0 ? lead : 0, 3, col == 3 ? lead : 0, 3);
             Grid.SetColumn(e, col++);
             grid.Children.Add(e);
+        }
+        if (!header)
+        {
+            grid.MouseEnter += (_, _) => grid.SetResourceReference(Panel.BackgroundProperty, "SurfaceAlt");
+            grid.MouseLeave += (_, _) => grid.Background = Brushes.Transparent;
         }
         return grid;
     }

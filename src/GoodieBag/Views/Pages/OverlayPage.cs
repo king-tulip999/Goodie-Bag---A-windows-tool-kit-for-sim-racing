@@ -448,7 +448,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         custom.Children.Add(ColorRow("Critical", () => c.Critical, v => c.Critical = v));
         colors.Children.Add(custom);
         _contrast.Style = Ui.Res<Style>("Caption");
-        _contrast.Foreground = Ui.Res<Brush>("Warn");
+        _contrast.Foreground = Ui.Res<Brush>("WarnDeep");
         _contrast.Margin = new Thickness(0, 8, 0, 0);
         colors.Children.Add(Detached(_contrast));
     }

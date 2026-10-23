@@ -10,7 +10,7 @@ internal static class Palettes
         ["TileRaised"] = Hex("#FAF7F2"), ["Hover"] = Hex("#E6E0D6"), ["HoverRaised"] = Hex("#EAE4DA"),
         ["TileHighlight"] = Hex("#FCFAF6"), ["TileEdge"] = Hex("#C3B7A7"),
         ["Line"] = Hex("#CCC2B4"), ["LineStrong"] = Hex("#A89A87"),
-        ["Heading"] = Hex("#221C18"), ["Text"] = Hex("#2B241F"), ["TextMuted"] = Hex("#4F443A"), ["TextFaint"] = Hex("#665A4E"),
+        ["Heading"] = Hex("#221C18"), ["Text"] = Hex("#2B241F"), ["TextMuted"] = Hex("#4F443A"), ["TextFaint"] = Hex("#5E5247"),
         ["SidebarBg"] = Hex("#E4DDD2"), ["TopoLine"] = Hex("#A89B88"),
         ["Tile2"] = Hex("#E2D9CF"), ["Tile4"] = Hex("#E0D3BE"), ["Tile8"] = Hex("#E2AABE"), ["Tile16"] = Hex("#BE688C"),
         ["Tile32"] = Hex("#D6887A"), ["Tile64"] = Hex("#DDAA55"), ["Tile128"] = Hex("#DDBE52"),
@@ -25,13 +25,13 @@ internal static class Palettes
         ["Coral"] = Hex("#CC6845"), ["CoralSoft"] = Hex("#EAD3C9"), ["CoralDeep"] = Hex("#99452A"),
         ["Slate"] = Hex("#2F7F93"), ["SlateSoft"] = Hex("#CFDCDA"), ["SlateDeep"] = Hex("#1E5F70"),
         ["Plum"] = Hex("#B08A4F"), ["PlumSoft"] = Hex("#E0D3BE"), ["PlumDeep"] = Hex("#70521F"),
-        ["Knob"] = Hex("#F5F1EB"), ["SwitchTrack"] = Hex("#C9BDAC"), ["SwitchTrackHover"] = Hex("#BBAD9A"),
+        ["Knob"] = Hex("#F5F1EB"), ["SwitchTrack"] = Hex("#C9BDAC"), ["SwitchTrackHover"] = Hex("#BBAD9A"), ["SwitchBorder"] = Hex("#A89A87"),
         ["MeterTrack"] = Hex("#DAD0C3"), ["Meter1"] = Hex("#CDB48A"), ["GridLine"] = Hex("#D4CABC"),
         ["ScrollThumbBrush"] = Hex("#C6BAA9"), ["ScrollThumbBrushHover"] = Hex("#B6A894"), ["ScrollThumbBrushDrag"] = Hex("#A4957F"),
-        ["TooltipBg"] = Hex("#3E352E"), ["TooltipText"] = Hex("#EDE7DF"), ["CloseHover"] = Hex("#BC342B"),
+        ["TooltipBg"] = Hex("#3E352E"), ["TooltipText"] = Hex("#EDE7DF"), ["TooltipEdge"] = Hex("#3E352E"), ["CloseHover"] = Hex("#BC342B"),
         ["Dim"] = Hex("#663E352E"), ["Shadow"] = Hex("#6B5236"),
         ["FocusEdge"] = Hex("#1E6F82"), ["OnDanger"] = Hex("#FFFFFF"),
-        ["InputEdgeHover"] = Hex("#6E9AA5"), ["EyebrowText"] = Hex("#33606A"), ["SegmentBg"] = Hex("#E8E1D7"), ["SegmentEdge"] = Hex("#C6BAA9"), ["QuietEdge"] = Hex("#B3A796"),
+        ["InputEdge"] = Hex("#9A876E"), ["InputEdgeHover"] = Hex("#6E9AA5"), ["EyebrowText"] = Hex("#33606A"), ["SegmentBg"] = Hex("#E8E1D7"), ["SegmentEdge"] = Hex("#C6BAA9"), ["QuietEdge"] = Hex("#B3A796"),
     };
 
     public static readonly IReadOnlyDictionary<string, Color> Dark = new Dictionary<string, Color>
@@ -63,17 +63,17 @@ internal static class Palettes
         ["ActiveModeBg"] = Hex("#DC1A78"), ["ActiveModeFg"] = Hex("#FFFFFF"), ["ActiveModeEdge"] = Hex("#F02D91"), ["ActiveModeHover"] = Hex("#C4146A"),
         ["LogoBg"] = Hex("#DC1A78"), ["LogoFg"] = Hex("#FFFFFF"), ["LogoEdge"] = Hex("#DC1A78"),
         ["SidebarEdge"] = Hex("#242424"),
-        ["InputEdgeHover"] = Hex("#5A5A5A"), ["FocusEdge"] = Hex("#49C8F5"), ["OnDanger"] = Hex("#1A0808"),
+        ["InputEdge"] = Hex("#646464"), ["InputEdgeHover"] = Hex("#808080"), ["FocusEdge"] = Hex("#49C8F5"), ["OnDanger"] = Hex("#1A0808"),
         ["SegmentBg"] = Hex("#1B1B1B"), ["SegmentEdge"] = Hex("#333333"), ["QuietEdge"] = Hex("#3A3A3A"), ["EyebrowText"] = Hex("#7FBFD6"),
     };
 
     public static readonly IReadOnlyDictionary<string, Color> Custom = new Dictionary<string, Color>
     {
         ["Bg"] = Hex("#000000"), ["Panel"] = Hex("#000000"), ["SurfaceAlt"] = Hex("#100B0E"), ["Surface"] = Hex("#070507"),
-        ["TileRaised"] = Hex("#161015"), ["Hover"] = Hex("#1C0E15"), ["HoverRaised"] = Hex("#241119"),
+        ["TileRaised"] = Hex("#161015"), ["Hover"] = Hex("#2A1520"), ["HoverRaised"] = Hex("#3A1C2B"),
         ["TileHighlight"] = Hex("#291E24"), ["TileEdge"] = Hex("#291E24"),
         ["Line"] = Hex("#291E24"), ["LineStrong"] = Hex("#5E4654"),
-        ["Heading"] = Hex("#F5ECEE"), ["Text"] = Hex("#EBDCE1"), ["TextMuted"] = Hex("#A7999F"), ["TextFaint"] = Hex("#84777D"),
+        ["Heading"] = Hex("#F5ECEE"), ["Text"] = Hex("#EBDCE1"), ["TextMuted"] = Hex("#A7999F"), ["TextFaint"] = Hex("#8C7F85"),
         ["Accent"] = Hex("#DB156B"), ["AccentHover"] = Hex("#F0388A"), ["AccentPressed"] = Hex("#A80F52"), ["AccentEdge"] = Hex("#DB156B"),
         ["OnAccent"] = Hex("#FFF5F6"), ["AccentSoft"] = Hex("#240815"), ["AccentSoftHover"] = Hex("#310B1C"), ["AccentText"] = Hex("#FF6AA6"),
         ["ButtonEdge"] = Hex("#775869"),
@@ -117,7 +117,7 @@ internal static class Palettes
         ["LogoBg"] = "Gold", ["LogoFg"] = "OnGold", ["LogoEdge"] = "GoldEdge",
         ["SidebarEdge"] = "Transparent", ["SidebarBg"] = "Surface", ["TopoLine"] = "Slate", ["BgGlow"] = "Bg",
         ["InputEdge"] = "Line", ["InputEdgeHover"] = "LineStrong", ["FocusEdge"] = "Accent", ["FocusGap"] = "Transparent",
-        ["SegmentBg"] = "Transparent", ["SegmentEdge"] = "BtnOutline", ["EyebrowText"] = "TextFaint",
+        ["SegmentBg"] = "Transparent", ["SegmentEdge"] = "BtnOutline", ["EyebrowText"] = "TextFaint", ["TooltipEdge"] = "LineStrong",
     };
 
     public static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex);

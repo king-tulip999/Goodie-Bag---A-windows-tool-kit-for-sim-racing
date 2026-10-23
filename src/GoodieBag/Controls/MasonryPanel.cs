@@ -9,6 +9,9 @@ public sealed class MasonryPanel : Panel
     public int MaxColumns { get; set; } = 3;
     public double Gap { get; set; } = 16;
     public bool CenterFew { get; set; }
+    public bool Stable { get; set; }
+
+    private int ColumnFor(double[] heights, int index) => Stable ? index % heights.Length : Array.IndexOf(heights, heights.Min());
 
     private int Used(int columns) =>
         CenterFew ? Math.Clamp(InternalChildren.Cast<UIElement>().Count(c => c.Visibility != Visibility.Collapsed), 1, columns) : columns;
@@ -23,11 +26,12 @@ public sealed class MasonryPanel : Panel
         int columns = Columns(available.Width);
         double w = double.IsInfinity(available.Width) ? MinColumnWidth : ColumnWidth(available.Width, columns);
         var heights = new double[Used(columns)];
+        int index = 0;
         foreach (UIElement child in InternalChildren)
         {
             child.Measure(new Size(w, double.PositiveInfinity));
             if (child.Visibility == Visibility.Collapsed) continue;
-            int c = Array.IndexOf(heights, heights.Min());
+            int c = ColumnFor(heights, index++);
             heights[c] += child.DesiredSize.Height + Gap;
         }
         double height = Math.Max(0, heights.Max() - Gap);
@@ -41,10 +45,11 @@ public sealed class MasonryPanel : Panel
         int used = Used(columns);
         double left = (final.Width - (used * w + (used - 1) * Gap)) / 2 * (used < columns ? 1 : 0);
         var heights = new double[used];
+        int index = 0;
         foreach (UIElement child in InternalChildren)
         {
             if (child.Visibility == Visibility.Collapsed) { child.Arrange(new Rect()); continue; }
-            int c = Array.IndexOf(heights, heights.Min());
+            int c = ColumnFor(heights, index++);
             child.Arrange(new Rect(left + c * (w + Gap), heights[c], w, child.DesiredSize.Height));
             heights[c] += child.DesiredSize.Height + Gap;
         }

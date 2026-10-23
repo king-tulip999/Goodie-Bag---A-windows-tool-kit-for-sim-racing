@@ -145,7 +145,7 @@ public partial class App : Application
 
         _services = new AppServices(demo, config);
         PerfProbe.Mark("services");
-        _services.Start(withTray: screenshotDir is null && showcaseDir is null && perfFile is null, fromStartup: fromStartup && !demo);
+        _services.Start(withTray: screenshotDir is null && showcaseDir is null && perfFile is null);
         PerfProbe.Mark("started");
 
         var window = new MainWindow(_services);

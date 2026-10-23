@@ -36,7 +36,7 @@ public sealed class HotkeyBox : TextBox
         _hintText.SetResourceReference(TextBlock.ForegroundProperty, "TooltipText");
         var border = new Border { Padding = new Thickness(10, 6, 10, 7), CornerRadius = Theme.ThemeManager.Round(6), Child = _hintText };
         border.SetResourceReference(Border.BackgroundProperty, "TooltipBg");
-        border.SetResourceReference(Border.BorderBrushProperty, "Line");
+        border.SetResourceReference(Border.BorderBrushProperty, "TooltipEdge");
         border.BorderThickness = new Thickness(1);
         _hint = new Popup
         {

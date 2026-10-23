@@ -311,7 +311,7 @@ internal static class StatsSessionView
             if (c.AirDensity is { } rho) Add("I.Layers", "Air density", imperial ? $"{rho * 0.062428:0.000} lb/ft³" : $"{rho:0.00} kg/m³", "Air density: less air, less grip and power");
             if (c.RainMax is > 0 and var rain) Add("I.CloudRain", "Most rain", $"{rain * 100:0}%", "The most rain while you drove");
             if (c.WetnessMax is > 1 and < 8 and var wet) Add("I.Droplet", "Wettest", WetnessNames[wet], "The wettest the track got while you drove");
-            if (c.Rubber.Length > 0) Add("I.Wheel", "Rubber", c.Rubber, "Rubber on the racing line at the start");
+            if (c.Rubber.Length > 0) Add("I.Wheel", "Rubber", char.ToUpperInvariant(c.Rubber[0]) + c.Rubber[1..], "Rubber on the racing line at the start");
         }
         if (strip.Children.Count == 0) return null;
         var block = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };

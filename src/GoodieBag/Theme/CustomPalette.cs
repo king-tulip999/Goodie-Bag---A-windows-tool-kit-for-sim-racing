@@ -62,8 +62,9 @@ internal static class CustomPalette
         p["Surface"] = M(bg, edge, 0.06);
         p["SurfaceAlt"] = p["SegmentBg"] = M(bg, edge, 0.12);
         p["TileRaised"] = M(bg, edge, 0.17);
-        p["Hover"] = p["MeterTrack"] = p["TooltipBg"] = p["BtnHover"] = p["SwitchTrackHover"] = M(bg, tint, 0.11);
-        p["HoverRaised"] = M(bg, tint, 0.16);
+        p["MeterTrack"] = p["TooltipBg"] = p["BtnHover"] = p["SwitchTrackHover"] = M(bg, tint, 0.11);
+        p["Hover"] = M(bg, tint, 0.17);
+        p["HoverRaised"] = M(bg, tint, 0.26);
         p["SwitchTrack"] = p["Surface"];
         p["Line"] = p["TileHighlight"] = p["TileEdge"] = p["ChipBorder"] = p["SidebarEdge"] = p["ScrollThumbBrush"] = M(bg, edge, 0.35);
         p["ButtonEdge"] = p["InputEdge"] = p["SwitchBorder"] = edge;
@@ -78,7 +79,7 @@ internal static class CustomPalette
         p["Heading"] = p["BtnHoverFg"] = text;
         p["Text"] = p["TooltipText"] = p["BtnFg"] = M(bg, text, 0.93);
         p["TextMuted"] = M(bg, text, 0.66);
-        p["TextFaint"] = M(bg, text, 0.53);
+        p["TextFaint"] = M(bg, text, 0.56);
 
         var onAccent = ThemeManager.Contrast(Colors.White, accent) >= 3 ? Light(accent, 0.96) : Dark(accent, 0.85);
         var accentText = ReadableOn(accent, bg);

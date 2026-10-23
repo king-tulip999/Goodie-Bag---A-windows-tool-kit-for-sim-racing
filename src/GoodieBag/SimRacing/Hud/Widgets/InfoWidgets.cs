@@ -146,14 +146,14 @@ internal sealed class AlertsWidget : HudWidget
 
     private static void Row(HudPainter p, RectangleF r, HudAlert a, Font title, bool dim)
     {
-        var (fill, edge, text, icon) = a.Level switch
+        var (edge, text, icon) = a.Level switch
         {
-            AlertLevel.Critical => (p.P.DangerSoft, p.P.Danger, p.P.DangerText, "✖"),
-            AlertLevel.Warning => (p.P.WarnSoft, p.P.Warn, p.P.WarnText, "▲"),
-            AlertLevel.Good => (p.P.GoodSoft, p.P.Good, p.P.GoodText, "✔"),
-            _ => (p.P.Surface, p.P.Accent, p.P.Text, "●"),
+            AlertLevel.Critical => (p.P.Danger, p.P.DangerText, "✖"),
+            AlertLevel.Warning => (p.P.Warn, p.P.WarnText, "▲"),
+            AlertLevel.Good => (p.P.Good, p.P.GoodText, "✔"),
+            _ => (p.P.Accent, p.P.Text, "●"),
         };
-        if (dim) { fill = HudPalette.Alpha(fill, 120); text = p.P.Muted; }
+        if (dim) text = p.P.Muted;
         p.Soft(r, edge, dim ? 45 : 80);
         var iconBox = new RectangleF(r.X + 8, r.Y, p.LineHeight(title), r.Height);
         p.Text(icon, title, edge, iconBox, HAlign.Center, VAlign.Center, false);
@@ -260,8 +260,8 @@ internal sealed class WeatherWidget : HudWidget
     public static IReadOnlyList<HudOption> Options { get; } = new[]
     {
         HudOption.Choice("temp", "Temperatures in", "units", new HudChoice("units", "Overlay units"), new HudChoice("c", "°C"), new HudChoice("f", "°F"), new HudChoice("both", "°C and °F")),
-        HudOption.Bool("wind", "Wind", true, "A ring open where the wind blows, the speed inside: red for a headwind, amber across, green behind"),
-        HudOption.Bool("turn", "Ring turns with the car", true, "On: up = straight ahead. Off: up = north."),
+        HudOption.Bool("wind", "Wind", true, "An arrow pointing where the wind blows, the speed inside: red for a headwind, amber across, green behind"),
+        HudOption.Bool("turn", "Arrow turns with the car", true, "On: up = straight ahead. Off: up = north."),
     };
 
     private readonly (string Label, string Value)[] _cells = new (string, string)[3];
@@ -356,9 +356,9 @@ internal sealed class WeatherWidget : HudWidget
         var ring = new RectangleF(r.X + 8 * d, r.Y + (r.Height - size) / 2, size, size);
         double? toward = f.WindDir is { } from ? from + Math.PI : null;
         double heading = v.Options.Bool("turn") && f.YawNorth is { } yaw ? yaw : 0;
-        WindRing.Draw(p, ring, f.WindSpeed, toward, heading, "headtail", v.Units, false);
+        WindArrow.Draw(p, ring, f.WindSpeed, toward, heading, "headtail", v.Units, false);
         var text = new RectangleF(ring.Right + 8 * d, r.Y, r.Right - ring.Right - 8 * d, r.Height);
-        var (word, color) = (toward is { } t ? WindRing.Relation(f.WindSpeed, t, heading) : WindRelation.Calm) switch
+        var (word, color) = (toward is { } t ? WindArrow.Relation(f.WindSpeed, t, heading) : WindRelation.Calm) switch
         {
             WindRelation.Head => ("HEADWIND", p.P.DangerText),
             WindRelation.Cross => ("CROSSWIND", p.P.WarnText),
@@ -374,7 +374,7 @@ internal sealed class WeatherWidget : HudWidget
 
 internal enum WindRelation { Calm, Head, Cross, Tail }
 
-internal static class WindRing
+internal static class WindArrow
 {
     public const double CalmBelow = 0.5;
 
@@ -399,20 +399,16 @@ internal static class WindRing
         float stroke = Math.Max(2, size * 0.055f), r = size / 2 - stroke * 1.4f;
         var relation = towardRad is { } t ? Relation(speed, t, headingRad) : WindRelation.Calm;
         var color = ColorOf(p, relation, colors);
-        var pen = p.Pen(color, stroke);
         if (towardRad is { } toward)
         {
             double bearing = (toward - headingRad) * 180 / Math.PI;
-            float gdi = (float)(bearing - 90);
-            p.G.DrawArc(pen, cx - r, cy - r, r * 2, r * 2, gdi + 40, 280);
             float ux = (float)Math.Sin(bearing * Math.PI / 180), uy = (float)-Math.Cos(bearing * Math.PI / 180);
             float tip = r + stroke * 0.4f, back = r - r * 0.3f, side = r * 0.29f;
             Chevron[0] = new PointF(cx + ux * back - uy * side, cy + uy * back + ux * side);
             Chevron[1] = new PointF(cx + ux * tip, cy + uy * tip);
             Chevron[2] = new PointF(cx + ux * back + uy * side, cy + uy * back - ux * side);
-            p.G.DrawLines(pen, Chevron);
+            p.G.DrawLines(p.Pen(color, stroke), Chevron);
         }
-        else p.G.DrawEllipse(p.Pen(HudPalette.Alpha(p.P.LineStrong, 160), stroke), cx - r, cy - r, r * 2, r * 2);
         double? shown = speed is not { } s ? null : speedUnit switch
         {
             "kmh" => s * 3.6, "mph" => s * 2.23694, "ms" => s,
@@ -432,11 +428,11 @@ internal sealed class WindWidget : HudWidget
 {
     public static IReadOnlyList<HudOption> Options { get; } = new[]
     {
-        HudOption.Bool("turn", "Turns with the car", true, "On: the opening points where the wind blows as you drive (down = a headwind). Off: up = north."),
+        HudOption.Bool("turn", "Turns with the car", true, "On: the arrow points where the wind blows as you drive (down = a headwind). Off: up = north."),
         HudOption.Choice("colors", "Colors", "headtail", new HudChoice("headtail", "By headwind / crosswind / tailwind", "Red at the nose, amber across, green behind"), new HudChoice("accent", "The accent color")),
         HudOption.Choice("speedUnit", "Speed in", "units", new HudChoice("units", "Overlay units"), new HudChoice("kmh", "km/h"), new HudChoice("mph", "mph"), new HudChoice("ms", "m/s")),
         HudOption.Bool("unit", "Unit label", false),
-        HudOption.Bool("title", "Title", false, "“Wind” over the ring"),
+        HudOption.Bool("title", "Title", false, "“Wind” over the arrow"),
     };
 
     public override void Draw(HudPainter p, HudView v)
@@ -449,7 +445,7 @@ internal sealed class WindWidget : HudWidget
         bool turn = o.Bool("turn");
         double? toward = f.WindDir is { } from ? from + Math.PI : null;
         if (turn && f.YawNorth is null) toward = null;
-        WindRing.Draw(p, area, f.WindSpeed, toward, turn ? f.YawNorth ?? 0 : 0, o.Choice("colors"), v.Units, o.Bool("unit"), o.Choice("speedUnit"));
+        WindArrow.Draw(p, area, f.WindSpeed, toward, turn ? f.YawNorth ?? 0 : 0, o.Choice("colors"), v.Units, o.Bool("unit"), o.Choice("speedUnit"));
     }
 }
 

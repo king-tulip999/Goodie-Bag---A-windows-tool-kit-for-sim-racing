@@ -239,7 +239,7 @@ internal static class ShowcaseRunner
         {
             S.Caption("iRacing Controller", "Sim Racing Tools");
             await Stage.Rendered();
-            foreach (var tab in new[] { "Overview", "Triple screens", "Backups" })
+            foreach (var tab in new[] { "Overview and Backups" })
             {
                 if (Find.Shown<RadioButton>(controller).FirstOrDefault(r => Find.Is(Find.TextOf(r), tab)) is { } button)
                 {
@@ -492,13 +492,6 @@ internal static class ShowcaseRunner
     {
         await Pointer.Glide(Find.At(target));
         await Pointer.Click();
-    }
-
-    private static T? Ancestor<T>(DependencyObject e) where T : DependencyObject
-    {
-        for (var d = VisualTreeHelper.GetParent(e); d is not null; d = VisualTreeHelper.GetParent(d))
-            if (d is T found) return found;
-        return null;
     }
 
     private static ImageSource Backdrop(string folder)

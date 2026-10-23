@@ -457,7 +457,7 @@ internal sealed class FovSection : StackPanel
         {
             "Import reads the screen size, distance, bezel, side angle and curve iRacing has now, so you start from your current setup.",
             "Adjust the rig above until it matches your seat and screens.",
-            "Write puts this FOV and the triple-screen setup into iRacing. Close iRacing first; its files are backed up (iRacing Controller → Backups). Or save copies to a folder and copy them in yourself.",
+            "Write puts this FOV and the triple-screen setup into iRacing. Close iRacing first; its files are backed up (iRacing Controller → Overview and Backups). Or save copies to a folder and copy them in yourself.",
         };
         for (int i = 0; i < steps.Length; i++)
         {
@@ -778,7 +778,7 @@ internal sealed class FovSection : StackPanel
         var r = FovCalculator.Calculate(C);
         string values = string.Join(", ", FovExchange.IracingValues(C, r).Select(v => $"{v.Key} {v.Value}"));
         if (!await _window.Confirm("Write this rig into iRacing?",
-                $"FOV {FovExchange.IracingFov(r):0.#}° in app.ini, and in rendererDX11Monitor.ini [MonitorSetup]: {values}.\n\niRacing's files are backed up first (iRacing Controller → Backups).", "Write"))
+                $"FOV {FovExchange.IracingFov(r):0.#}° in app.ini, and in rendererDX11Monitor.ini [MonitorSetup]: {values}.\n\niRacing's files are backed up first (iRacing Controller → Overview and Backups).", "Write"))
             return;
         try
         {
