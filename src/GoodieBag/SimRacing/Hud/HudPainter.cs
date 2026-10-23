@@ -125,6 +125,10 @@ internal sealed class HudPainter : IDisposable
 
     public void Item(string key, string id, RectangleF box) => Items?.Add((key, id, new RectangleF(box.X + _inset.X, box.Y + _inset.Y, box.Width, box.Height)));
 
+    public List<(string Id, RectangleF Box)>? Regions { get; set; }
+
+    public void Region(string id, RectangleF box) => Regions?.Add((id, new RectangleF(box.X + _inset.X, box.Y + _inset.Y, box.Width, box.Height)));
+
     private PointF _inset;
     private RectangleF _outer;
 
@@ -181,6 +185,7 @@ internal sealed class HudPainter : IDisposable
         Bounds = new RectangleF(0, 0, layoutSize.Width, layoutSize.Height);
         _inset = PointF.Empty;
         Items?.Clear();
+        Regions?.Clear();
         Overflow?.Clear();
     }
 

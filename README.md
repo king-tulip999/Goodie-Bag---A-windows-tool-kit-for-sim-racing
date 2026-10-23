@@ -10,7 +10,7 @@ Every feature is a plugin you can switch off, and when one's off it runs nothing
 
 ### Window Profiles
 
-Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once. Scripts and a Stream Deck can apply them too, through Goodie Bag's command pipe.
+Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once.
 
 <p align="center"><img src="screenshots/window-profiles.png" alt="Window Profiles" width="100%"></p>
 <p align="center"><img src="screenshots/window-profile-editor.png" alt="Window profile editor" width="60%"></p>

@@ -175,7 +175,19 @@ public sealed class UiSettings
 {
     public bool CloseToTray { get; set; } = true;
 
-    public string StartPage { get; set; } = "plugins";
+    public const string LastUsedPage = "";
+
+    public string StartPage { get; set; } = LastUsedPage;
+
+    public string? LastPage { get; set; }
+
+    public Dictionary<string, string> PageSections { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool SidebarRight { get; set; }
+
+    public bool SidebarAllOpen { get; set; }
+
+    public int SidebarVersion { get; set; }
 
     public List<PanelSlot> LandingLayout { get; set; } = new();
 
@@ -237,7 +249,7 @@ public sealed class UiSettings
 
     public List<string> MonitorSectionOrder { get; set; } = new();
 
-    public List<string> MonitorHiddenSections { get; set; } = new() { "performance", "sensors" };
+    public List<string> MonitorHiddenSections { get; set; } = new();
 
     public int MonitorSectionsVersion { get; set; }
 

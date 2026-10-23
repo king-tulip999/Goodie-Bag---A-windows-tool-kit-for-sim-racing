@@ -1,37 +1,40 @@
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using GoodieBag.Config;
 using GoodieBag.Controls;
 using GoodieBag.Plugins;
 using GoodieBag.Plugins.BuiltIn;
 using GoodieBag.Services;
 using GoodieBag.SimRacing.Hud;
-using GoodieBag.SimRacing.Race;
+using GoodieBag.SimRacing.Hud.Editors;
 using GoodieBag.Theme;
+using GoodieBag.Views.HudSettings;
 
 namespace GoodieBag.Views.Pages;
 
 internal sealed class RaceHudWidgets
 {
     private static readonly string[] SessionKinds = { "Practice", "Qualify", "Race", "TimeTrial" };
+    private const string LayoutTab = "display", ContentTab = "content", VisibilityTab = "visibility", PositionTab = "position";
 
     private readonly AppServices _app;
     private readonly IHudEditorHost _section;
     private readonly ContentControl _list = new() { Focusable = false };
-    private readonly HudPainter _painter = new() { Items = new(), Overflow = new() };
+    private readonly HudPainter _painter = new() { Items = new(), Regions = new(), Overflow = new() };
     private Image? _preview;
     private Canvas? _previewMarks;
+    private Canvas? _previewHighlight;
     private float _previewScale = 1;
     private double _previewPixels = 1;
     private readonly TranslateTransform _previewNudge = new();
-    private (string Key, string Id, System.Windows.Point From)? _press;
+    private (string Key, string Id, Point From)? _press;
+    private Point? _click;
     private bool _dragging;
-    private readonly Dictionary<string, Action<string>> _columnPickers = new();
-    private readonly Dictionary<string, (Action<IReadOnlySet<string>, IReadOnlySet<string>> Mark, string Last)> _fitMarks = new();
+    private readonly Dictionary<string, string> _fitSignatures = new(StringComparer.OrdinalIgnoreCase);
     private readonly HudPainter _trialPainter = new() { Items = new(), Overflow = new() };
     private System.Drawing.Bitmap? _trialBitmap;
     private int _trialRun;
@@ -39,19 +42,23 @@ internal sealed class RaceHudWidgets
     private TextBlock? _previewNote;
     private FrameworkElement? _pickedCard;
     private string? _selected;
+    private HudSettingContext? _context;
+    private PresetRow? _presets;
+    private readonly List<(HudSetting Setting, FrameworkElement Row)> _rows = new();
+    private readonly List<SettingGroup> _groups = new();
+    private string? _hoverSetting;
+    private string? _reveal;
 
-    public RaceHudWidgets(AppServices app, IHudEditorHost section, bool sidebar = false, bool inPage = false)
+    public RaceHudWidgets(AppServices app, IHudEditorHost section, bool inPage = false)
     {
         _app = app;
         _section = section;
-        _sidebar = sidebar;
-        _inPage = sidebar && inPage;
+        _inPage = inPage;
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
         if (_inPage)
         {
-            _head = new Border();
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
             var nav = new Border { Padding = new Thickness(10, 12, 10, 12), Margin = new Thickness(14, 14, 0, 14), BorderThickness = new Thickness(1), Child = _nav, VerticalAlignment = VerticalAlignment.Top };
             nav.SetResourceReference(Border.BackgroundProperty, "Panel");
             nav.SetResourceReference(Border.BorderBrushProperty, "Line");
@@ -61,42 +68,24 @@ internal sealed class RaceHudWidgets
             grid.Children.Add(right);
             Sticky.Install(nav, grid, () => true, gap: 14);
             Root = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(0), Margin = new Thickness(0, 0, 0, 12), Child = grid };
-            Fill();
-            return;
         }
-        if (sidebar)
+        else
         {
-            _head = new Border();
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
             var nav = new Border { Padding = new Thickness(10, 12, 10, 12), Margin = new Thickness(14, 14, 0, 14), BorderThickness = new Thickness(1), Child = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = _nav, Focusable = false } };
             nav.SetResourceReference(Border.BackgroundProperty, "Panel");
             nav.SetResourceReference(Border.BorderBrushProperty, "Line");
             grid.Children.Add(nav);
-            _pane = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = new Border { Padding = new Thickness(16, 14, 26, 18), Child = _list }, Focusable = false };
-            Grid.SetColumn(_pane, 1);
-            grid.Children.Add(_pane);
+            var pane = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = new Border { Padding = new Thickness(16, 14, 26, 18), Child = _list }, Focusable = false };
+            Grid.SetColumn(pane, 1);
+            grid.Children.Add(pane);
             Root = grid;
-            Fill();
-            return;
         }
-        var root = new StackPanel();
-        var add = Ui.LabeledButton("I.Plus", "Add widget", () => { }, "PrimaryButton");
-        add.Click += (_, _) => AddMenu(add);
-        _head = Ui.SectionHeader("Widgets", "", add);
-        root.Children.Add(_head);
-        root.Children.Add(_list);
-        Root = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 12), Child = root };
         Fill();
     }
 
-    private readonly FrameworkElement _head;
-    private readonly bool _sidebar;
     private readonly bool _inPage;
     private readonly StackPanel _nav = new();
-    private readonly ScrollViewer? _pane;
-    private string _tab = "display";
+    private string _tab = LayoutTab;
     private bool _general;
 
     public FrameworkElement Root { get; }
@@ -153,12 +142,32 @@ internal sealed class RaceHudWidgets
         Select(kind);
     }
 
-    internal void ShowTab(string? kind, string tab = "display")
+    internal void ShowTab(string? kind, string tab = LayoutTab)
     {
         _general = kind is null;
         if (kind is not null) _selected = Layout?.Widgets.FirstOrDefault(w => w.Kind == kind)?.Id ?? _selected;
         _tab = tab;
         Fill();
+    }
+
+    internal void Reveal(string kind, string settingId)
+    {
+        _selected = Layout?.Widgets.FirstOrDefault(w => w.Kind == kind)?.Id ?? _selected;
+        _general = false;
+        if (Selected() is { } w && HudCatalog.Find(w.Kind) is { } def) Reveal(w, def, settingId);
+    }
+
+    internal void Point(string kind, string settingId)
+    {
+        var def = HudCatalog.Find(kind);
+        ShowTab(kind, def?.EditorDef.GroupOf(settingId)?.Tab == HudTab.Content ? ContentTab : LayoutTab);
+        _list.Dispatcher.BeginInvoke(() => Highlight(settingId), System.Windows.Threading.DispatcherPriority.ContextIdle);
+    }
+
+    internal void OpenPicker(string kind, string key)
+    {
+        ShowTab(kind, ContentTab);
+        _list.Dispatcher.BeginInvoke(() => { if (_context?.Pickers.TryGetValue(key, out var picker) == true) picker.ShowAdd(); }, System.Windows.Threading.DispatcherPriority.ContextIdle);
     }
 
     public void Select(string kind)
@@ -171,17 +180,19 @@ internal sealed class RaceHudWidgets
 
     internal void ScrollPageBy(double dy)
     {
-        DependencyObject? d = _pickedCard;
+        if (PageOf(_pickedCard) is { } page) page.ScrollToVerticalOffset(page.VerticalOffset + dy);
+    }
+
+    private static ScrollViewer? PageOf(DependencyObject? d)
+    {
         while (d is not null and not ScrollViewer) d = VisualTreeHelper.GetParent(d);
-        if (d is ScrollViewer page) page.ScrollToVerticalOffset(page.VerticalOffset + dy);
+        return d as ScrollViewer;
     }
 
     private void ScrollToPicked()
     {
         if (_pickedCard is not { IsLoaded: true } card) return;
-        DependencyObject? d = card;
-        while (d is not null and not ScrollViewer) d = VisualTreeHelper.GetParent(d);
-        if (d is not ScrollViewer page) { card.BringIntoView(); return; }
+        if (PageOf(card) is not { } page) { card.BringIntoView(); return; }
         double top = card.TransformToVisual(page).Transform(new Point(0, 0)).Y;
         page.ScrollToVerticalOffset(page.VerticalOffset + top - 24);
     }
@@ -191,10 +202,12 @@ internal sealed class RaceHudWidgets
     private System.Drawing.Bitmap? _previewBitmap;
     private System.Windows.Media.Imaging.WriteableBitmap? _previewTarget;
 
+    private HudWidgetConfig? Selected() => _selected is null ? null : Layout?.Widgets.FirstOrDefault(w => w.Id == _selected);
+
     public void Tick()
     {
         _heartbeat = Environment.TickCount64;
-        if (_preview is null || _selected is null || Layout?.Widgets.FirstOrDefault(w => w.Id == _selected) is not { } w) return;
+        if (_preview is null || Selected() is not { } w) return;
         int hz = Math.Clamp(w.UpdateHz > 0 ? w.UpdateHz : HudCatalog.Find(w.Kind)?.DefaultHz ?? 10, 1, 60);
         var interval = TimeSpan.FromMilliseconds(1000.0 / hz);
         if (_previewTimer is null)
@@ -210,451 +223,24 @@ internal sealed class RaceHudWidgets
     {
         if (Environment.TickCount64 - _heartbeat > 800) { _previewTimer!.Stop(); return; }
         if (_dragging) return;
-        if (_preview is null || _selected is null || Layout?.Widgets.FirstOrDefault(w => w.Id == _selected) is not { } w) return;
+        if (_preview is null || Selected() is not { } w) return;
         _section.Preview.Advance(Host);
         DrawPreview(w);
     }
 
     private void Fill()
     {
-        _summaries.Clear();
-        _columnPickers.Clear();
-        _fitMarks.Clear();
+        _fitSignatures.Clear();
         _preview = null;
         _previewWell = null;
+        _previewHighlight = null;
         _pickedCard = null;
-        _sections.Clear();
+        _context = null;
+        _presets = null;
+        _rows.Clear();
+        _groups.Clear();
         var layout = Layout;
         _filledFor = layout?.Name;
-        if (_sidebar) { FillSidebar(layout); return; }
-        if (_head is Grid { Children.Count: > 0 } head && head.Children[0] is StackPanel titles && titles.Children.Count > 1 && titles.Children[1] is TextBlock caption)
-            caption.Text = layout is null ? "" : $"In the {layout.Name} layout. Click a widget to set it up; drag one up or down to reorder the list. Arrange on screen puts them in place.";
-        if (layout is null) { _list.Content = null; return; }
-        if (layout.Widgets.Count == 0)
-        {
-            _list.Content = new TextBlock { Text = "No widgets in this layout yet: add one.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap };
-            return;
-        }
-        var slots = layout.Widgets.Select(w => new PanelSlot { Id = w.Id }).ToList();
-        var grid = new PanelGrid(slots, () =>
-        {
-            var byId = layout.Widgets.ToDictionary(w => w.Id);
-            layout.Widgets = slots.Select(s => byId.GetValueOrDefault(s.Id)).OfType<HudWidgetConfig>().Concat(layout.Widgets.Where(w => slots.All(s => s.Id != w.Id))).ToList();
-            Changed();
-        }) { LiveEdit = true, RowHeight = 2, Gap = 12, MinColumns = 1 };
-        for (int i = 0; i < layout.Widgets.Count; i++)
-        {
-            var w = layout.Widgets[i];
-            grid.Add(new PanelDef(w.Id, NameOf(w), _ => Card(w))
-            {
-                FullWidth = true, Order = i,
-                VeilClick = () => { _selected = _selected == w.Id ? null : w.Id; Host?.Pick(_selected); Fill(); },
-            });
-        }
-        _list.Content = grid;
-    }
-
-    private FrameworkElement Card(HudWidgetConfig w)
-    {
-        bool picked = w.Id == _selected;
-        const double edge = 1;
-        var outer = ThemeManager.Round(12);
-        var inner = new CornerRadius(Math.Max(0, outer.TopLeft - edge), Math.Max(0, outer.TopRight - edge), Math.Max(0, outer.BottomRight - edge), Math.Max(0, outer.BottomLeft - edge));
-        var card = new Border
-        {
-            CornerRadius = outer, BorderThickness = new Thickness(edge),
-            Cursor = System.Windows.Input.Cursors.Hand, ToolTip = picked ? null : HudCatalog.Find(w.Kind)?.Description,
-        };
-        card.SetResourceReference(Border.BackgroundProperty, "Surface");
-        card.SetResourceReference(Border.BorderBrushProperty, "LineStrong");
-        var stack = new StackPanel();
-        var header = Header(w, picked);
-        header.CornerRadius = picked ? new CornerRadius(inner.TopLeft, inner.TopRight, 0, 0) : inner;
-        stack.Children.Add(header);
-        if (picked)
-        {
-            var divider = new Border { Height = 1 };
-            divider.SetResourceReference(Border.BackgroundProperty, "LineStrong");
-            stack.Children.Add(divider);
-            var editor = Editor(w);
-            editor.CornerRadius = new CornerRadius(0, 0, inner.BottomRight, inner.BottomLeft);
-            stack.Children.Add(editor);
-            _pickedCard = card;
-        }
-        card.Child = stack;
-        header.MouseEnter += (_, _) =>
-        {
-            header.SetResourceReference(Border.BackgroundProperty, "Hover");
-            card.SetResourceReference(Border.BorderBrushProperty, "InputEdgeHover");
-        };
-        header.MouseLeave += (_, _) =>
-        {
-            if (picked) header.SetResourceReference(Border.BackgroundProperty, "SurfaceAlt");
-            else header.Background = Brushes.Transparent;
-            card.SetResourceReference(Border.BorderBrushProperty, "LineStrong");
-        };
-        return card;
-    }
-
-    private Border Header(HudWidgetConfig w, bool picked)
-    {
-        var def = HudCatalog.Find(w.Kind);
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var bar = new Border { CornerRadius = ThemeManager.Round(1.5), Margin = new Thickness(0, 1, 0, 1) };
-        if (picked) bar.SetResourceReference(Border.BackgroundProperty, "AccentText");
-        grid.Children.Add(bar);
-        var chevron = new Icon { Data = Ui.Res<Geometry>(picked ? "I.ChevronDown" : "I.ChevronRight"), Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-        chevron.SetResourceReference(Icon.ForegroundProperty, picked ? "AccentText" : "TextMuted");
-        Grid.SetColumn(chevron, 1);
-        grid.Children.Add(chevron);
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 12, 0) };
-        text.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = def is null ? $"{w.Kind} (needs a newer Goodie Bag)" : NameOf(w), FontWeight = FontWeights.SemiBold, Style = Ui.Res<Style>("Body"), TextTrimming = TextTrimming.CharacterEllipsis }));
-        var summary = TextFit.TipWhenTrimmed(new TextBlock { Text = Summary(w), Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) });
-        _summaries[w.Id] = summary;
-        text.Children.Add(summary);
-        Grid.SetColumn(text, 2);
-        grid.Children.Add(text);
-        var on = Ui.Switch(w.Enabled, v => { w.Enabled = v; Changed(); text.Opacity = v ? 1 : 0.6; });
-        on.VerticalAlignment = VerticalAlignment.Center;
-        on.ToolTip = "Show this widget";
-        System.Windows.Automation.AutomationProperties.SetName(on, def?.Name ?? w.Kind);
-        text.Opacity = w.Enabled ? 1 : 0.6;
-        Grid.SetColumn(on, 3);
-        grid.Children.Add(on);
-        var remove = RemoveButton(w);
-        remove.Margin = new Thickness(8, 0, 0, 0);
-        Grid.SetColumn(remove, 4);
-        grid.Children.Add(remove);
-        var header = new Border { Padding = new Thickness(8, 10, 14, 10), Child = grid, Background = Brushes.Transparent };
-        if (picked) header.SetResourceReference(Border.BackgroundProperty, "SurfaceAlt");
-        return header;
-    }
-
-    private static string Anchor(HudAnchor a) => a switch
-    {
-        HudAnchor.TopLeft => "top left", HudAnchor.Top => "top", HudAnchor.TopRight => "top right", HudAnchor.Left => "left", HudAnchor.Center => "center",
-        HudAnchor.Right => "right", HudAnchor.BottomLeft => "bottom left", HudAnchor.Bottom => "bottom", _ => "bottom right",
-    };
-
-    private const double LabelWidth = 180;
-    private const double ComboWidth = 240;
-    private const double ChipFont = 12.5, ChipHeight = 30;
-
-    private static Tile TickChip(CheckBox box)
-    {
-        box.Margin = new Thickness(4, 0, 6, 0);
-        box.VerticalAlignment = VerticalAlignment.Center;
-        var chip = new Tile { Style = Ui.Res<Style>("Chip"), Child = box, MinHeight = ChipHeight, Padding = new Thickness(6, 0, 6, 0) };
-        chip.SetValue(TextElement.FontSizeProperty, ChipFont);
-        return chip;
-    }
-
-    private const double TwoColumnsFrom = 940;
-
-    private sealed class EditorSection
-    {
-        public required string Id;
-        public required bool OpenByDefault;
-        public required FrameworkElement Root;
-        public required Border Body;
-        public required Icon Chevron;
-        public TextBlock? SummaryText;
-        public Func<string>? Summary;
-        public bool Fixed;
-        public DockPanel? Line;
-    }
-
-    private readonly List<EditorSection> _sections = new();
-    private bool IsOpen(EditorSection s) => s.Fixed || s.OpenByDefault != S.EditorSectionsToggled.Contains(s.Id, StringComparer.OrdinalIgnoreCase);
-
-    private void SetOpen(EditorSection s, bool open)
-    {
-        S.EditorSectionsToggled.RemoveAll(x => string.Equals(x, s.Id, StringComparison.OrdinalIgnoreCase));
-        if (open != s.OpenByDefault) S.EditorSectionsToggled.Add(s.Id);
-        _app.Save();
-    }
-
-    private void ShowSections()
-    {
-        foreach (var s in _sections)
-        {
-            bool open = IsOpen(s);
-            s.Body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-            s.Chevron.Data = Ui.Res<Geometry>(open ? "I.ChevronDown" : "I.ChevronRight");
-            if (s.SummaryText is not null)
-            {
-                s.SummaryText.Text = s.Summary?.Invoke() ?? "";
-                s.SummaryText.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
-            }
-        }
-    }
-
-    private EditorSection Section(string id, string title, bool openByDefault, Func<string>? summary = null, bool fixedOpen = false)
-    {
-        var chevron = new Icon { Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
-        chevron.SetResourceReference(Icon.ForegroundProperty, "TextMuted");
-        var name = new TextBlock { Text = title, Style = Ui.Res<Style>("Eyebrow"), VerticalAlignment = VerticalAlignment.Center };
-        var summaryText = summary is null ? null : TextFit.TipWhenTrimmed(new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(14, 0, 0, 0) });
-        var line = new DockPanel { LastChildFill = true };
-        line.Children.Add(chevron);
-        line.Children.Add(name);
-        if (summaryText is not null) line.Children.Add(summaryText);
-        var body = new Border { Padding = new Thickness(6, 6, 0, 10) };
-        var root = new StackPanel();
-        if (fixedOpen)
-        {
-            chevron.Visibility = Visibility.Collapsed;
-            root.Children.Add(new Border { Padding = new Thickness(6, 7, 10, 7), Child = line });
-            root.Children.Add(body);
-            var still = new EditorSection { Id = id, OpenByDefault = true, Fixed = true, Root = root, Body = body, Chevron = chevron, Line = line };
-            _sections.Add(still);
-            return still;
-        }
-        var bar = new Button { Style = Ui.Res<Style>("QuietButton"), Content = line, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(6, 7, 10, 7) };
-        Controls.ClickGuard.SetAllowRepeat(bar, true);
-        System.Windows.Automation.AutomationProperties.SetName(bar, title);
-        root.Children.Add(bar);
-        root.Children.Add(body);
-        var section = new EditorSection { Id = id, OpenByDefault = openByDefault, Root = root, Body = body, Chevron = chevron, SummaryText = summaryText, Summary = summary };
-        bar.Click += (_, _) =>
-        {
-            SetOpen(section, !IsOpen(section));
-            ShowSections();
-        };
-        _sections.Add(section);
-        return section;
-    }
-
-    private static void Add(EditorSection section, FrameworkElement row)
-    {
-        if (section.Body.Child is not StackPanel stack) section.Body.Child = stack = new StackPanel();
-        stack.Children.Add(row);
-    }
-
-    private TextBlock? _previewHint;
-
-    private Border Editor(HudWidgetConfig w)
-    {
-        var def = HudCatalog.Find(w.Kind);
-        _sections.Clear();
-        var editor = new Border { Padding = new Thickness(18, 14, 18, 16), Cursor = System.Windows.Input.Cursors.Arrow };
-        editor.SetResourceReference(Border.BackgroundProperty, "Panel");
-        PanelGrid.SetNoDrag(editor, true);
-        var stack = new StackPanel();
-        editor.Child = stack;
-        if (def is null)
-        {
-            stack.Children.Add(new TextBlock { Text = "This widget was made by a newer version of Goodie Bag. It's kept, but not drawn.", Style = Ui.Res<Style>("Caption") });
-            return editor;
-        }
-
-        stack.Children.Add(new TextBlock { Text = def.Description, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 16, 6) });
-
-        var preview = Section("preview", "Preview", true, fixedOpen: true);
-        _previewHint = new TextBlock { Text = "Drag any item to move it, live", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), Visibility = Visibility.Collapsed };
-        preview.Line!.Children.Add(_previewHint);
-        Add(preview, PreviewBlock(w));
-
-        var settings = new List<EditorSection>();
-        foreach (var (group, id, title) in new[] { (HudOptionGroup.Parts, "parts", "Widget sections"), (HudOptionGroup.Show, "show", "What to show"), (HudOptionGroup.Filter, "filter", "Filter"), (HudOptionGroup.Options, "options", "Display options") })
-        {
-            var options = def.Options.Where(o => o.Section == group).ToList();
-            if (options.Count == 0) continue;
-            var section = Section(id, title, true);
-            foreach (var o in options)
-                Add(section, OptionRow(w, o));
-            settings.Add(section);
-        }
-
-        var place = Section("placement", "Placement & size", false, () => $"{w.W:0} × {w.H:0} px · {Anchor(w.Anchor)}" + (w.Monitor == "primary" ? "" : " · " + w.Monitor.Replace(@"\\.\", "")));
-        foreach (var row in PlacementRows(w, def)) Add(place, row);
-        var behaviour = Section("behaviour", "Behavior", false, () =>
-            (w.Locked ? "Locked" : "Unlocked") + $" · {w.Opacity}%" + (w.HideInReplay ? "" : " · in replays") + (w.UpdateHz == 0 ? "" : $" · {w.UpdateHz}/s")
-            + ((w.OnlyWhenNeeded ?? def.HideWhenEmpty) == true ? " · only when needed" : "") + (w.OnlyOnTrack ? " · driving only" : "")
-            + " · " + (w.Sessions.Count == 0 ? "every session" : string.Join(", ", w.Sessions.Select(SessionLabel))));
-        foreach (var row in BehaviourRows(w, def)) Add(behaviour, row);
-        BuildBody(w, stack, preview, settings, place, behaviour, def);
-        ShowSections();
-        DrawPreview(w);
-        return editor;
-    }
-
-    private FrameworkElement PreviewBlock(HudWidgetConfig w)
-    {
-        _preview = new Image { Stretch = Stretch.None, RenderTransform = _previewNudge };
-        RenderOptions.SetBitmapScalingMode(_preview, BitmapScalingMode.NearestNeighbor);
-        _previewMarks = new Canvas { IsHitTestVisible = false };
-        var previewHost = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent, Children = { _preview, _previewMarks } };
-        HookPreviewDrag(previewHost, w);
-        _previewWell = new Border { BorderThickness = new Thickness(1), CornerRadius = ThemeManager.Round(8), Padding = new Thickness(16), MinHeight = 120, Child = previewHost };
-        _previewWell.SetResourceReference(Border.BackgroundProperty, "Bg");
-        _previewWell.SetResourceReference(Border.BorderBrushProperty, "Line");
-        _previewWell.SizeChanged += (_, e) => { if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1) DrawPreview(w); };
-        _previewNote = new TextBlock { Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 8, 0, 0) };
-        var previewStack = new StackPanel();
-        previewStack.Children.Add(_previewWell);
-        previewStack.Children.Add(_previewNote);
-        return previewStack;
-    }
-
-    private List<FrameworkElement> PlacementRows(HudWidgetConfig w, HudWidgetDef def)
-    {
-        var rows = new List<FrameworkElement>();
-        var monitors = HudHost.MonitorChoices().Select(m => new Choice(m.Id, m.Label)).ToList();
-        rows.Add(FieldRow("Monitor", Ui.Combo(monitors, w.Monitor, c => { w.Monitor = c.Id!; Changed(); }, ComboWidth)));
-        NumberBox Num(double value, double min, double max, Action<double> set)
-        {
-            var b = new NumberBox(value, "px", 64) { Minimum = min, Maximum = max, Step = 4 };
-            b.ValueChanged += v => { Host?.RecordUndo(); set(v); w.Clamp(); Changed(); RefreshRow(); };
-            return b;
-        }
-        rows.Add(FieldRow("Size", Pair(Num(w.W, def.MinW, HudWidgetConfig.MaxSize, v => w.W = v), "Width", Num(w.H, def.MinH, HudWidgetConfig.MaxSize, v => w.H = v), "Height")));
-        rows.Add(FieldRow("Position", Pair(Num(w.X, -HudWidgetConfig.MaxSize, HudWidgetConfig.MaxSize, v => w.X = v), "Across", Num(w.Y, -HudWidgetConfig.MaxSize, HudWidgetConfig.MaxSize, v => w.Y = v), "Down"),
-            $"Measured from the {Anchor(w.Anchor)} of the monitor. Dragging it with Arrange on screen sets these for you."));
-        var home = Ui.LabeledButton("I.Target", "Bring back to the middle", () =>
-        {
-            Host?.RecordUndo();
-            w.Monitor = "primary";
-            w.Anchor = HudAnchor.Center;
-            w.X = 0;
-            w.Y = 0;
-            w.Clamp();
-            Changed();
-            Fill();
-        }, "GhostButton");
-        home.ToolTip = "Puts this widget in the middle of the main monitor, e.g. when it's off screen or behind something";
-        rows.Add(FieldRow("", home));
-        return rows;
-    }
-
-    private List<FrameworkElement> BehaviourRows(HudWidgetConfig w, HudWidgetDef def)
-    {
-        var rows = new List<FrameworkElement>();
-        if (def.HideWhenEmpty is { } hideByDefault)
-            rows.Add(FieldRow("Only when there's something to show", Ui.Switch(w.OnlyWhenNeeded ?? hideByDefault, v => { w.OnlyWhenNeeded = v; Changed(); RefreshRow(); }),
-                def.Kind == "alerts" ? "Hidden until an alert comes up." : "Hidden until a car of another class is near."));
-        rows.Add(FieldRow("Only while I'm driving", Ui.Switch(w.OnlyOnTrack, v => { w.OnlyOnTrack = v; Changed(); RefreshRow(); }), "Hidden in the garage and while you're out of the car."));
-        rows.Add(FieldRow("Locked", Ui.Switch(w.Locked, v => { w.Locked = v; Changed(); RefreshRow(); }), "Can't be dragged while arranging on screen."));
-        rows.Add(FieldRow("Hide in replays", Ui.Switch(w.HideInReplay, v => { w.HideInReplay = v; Changed(); RefreshRow(); }), "Off: it shows while you watch a replay too."));
-        rows.Add(FieldRow("Opacity", Ui.SliderWithValue(20, 100, w.Opacity, "{0:0}%", v => { w.Opacity = (int)v; Changed(); RefreshRow(); }, 180, 5), "The whole widget, text included."));
-        var background = Ui.SliderWithValue(0, 100, w.Background ?? S.Appearance.Background, "{0:0}%", v => { w.Background = (int)v; Changed(); RefreshRow(); if (_preview is not null) DrawPreview(w); }, 180, 5);
-        background.IsEnabled = w.Background is not null;
-        var own = Ui.Switch(w.Background is not null, on =>
-        {
-            w.Background = on ? S.Appearance.Background : null;
-            background.IsEnabled = on;
-            Changed();
-            if (_preview is not null) DrawPreview(w);
-        });
-        own.ToolTip = "Off: the overlay's Background (Hud Settings)";
-        var bgRow = new StackPanel { Orientation = Orientation.Horizontal };
-        own.Margin = new Thickness(0, 0, 12, 0);
-        own.VerticalAlignment = VerticalAlignment.Center;
-        bgRow.Children.Add(own);
-        bgRow.Children.Add(background);
-        rows.Add(FieldRow("Own background", bgRow, "The panel behind the text only; switched off it follows the overlay's Background."));
-        var rates = new[] { 0, 1, 2, 5, 10, 15, 20, 30, 60 }.Select(r => new Choice(r.ToString(), r == 0 ? $"Default ({def.DefaultHz} per second)" : $"{r} per second"));
-        rows.Add(FieldRow("Redraw", Ui.Combo(rates, w.UpdateHz.ToString(), c => { w.UpdateHz = int.Parse(c.Id!); Changed(); RefreshRow(); }, ComboWidth)));
-        var sessions = new WrapPanel();
-        foreach (var kind in SessionKinds)
-        {
-            var chip = new CheckBox { Content = SessionLabel(kind), IsChecked = w.Sessions.Contains(kind, StringComparer.OrdinalIgnoreCase) };
-            chip.Click += (_, _) =>
-            {
-                w.Sessions.RemoveAll(s => string.Equals(s, kind, StringComparison.OrdinalIgnoreCase));
-                if (chip.IsChecked == true) w.Sessions.Add(kind);
-                Changed();
-                RefreshRow();
-            };
-            sessions.Children.Add(TickChip(chip));
-        }
-        rows.Add(FieldRow("Only in", sessions, "Tick the sessions it shows in; none ticked = every session."));
-        return rows;
-    }
-
-    private void BuildBody(HudWidgetConfig w, StackPanel stack, EditorSection preview, List<EditorSection> settings, EditorSection place, EditorSection behaviour, HudWidgetDef def)
-    {
-        var settingsStack = new StackPanel();
-        var previewColumn = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
-        previewColumn.Children.Add(preview.Root);
-        var body = new Grid { Margin = new Thickness(0, 8, 0, 0) };
-        body.ColumnDefinitions.Add(new ColumnDefinition());
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
-        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        body.Children.Add(previewColumn);
-        body.Children.Add(settingsStack);
-        bool? wide = null;
-        var follow = Sticky.Install(previewColumn, body, () => wide == true);
-        void Arrange(double width)
-        {
-            bool two = width >= TwoColumnsFrom;
-            if (wide == two) return;
-            wide = two;
-            settingsStack.Children.Clear();
-            while (previewColumn.Children.Count > 1) previewColumn.Children.RemoveAt(1);
-            foreach (var s in settings) settingsStack.Children.Add(s.Root);
-            foreach (var s in new[] { place, behaviour }) (two ? previewColumn : settingsStack).Children.Add(s.Root);
-            body.ColumnDefinitions[0].Width = two ? new GridLength(5, GridUnitType.Star) : new GridLength(1, GridUnitType.Star);
-            body.ColumnDefinitions[1].Width = two ? new GridLength(6, GridUnitType.Star) : new GridLength(0);
-            Grid.SetColumn(settingsStack, two ? 1 : 0);
-            Grid.SetRow(settingsStack, two ? 0 : 1);
-            settingsStack.Margin = new Thickness(two ? 24 : 0, 0, 0, 0);
-            _previewMaxHeight = two ? 480 : 260;
-            DrawPreview(w);
-            follow();
-        }
-        Arrange(0);
-        body.SizeChanged += (_, e) => Arrange(e.NewSize.Width);
-        stack.Children.Add(body);
-
-        if (def.Limits is { } limits)
-        {
-            var note = new DockPanel { Margin = new Thickness(6, 10, 0, 0) };
-            var info = new Icon { Data = Ui.Res<Geometry>("I.Info"), Width = 14, Height = 14, Margin = new Thickness(0, 1, 8, 0), VerticalAlignment = VerticalAlignment.Top };
-            info.SetResourceReference(Icon.ForegroundProperty, "TextMuted");
-            note.Children.Add(info);
-            note.Children.Add(new TextBlock { Text = limits, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap });
-            stack.Children.Add(note);
-        }
-
-        var divider = new Border { Height = 1, Margin = new Thickness(0, 14, 0, 0) };
-        divider.SetResourceReference(Border.BackgroundProperty, "Line");
-        stack.Children.Add(divider);
-        stack.Children.Add(ActionsRow(w));
-    }
-
-    private FrameworkElement ActionsRow(HudWidgetConfig w)
-    {
-        var actions = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-        var dup = Ui.LabeledButton("I.Copy", "Duplicate", () =>
-        {
-            var copy = w.Copy();
-            copy.Id = HudWidgetConfig.NewId(w.Kind);
-            copy.Y += 24;
-            Layout!.Widgets.Add(copy);
-            _selected = copy.Id;
-            Changed();
-            Fill();
-        });
-        dup.Margin = new Thickness(0, 0, 8, 0);
-        actions.Children.Add(dup);
-        var reset = Ui.LabeledButton("I.Undo", "Default options", () => { w.Options.Clear(); Changed(); Fill(); });
-        reset.ToolTip = "Puts this widget's display options back as they were when it was added (place and size stay)";
-        reset.Margin = new Thickness(0, 0, 8, 0);
-        actions.Children.Add(reset);
-        return actions;
-    }
-
-    private static readonly (string Id, string Title)[] TabNames = { ("display", "Display"), ("content", "Content"), ("visibility", "Visibility"), ("position", "Position") };
-
-    private void FillSidebar(HudLayout? layout)
-    {
         _nav.Children.Clear();
         var widgets = layout?.Widgets ?? new List<HudWidgetConfig>();
         if (_inPage) _general = false;
@@ -715,24 +301,49 @@ internal sealed class RaceHudWidgets
             if (_inPage) _pickedCard = title;
             body.Children.Add(title);
             if (def is not null && _inPage) body.Children.Add(PreviewBeside(picked, def));
-            else if (def is not null)
-            {
-                body.Children.Add(Tabs());
-                body.Children.Add(TabBody(picked, def));
-            }
+            else if (def is not null) body.Children.Add(Settings(picked, def));
         }
         _list.Content = body;
-        if (_preview is not null && widgets.FirstOrDefault(x => x.Id == _selected) is { } shown2) DrawPreview(shown2);
+        if (_preview is not null && Selected() is { } shown2) DrawPreview(shown2);
+        if (_reveal is { } reveal)
+        {
+            _reveal = null;
+            _list.Dispatcher.BeginInvoke(() => Flash(reveal), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+    }
+
+    private FrameworkElement Settings(HudWidgetConfig w, HudWidgetDef def)
+    {
+        var editor = def.EditorDef;
+        if (_tab == ContentTab && !editor.Has(HudTab.Content)) _tab = LayoutTab;
+        var stack = new StackPanel();
+        if (editor.Presets.Count >= 2)
+        {
+            _presets = new PresetRow(editor.Presets, preset =>
+            {
+                Host?.RecordUndo();
+                editor.Apply(def, w, preset);
+                Changed();
+                Fill();
+            });
+            _presets.Show(editor.PresetName(def, w));
+            stack.Children.Add(_presets);
+        }
+        stack.Children.Add(Tabs(editor));
+        stack.Children.Add(TabBody(w, def, editor));
+        return stack;
     }
 
     private FrameworkElement PreviewBeside(HudWidgetConfig w, HudWidgetDef def)
     {
         var title = new TextBlock { Text = "Preview", Style = Ui.Res<Style>("H3"), VerticalAlignment = VerticalAlignment.Center };
-        _previewHint = new TextBlock { Text = "Drag any item to move it, live", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), Visibility = Visibility.Collapsed };
+        var hint = new TextBlock { Text = "Click a part to find its setting; drag items to reorder", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextWrapping = TextWrapping.Wrap };
         var previewColumn = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
-        previewColumn.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8), Children = { title, _previewHint } });
+        previewColumn.SetResourceReference(Panel.BackgroundProperty, "Surface");
+        Panel.SetZIndex(previewColumn, 1);
+        previewColumn.Children.Add(new DockPanel { Margin = new Thickness(0, 4, 0, 8), Children = { title, hint } });
         previewColumn.Children.Add(PreviewBlock(w));
-        var tabs = new StackPanel { Children = { Tabs(), TabBody(w, def) } };
+        var tabs = Settings(w, def);
         var body = new Grid();
         body.ColumnDefinitions.Add(new ColumnDefinition());
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
@@ -741,7 +352,8 @@ internal sealed class RaceHudWidgets
         body.Children.Add(previewColumn);
         body.Children.Add(tabs);
         bool? wide = null;
-        var follow = Sticky.Install(previewColumn, body, () => wide == true);
+        bool Stick() => wide == true || (PageOf(body) is { } page && previewColumn.ActualHeight < page.ViewportHeight * 0.45);
+        var follow = Sticky.Install(previewColumn, body, Stick);
         void Arrange(double width)
         {
             bool two = width >= TwoColumnsFrom;
@@ -759,6 +371,127 @@ internal sealed class RaceHudWidgets
         Arrange(0);
         body.SizeChanged += (_, e) => Arrange(e.NewSize.Width);
         return body;
+    }
+
+    private const double TwoColumnsFrom = 940;
+
+    private FrameworkElement PreviewBlock(HudWidgetConfig w)
+    {
+        _preview = new Image { Stretch = Stretch.None, RenderTransform = _previewNudge };
+        RenderOptions.SetBitmapScalingMode(_preview, BitmapScalingMode.NearestNeighbor);
+        _previewMarks = new Canvas { IsHitTestVisible = false };
+        _previewHighlight = new Canvas { IsHitTestVisible = false };
+        var previewHost = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent, Children = { _preview, _previewHighlight, _previewMarks } };
+        HookPreviewDrag(previewHost, w);
+        _previewWell = new Border { BorderThickness = new Thickness(1), CornerRadius = ThemeManager.Round(8), Padding = new Thickness(16), MinHeight = 120, Child = previewHost };
+        _previewWell.SetResourceReference(Border.BackgroundProperty, "Bg");
+        _previewWell.SetResourceReference(Border.BorderBrushProperty, "Line");
+        _previewWell.SizeChanged += (_, e) => { if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1) DrawPreview(w); };
+        _previewNote = new TextBlock { Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 8, 0, 0) };
+        var previewStack = new StackPanel();
+        previewStack.Children.Add(_previewWell);
+        previewStack.Children.Add(_previewNote);
+        return previewStack;
+    }
+
+    private static string Anchor(HudAnchor a) => a switch
+    {
+        HudAnchor.TopLeft => "top left", HudAnchor.Top => "top", HudAnchor.TopRight => "top right", HudAnchor.Left => "left", HudAnchor.Center => "center",
+        HudAnchor.Right => "right", HudAnchor.BottomLeft => "bottom left", HudAnchor.Bottom => "bottom", _ => "bottom right",
+    };
+
+    private const double ComboWidth = 240;
+
+    private List<FrameworkElement> PlacementRows(HudWidgetConfig w, HudWidgetDef def)
+    {
+        var rows = new List<FrameworkElement>();
+        var monitors = HudHost.MonitorChoices().Select(m => new Choice(m.Id, m.Label)).ToList();
+        rows.Add(SettingRows.Row("Monitor", null, false, Ui.Combo(monitors, w.Monitor, c => { w.Monitor = c.Id!; Changed(); }, ComboWidth)));
+        NumberBox Num(double value, double min, double max, Action<double> set)
+        {
+            var b = new NumberBox(value, "px", 64) { Minimum = min, Maximum = max, Step = 4 };
+            b.ValueChanged += v => { Host?.RecordUndo(); set(v); w.Clamp(); Changed(); };
+            return b;
+        }
+        rows.Add(SettingRows.Row("Size", null, false, Pair(Num(w.W, def.MinW, HudWidgetConfig.MaxSize, v => w.W = v), "Width", Num(w.H, def.MinH, HudWidgetConfig.MaxSize, v => w.H = v), "Height")));
+        rows.Add(SettingRows.Row("Position", $"Measured from the {Anchor(w.Anchor)} of the monitor. Dragging it with Arrange on screen sets these for you.", false,
+            Pair(Num(w.X, -HudWidgetConfig.MaxSize, HudWidgetConfig.MaxSize, v => w.X = v), "Across", Num(w.Y, -HudWidgetConfig.MaxSize, HudWidgetConfig.MaxSize, v => w.Y = v), "Down")));
+        var home = Ui.LabeledButton("I.Target", "Bring back to the middle", () =>
+        {
+            Host?.RecordUndo();
+            w.Monitor = "primary";
+            w.Anchor = HudAnchor.Center;
+            w.X = 0;
+            w.Y = 0;
+            w.Clamp();
+            Changed();
+            Fill();
+        }, "GhostButton");
+        home.ToolTip = "Puts this widget in the middle of the main monitor, e.g. when it's off screen or behind something";
+        rows.Add(SettingRows.Row("", null, false, home));
+        return rows;
+    }
+
+    private List<FrameworkElement> BehaviourRows(HudWidgetConfig w, HudWidgetDef def)
+    {
+        var rows = new List<FrameworkElement>();
+        if (def.HideWhenEmpty is { } hideByDefault)
+            rows.Add(SettingRows.Row("Only when needed", def.Kind == "alerts" ? "Hidden until an alert comes up." : "Hidden until a car of another class is near.", false,
+                Ui.Switch(w.OnlyWhenNeeded ?? hideByDefault, v => { w.OnlyWhenNeeded = v; Changed(); })));
+        rows.Add(SettingRows.Row("Only while driving", "Hidden in the garage and while you're out of the car.", false, Ui.Switch(w.OnlyOnTrack, v => { w.OnlyOnTrack = v; Changed(); })));
+        rows.Add(SettingRows.Row("Locked", "Can't be dragged while arranging on screen.", false, Ui.Switch(w.Locked, v => { w.Locked = v; Changed(); })));
+        rows.Add(SettingRows.Row("Hide in replays", "Off: it shows while you watch a replay too.", false, Ui.Switch(w.HideInReplay, v => { w.HideInReplay = v; Changed(); })));
+        rows.Add(SettingRows.Row("Opacity", "The whole widget, text included.", false, Ui.SliderWithValue(20, 100, w.Opacity, "{0:0}%", v => { w.Opacity = (int)v; Changed(); }, 180, 5)));
+        var background = Ui.SliderWithValue(0, 100, w.Background ?? S.Appearance.Background, "{0:0}%", v => { w.Background = (int)v; Changed(); if (_preview is not null) DrawPreview(w); }, 180, 5);
+        background.IsEnabled = w.Background is not null;
+        var own = Ui.Switch(w.Background is not null, on =>
+        {
+            w.Background = on ? S.Appearance.Background : null;
+            background.IsEnabled = on;
+            Changed();
+            if (_preview is not null) DrawPreview(w);
+        });
+        own.ToolTip = "Off: the overlay's Background (Hud Settings)";
+        var bgRow = new StackPanel { Orientation = Orientation.Horizontal };
+        own.Margin = new Thickness(0, 0, 12, 0);
+        own.VerticalAlignment = VerticalAlignment.Center;
+        bgRow.Children.Add(own);
+        bgRow.Children.Add(background);
+        rows.Add(SettingRows.Row("Own background", "The panel behind the text only; switched off it follows the overlay's Background.", false, bgRow));
+        var rates = new[] { 0, 1, 2, 5, 10, 15, 20, 30, 60 }.Select(r => new Choice(r.ToString(), r == 0 ? $"Default ({def.DefaultHz} per second)" : $"{r} per second"));
+        rows.Add(SettingRows.Row("Redraw", null, false, Ui.Combo(rates, w.UpdateHz.ToString(), c => { w.UpdateHz = int.Parse(c.Id!); Changed(); }, ComboWidth)));
+        var sessions = SettingRows.Toggles(SessionKinds.Select(k => (k, SessionLabel(k), (string?)null)).ToList(),
+            kind => w.Sessions.Contains(kind, StringComparer.OrdinalIgnoreCase),
+            (kind, on) =>
+            {
+                w.Sessions.RemoveAll(s => string.Equals(s, kind, StringComparison.OrdinalIgnoreCase));
+                if (on) w.Sessions.Add(kind);
+                Changed();
+            });
+        rows.Add(SettingRows.Row("Only in", "None ticked = every session.", true, sessions));
+        return rows;
+    }
+
+    private FrameworkElement ActionsRow(HudWidgetConfig w)
+    {
+        var actions = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var dup = Ui.LabeledButton("I.Copy", "Duplicate", () =>
+        {
+            var copy = w.Copy();
+            copy.Id = HudWidgetConfig.NewId(w.Kind);
+            copy.Y += 24;
+            Layout!.Widgets.Add(copy);
+            _selected = copy.Id;
+            Changed();
+            Fill();
+        });
+        dup.Margin = new Thickness(0, 0, 8, 0);
+        actions.Children.Add(dup);
+        var reset = Ui.LabeledButton("I.Undo", "Default options", () => { w.Options.Clear(); Changed(); Fill(); });
+        reset.ToolTip = "Puts this widget's display options back as they were when it was added (place and size stay)";
+        reset.Margin = new Thickness(0, 0, 8, 0);
+        actions.Children.Add(reset);
+        return actions;
     }
 
     private static FrameworkElement TitleCard(string title, string text, FrameworkElement? toggle)
@@ -779,10 +512,14 @@ internal sealed class RaceHudWidgets
         return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(20, 16, 20, 16), Margin = new Thickness(0, 0, 0, 10), Child = grid };
     }
 
-    private FrameworkElement Tabs()
+    private FrameworkElement Tabs(HudEditorDef editor)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (id, title) in TabNames)
+        var names = new List<(string Id, string Title)> { (LayoutTab, "Layout") };
+        if (editor.Has(HudTab.Content)) names.Add((ContentTab, editor.ContentTitle));
+        names.Add((VisibilityTab, "When shown"));
+        names.Add((PositionTab, "Placement"));
+        var row = new WrapPanel();
+        foreach (var (id, title) in names)
         {
             bool on = id == _tab;
             var text = new TextBlock { Text = title, FontSize = 14 };
@@ -793,6 +530,7 @@ internal sealed class RaceHudWidgets
             var stack = new StackPanel { Children = { text, underline } };
             var tabId = id;
             var b = new Button { Style = Ui.Res<Style>("QuietButton"), Content = stack, Padding = new Thickness(14, 8, 14, 0), MinHeight = 0, Height = double.NaN };
+            System.Windows.Automation.AutomationProperties.SetName(b, title + " tab");
             b.Click += (_, _) => { if (_tab == tabId) return; _tab = tabId; Fill(); };
             row.Children.Add(b);
         }
@@ -801,71 +539,134 @@ internal sealed class RaceHudWidgets
         return new StackPanel { Margin = new Thickness(0, 2, 0, 12), Children = { row, line } };
     }
 
-    private FrameworkElement TabBody(HudWidgetConfig w, HudWidgetDef def)
+    private FrameworkElement TabBody(HudWidgetConfig w, HudWidgetDef def, HudEditorDef editor)
     {
         var stack = new StackPanel { Margin = new Thickness(4, 0, 4, 0) };
-        void Heading(string text, FrameworkElement? beside = null)
-        {
-            var title = new TextBlock { Text = text, Style = Ui.Res<Style>("H3"), VerticalAlignment = VerticalAlignment.Center };
-            stack.Children.Add(beside is null ? new Border { Margin = new Thickness(0, 6, 0, 8), Child = title } : new DockPanel { Margin = new Thickness(0, 6, 0, 8), Children = { title, beside } });
-        }
-        void Options(HudOptionGroup group)
-        {
-            foreach (var o in def.Options.Where(o => o.Section == group)) stack.Children.Add(OptionRow(w, o));
-        }
+        void Heading(string text) => stack.Children.Add(new Border { Margin = new Thickness(0, 6, 0, 8), Child = new TextBlock { Text = text, Style = Ui.Res<Style>("H3") } });
         switch (_tab)
         {
-            case "content":
-                bool any = false;
-                if (def.Options.Any(o => o.Section == HudOptionGroup.Parts)) { Heading("Widget sections"); Options(HudOptionGroup.Parts); any = true; }
-                if (def.Options.Any(o => o.Section == HudOptionGroup.Show)) { Heading("What to show"); Options(HudOptionGroup.Show); any = true; }
-                if (def.Options.Any(o => o.Section == HudOptionGroup.Filter)) { Heading("Filter"); Options(HudOptionGroup.Filter); any = true; }
-                if (!any) stack.Children.Add(new TextBlock { Text = "Nothing to pick for this widget: its options are on the Display tab.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap });
-                break;
-            case "visibility":
-                Heading("Visibility");
+            case VisibilityTab:
+                Heading("When shown");
                 foreach (var row in BehaviourRows(w, def)) stack.Children.Add(row);
-                break;
-            case "position":
+                return stack;
+            case PositionTab:
                 Heading("Position and size");
                 foreach (var row in PlacementRows(w, def)) stack.Children.Add(row);
                 var divider = new Border { Height = 1, Margin = new Thickness(0, 14, 0, 0) };
                 divider.SetResourceReference(Border.BackgroundProperty, "Line");
                 stack.Children.Add(divider);
                 stack.Children.Add(ActionsRow(w));
-                break;
-            default:
-                if (def.Options.Any(o => o.Section == HudOptionGroup.Options)) { Heading("Display"); Options(HudOptionGroup.Options); }
-                if (def.Limits is { } limits)
-                    stack.Children.Add(new TextBlock { Text = limits, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
-                break;
+                return stack;
         }
+        var tab = _tab == ContentTab ? HudTab.Content : HudTab.Layout;
+        _context = new HudSettingContext
+        {
+            Def = def, W = w, Frame = _section.Preview.Race.Frame, KnownClasses = S.KnownClasses,
+            Set = values => SetValues(w, def, values), Rebuild = Fill,
+        };
+        foreach (var group in editor.Groups.Where(g => g.Tab == tab))
+        {
+            string fold = HudEditorDef.GroupFoldId(def.Kind, group.Id);
+            var box = new SettingGroup(group.Title, group.Open != S.EditorSectionsToggled.Contains(fold, StringComparer.OrdinalIgnoreCase), open =>
+            {
+                S.EditorSectionsToggled.RemoveAll(x => string.Equals(x, fold, StringComparison.OrdinalIgnoreCase));
+                if (open != group.Open) S.EditorSectionsToggled.Add(fold);
+                _app.Save();
+            });
+            foreach (var setting in group.Settings)
+            {
+                var row = Linked(setting, SettingRows.Build(setting, _context, group.Title));
+                _rows.Add((setting, row));
+                box.Add(row);
+            }
+            _groups.Add(box);
+            stack.Children.Add(box);
+        }
+        RefreshVisibility();
+        if (tab == HudTab.Layout && def.Limits is { } limits)
+            stack.Children.Add(new TextBlock { Text = limits, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
         return stack;
     }
 
-    private static string SessionLabel(string kind) => kind switch { "Qualify" => "Qualifying", "TimeTrial" => "Time trial", _ => kind };
-
-    private static Grid FieldRow(string label, FrameworkElement control, string? help = null)
+    private FrameworkElement Linked(HudSetting setting, FrameworkElement row)
     {
-        var grid = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelWidth) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, MinHeight = 34 });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Body"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) });
-        control.HorizontalAlignment = HorizontalAlignment.Left;
-        control.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(control, 1);
-        grid.Children.Add(control);
-        if (help is not null)
+        var box = new Border { Child = row, Tag = setting.Id, Background = Brushes.Transparent, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(-6, 0, -6, 0) };
+        box.MouseEnter += (_, _) => Highlight(setting.Id);
+        box.MouseLeave += (_, _) => { if (!box.IsKeyboardFocusWithin && _hoverSetting == setting.Id) Highlight(null); };
+        box.IsKeyboardFocusWithinChanged += (_, e) =>
         {
-            var text = new TextBlock { Text = help, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 2) };
-            Grid.SetColumn(text, 1);
-            Grid.SetRow(text, 1);
-            grid.Children.Add(text);
-        }
-        return grid;
+            if (e.NewValue is true) Highlight(setting.Id);
+            else if (_hoverSetting == setting.Id && !box.IsMouseOver) Highlight(null);
+        };
+        return box;
     }
+
+    private void RefreshVisibility()
+    {
+        if (_context is null) return;
+        var o = _context.Options;
+        foreach (var (setting, row) in _rows) row.Visibility = setting.Visible(o) ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var g in _groups) g.Visibility = g.HasVisibleRows ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SetValues(HudWidgetConfig w, HudWidgetDef def, IReadOnlyDictionary<string, string?> values)
+    {
+        foreach (var (key, value) in values)
+        {
+            if (def.Option(key) is not { } o) continue;
+            if (o == HudFlags.BannerOption && value is not null)
+            {
+                var (l0, t0, r0, b0) = HudFlags.Room(new HudOptions(def, w).Choice(o.Key));
+                var (l1, t1, r1, b1) = HudFlags.Room(value);
+                w.W = Math.Max(1, w.W + l1 + r1 - l0 - r0);
+                w.H = Math.Max(1, w.H + t1 + b1 - t0 - b0);
+            }
+            if (value is null || value == o.Default) w.Options.Remove(key); else w.Options[key] = value;
+        }
+        Changed();
+        if (_preview is not null) DrawPreview(w);
+        RefreshVisibility();
+        _presets?.Show(def.EditorDef.PresetName(def, w));
+    }
+
+    private void Reveal(HudWidgetConfig w, HudWidgetDef def, string settingId)
+    {
+        var editor = def.EditorDef;
+        if (editor.GroupOf(settingId) is not { } group) return;
+        _tab = group.Tab == HudTab.Content ? ContentTab : LayoutTab;
+        string fold = HudEditorDef.GroupFoldId(def.Kind, group.Id);
+        bool open = group.Open != S.EditorSectionsToggled.Contains(fold, StringComparer.OrdinalIgnoreCase);
+        if (!open)
+        {
+            S.EditorSectionsToggled.RemoveAll(x => string.Equals(x, fold, StringComparison.OrdinalIgnoreCase));
+            if (!group.Open) S.EditorSectionsToggled.Add(fold);
+            _app.Save();
+        }
+        _reveal = settingId;
+        Fill();
+    }
+
+    private void Flash(string settingId)
+    {
+        var row = _rows.FirstOrDefault(r => string.Equals(r.Setting.Id, settingId, StringComparison.OrdinalIgnoreCase)).Row;
+        if (row is not Border { IsLoaded: true, IsVisible: true } box) return;
+        if (PageOf(box) is { } page)
+        {
+            double top = box.TransformToVisual(page).Transform(new Point(0, 0)).Y;
+            double stuck = _previewWell is { IsLoaded: true } well && well.ActualWidth > box.ActualWidth * 1.5 ? 0 : (_previewWell?.ActualHeight ?? 0) + 60;
+            if (top < stuck + 12 || top + box.ActualHeight > page.ViewportHeight - 12)
+                page.ScrollToVerticalOffset(page.VerticalOffset + top - stuck - Math.Max(24, (page.ViewportHeight - stuck - box.ActualHeight) / 3));
+        }
+        else box.BringIntoView();
+        var brush = (Ui.Res<Brush>("AccentSoft") as SolidColorBrush)?.Clone() ?? new SolidColorBrush(Colors.Transparent);
+        box.Background = brush;
+        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(1600)) { BeginTime = TimeSpan.FromMilliseconds(400) };
+        fade.Completed += (_, _) => box.Background = Brushes.Transparent;
+        brush.BeginAnimation(Brush.OpacityProperty, fade);
+        if (box.Child is FrameworkElement child) child.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+    }
+
+    private static string SessionLabel(string kind) => kind switch { "Qualify" => "Qualifying", "TimeTrial" => "Time trial", _ => kind };
 
     private static FrameworkElement Pair(FrameworkElement a, string labelA, FrameworkElement b, string labelB)
     {
@@ -893,284 +694,6 @@ internal sealed class RaceHudWidgets
         remove.VerticalAlignment = VerticalAlignment.Center;
         System.Windows.Automation.AutomationProperties.SetName(remove, "Remove " + (HudCatalog.Find(w.Kind)?.Name ?? w.Kind));
         return remove;
-    }
-
-    private readonly Dictionary<string, TextBlock> _summaries = new();
-
-    private void RefreshRow()
-    {
-        if (_selected is not null && _summaries.TryGetValue(_selected, out var text) && Layout?.Widgets.FirstOrDefault(w => w.Id == _selected) is { } w)
-            text.Text = Summary(w);
-        foreach (var s in _sections)
-            if (s.SummaryText is not null) s.SummaryText.Text = s.Summary?.Invoke() ?? "";
-    }
-
-    private static string Summary(HudWidgetConfig w) =>
-        $"{w.W:0}×{w.H:0} · {Anchor(w.Anchor)}" + (w.Monitor == "primary" ? "" : " · " + w.Monitor.Replace(@"\\.\", "")) + (w.Locked ? " · locked" : "")
-        + (w.Sessions.Count > 0 ? " · " + string.Join(", ", w.Sessions) : "");
-
-    private FrameworkElement OptionRow(HudWidgetConfig w, HudOption o)
-    {
-        string current = w.Options.TryGetValue(o.Key, out var v) ? v : o.Default;
-        void Set(string value)
-        {
-            if (o == HudFlags.BannerOption)
-            {
-                var (l0, t0, r0, b0) = HudFlags.Room(new HudOptions(HudCatalog.Find(w.Kind)!, w).Choice(o.Key));
-                var (l1, t1, r1, b1) = HudFlags.Room(value);
-                w.W = Math.Max(1, w.W + l1 + r1 - l0 - r0);
-                w.H = Math.Max(1, w.H + t1 + b1 - t0 - b0);
-            }
-            if (value == o.Default) w.Options.Remove(o.Key); else w.Options[o.Key] = value;
-            Changed();
-            if (_preview is not null) DrawPreview(w);
-        }
-        switch (o.Kind)
-        {
-            case HudOptionKind.Columns:
-                return ColumnPicker(o, current, Set, reload => _columnPickers[o.Key] = reload, mark => _fitMarks[o.Key] = (mark, ""));
-            case HudOptionKind.Set:
-                return SetPicker(o, current, Set);
-            case HudOptionKind.Classes:
-                return ClassPicker(o, current, Set);
-        }
-        FrameworkElement control;
-        switch (o.Kind)
-        {
-            case HudOptionKind.Bool:
-                control = Ui.Switch(current == "true", on => Set(on ? "true" : "false"));
-                break;
-            case HudOptionKind.Int:
-            case HudOptionKind.Number:
-                double.TryParse(current, NumberStyles.Float, CultureInfo.InvariantCulture, out var num);
-                var box = new NumberBox(num, o.Unit ?? "", 64) { Minimum = o.Min, Maximum = o.Max, Step = o.Kind == HudOptionKind.Int ? 1 : o.Step, Decimals = o.Kind == HudOptionKind.Int ? 0 : o.Step < 0.1 ? 2 : o.Step < 1 ? 1 : 0 };
-                box.ValueChanged += x => Set(x.ToString(o.Kind == HudOptionKind.Int ? "0" : "0.###", CultureInfo.InvariantCulture));
-                control = box;
-                break;
-            case HudOptionKind.Choice:
-                control = o.Choices.Count <= 3 && o.Choices.All(c => c.Label.Length < 22)
-                    ? Ui.Segmented(o.Choices.Select(c => c.Label).ToList(), Math.Max(0, o.Choices.ToList().FindIndex(c => c.Id == current)), i => Set(o.Choices[i].Id), "opt" + w.Id + o.Key, o.Choices.Select(c => c.Help).ToList())
-                    : Ui.Combo(o.Choices.Select(c => new Choice(c.Id, c.Help is null ? c.Label : $"{c.Label}  ({c.Help})")), current, c => Set(c.Id!), ComboWidth);
-                break;
-            default:
-                control = new TextBlock { Text = current };
-                break;
-        }
-        return FieldRow(o.Label, control, o.Help);
-    }
-
-    private static FrameworkElement Block(HudOption o, FrameworkElement picker, FrameworkElement? shortcuts)
-    {
-        var block = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
-        var title = new TextBlock { Text = o.Label, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-        block.Children.Add(shortcuts is null ? title : Ui.SplitRow(title, shortcuts));
-        if (o.Help is not null) block.Children.Add(new TextBlock { Text = o.Help, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
-        picker.Margin = new Thickness(0, 8, 0, 0);
-        block.Children.Add(picker);
-        return block;
-    }
-
-    private static FrameworkElement Shortcuts(params (string Label, string Tip, Action Click)[] buttons)
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        foreach (var (label, tip, click) in buttons)
-        {
-            var b = new Button { Style = Ui.Res<Style>("GhostButton"), Content = label, ToolTip = tip, Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0), MinHeight = 0 };
-            b.Click += (_, _) => click();
-            row.Children.Add(b);
-        }
-        return row;
-    }
-
-    private static Tile PickedChip(string label, string? tip, Action remove, TextBlock? note = null)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 4, 0) });
-        if (note is not null) panel.Children.Add(note);
-        var x = new Button { Style = Ui.Res<Style>("QuietButton"), Padding = new Thickness(3), ToolTip = "Take out", Content = new Icon { Data = Ui.Res<Geometry>("I.X"), Width = 10, Height = 10 } };
-        x.Click += (_, _) => remove();
-        panel.Children.Add(x);
-        var chip = new Tile { Style = Ui.Res<Style>("Chip"), Child = panel, ToolTip = tip, Margin = new Thickness(0), Padding = new Thickness(9, 0, 3, 0), MinHeight = ChipHeight };
-        chip.SetValue(TextElement.FontSizeProperty, ChipFont);
-        panel.VerticalAlignment = VerticalAlignment.Center;
-        chip.SetResourceReference(Border.BackgroundProperty, "AccentSoft");
-        chip.SetResourceReference(TextElement.ForegroundProperty, "AccentText");
-        return chip;
-    }
-
-    private static Button AddChip(string label, string? tip, Action add)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        panel.Children.Add(new Icon { Data = Ui.Res<Geometry>("I.Plus"), Width = 11, Height = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-        panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        var b = new Button { Style = Ui.Res<Style>("GhostButton"), Content = panel, ToolTip = tip, Padding = new Thickness(9, 0, 11, 0), Margin = new Thickness(0, 0, 6, 6), FontSize = ChipFont, Height = ChipHeight };
-        b.Click += (_, _) => add();
-        return b;
-    }
-
-    private static FrameworkElement ColumnPicker(HudOption o, string current, Action<string> set, Action<Action<string>>? register = null,
-        Action<Action<IReadOnlySet<string>, IReadOnlySet<string>>>? registerFit = null)
-    {
-        var host = new ContentControl { Focusable = false };
-        List<string> Parse(string value) => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(id => o.Choices.Any(c => c.Id == id)).Distinct().ToList();
-        var on = Parse(current);
-        var chips = new List<(string Id, Tile Chip, TextBlock Note, string? Tip)>();
-        var adds = new List<(string Id, Button Button, string? Tip)>();
-        IReadOnlySet<string> overflow = new HashSet<string>(), blocked = new HashSet<string>();
-        Button? all = null;
-        void Mark(IReadOnlySet<string> hidden, IReadOnlySet<string> noRoomToAdd)
-        {
-            overflow = hidden;
-            blocked = noRoomToAdd;
-            foreach (var (id, chip, note, tip) in chips)
-            {
-                bool noRoom = hidden.Contains(id);
-                chip.Opacity = noRoom ? 0.6 : 1;
-                note.Visibility = noRoom ? Visibility.Visible : Visibility.Collapsed;
-                chip.ToolTip = noRoom ? "Doesn't fit at this width: widen the widget, or drag it earlier" : tip;
-            }
-            foreach (var (id, button, tip) in adds)
-            {
-                bool full = blocked.Contains(id);
-                button.IsEnabled = !full;
-                button.ToolTip = !full ? tip : hidden.Count > 0 ? "No room: take one out first, or widen the widget" : "Too wide for the room left: take one out, or widen the widget";
-            }
-            if (all is not null) all.IsEnabled = hidden.Count == 0 && blocked.Count == 0;
-        }
-        void Save() => set(string.Join(",", on));
-        void Build()
-        {
-            chips.Clear();
-            adds.Clear();
-            var stack = new StackPanel();
-            if (on.Count == 0) stack.Children.Add(new TextBlock { Text = "Nothing shown yet: add from the list below.", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 0, 0, 6) });
-            if (on.Count > 0)
-            {
-                var grid = new ReorderGrid { Flow = true, MinCellWidth = 40, Gap = 6 };
-                foreach (var id in on)
-                {
-                    var choice = o.Choices.First(c => c.Id == id);
-                    var note = new TextBlock { Text = "doesn't fit", FontStyle = FontStyles.Italic, Opacity = 0.85, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), Visibility = Visibility.Collapsed };
-                    var chip = PickedChip(choice.Label, choice.Help, () => { on.Remove(id); Save(); Build(); }, note);
-                    chip.Tag = id;
-                    chips.Add((id, chip, note, choice.Help));
-                    grid.Children.Add(chip);
-                }
-                grid.Moved += (_, _) => { on = grid.Children.OfType<FrameworkElement>().Select(t => (string)t.Tag).ToList(); Save(); };
-                stack.Children.Add(grid);
-            }
-            var available = o.Choices.Where(c => !on.Contains(c.Id)).ToList();
-            if (available.Count > 0)
-            {
-                stack.Children.Add(new TextBlock { Text = "Add", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 12, 0, 6) });
-                var add = new WrapPanel();
-                foreach (var c in available)
-                {
-                    var chip = AddChip(c.Label, c.Help, () => { on.Add(c.Id); Save(); Build(); });
-                    ToolTipService.SetShowOnDisabled(chip, true);
-                    adds.Add((c.Id, chip, c.Help));
-                    add.Children.Add(chip);
-                }
-                stack.Children.Add(add);
-            }
-            host.Content = stack;
-            Mark(overflow, blocked);
-        }
-        Build();
-        register?.Invoke(value => { on = Parse(value); Build(); });
-        registerFit?.Invoke(Mark);
-        var shortcuts = Shortcuts(
-            ("All", "Show every one (the ones shown keep their order)", () => { on = on.Concat(o.Choices.Select(c => c.Id).Where(id => !on.Contains(id))).ToList(); Save(); Build(); }),
-            ("None", "Take every one out", () => { on = new(); Save(); Build(); }),
-            ("Default", "As the widget starts", () => { on = Parse(o.Default); Save(); Build(); }));
-        if (registerFit is not null && shortcuts is Panel { Children: [Button first, ..] })
-        {
-            all = first;
-            ToolTipService.SetShowOnDisabled(all, true);
-        }
-        return Block(o, host, shortcuts);
-    }
-
-    private static FrameworkElement SetPicker(HudOption o, string current, Action<string> set)
-    {
-        var on = current.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
-        var panel = new WrapPanel();
-        var boxes = new List<(CheckBox Box, string Id)>();
-        void Save() => set(string.Join(",", o.Choices.Select(c => c.Id).Where(on.Contains)));
-        foreach (var choice in o.Choices)
-        {
-            var chip = new CheckBox { Content = choice.Label, IsChecked = on.Contains(choice.Id), ToolTip = choice.Help };
-            chip.Click += (_, _) =>
-            {
-                if (chip.IsChecked == true) on.Add(choice.Id); else on.Remove(choice.Id);
-                Save();
-            };
-            boxes.Add((chip, choice.Id));
-            panel.Children.Add(TickChip(chip));
-        }
-        void Pick(IEnumerable<string> ids)
-        {
-            on = ids.ToHashSet();
-            foreach (var (box, id) in boxes) box.IsChecked = on.Contains(id);
-            Save();
-        }
-        return Block(o, panel, Shortcuts(
-            ("All", "Tick every one", () => Pick(o.Choices.Select(c => c.Id))),
-            ("None", "Untick every one", () => Pick(Array.Empty<string>())),
-            ("Default", "As the widget starts", () => Pick(o.Default.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))));
-    }
-
-    private FrameworkElement ClassPicker(HudOption o, string current, Action<string> set)
-    {
-        var f = _section.Preview.Race.Frame;
-        var session = f.Session.Drivers.Where(d => d.Races && d.ClassName.Length > 0).Select(d => d.ClassName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        string? mine = f.Session.Player?.ClassName is { Length: > 0 } m ? m : null;
-        var hidden = current.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-        var known = SessionNames.Merge(null, S.KnownClasses, SessionNames.Classes).Where(c => !session.Contains(c, StringComparer.OrdinalIgnoreCase)).ToList();
-        var others = hidden.Where(h => !session.Contains(h, StringComparer.OrdinalIgnoreCase) && !known.Contains(h, StringComparer.OrdinalIgnoreCase)).Concat(known).ToList();
-        var boxes = new List<(CheckBox Box, Tile Chip, string Name)>();
-        void Save() => set(string.Join(",", hidden));
-        WrapPanel Chips(IEnumerable<string> names)
-        {
-            var panel = new WrapPanel();
-            foreach (var cls in names)
-            {
-                var box = new CheckBox { Content = cls, IsChecked = hidden.Contains(cls, StringComparer.OrdinalIgnoreCase),
-                    ToolTip = string.Equals(cls, mine, StringComparison.OrdinalIgnoreCase) ? "Your class. Ticked = left out" : "Ticked = left out" };
-                box.Click += (_, _) =>
-                {
-                    hidden.RemoveAll(x => string.Equals(x, cls, StringComparison.OrdinalIgnoreCase));
-                    if (box.IsChecked == true) hidden.Add(cls);
-                    Save();
-                };
-                var chip = TickChip(box);
-                boxes.Add((box, chip, cls));
-                panel.Children.Add(chip);
-            }
-            return panel;
-        }
-        var stack = new StackPanel();
-        if (session.Count > 0)
-        {
-            stack.Children.Add(new TextBlock { Text = (f.Simulated ? "In the simulated session" : "In this session") + " · ticked = left out", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 0, 0, 6) });
-            stack.Children.Add(Chips(session));
-        }
-        if (others.Count > 0)
-        {
-            stack.Children.Add(new TextBlock { Text = "Other classes", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, session.Count > 0 ? 10 : 2, 0, 6) });
-            stack.Children.Add(Chips(others));
-        }
-        if (session.Count == 0 && others.Count == 0) stack.Children.Add(new TextBlock { Text = "Classes appear here once a session is loaded.", Style = Ui.Res<Style>("Caption") });
-        void Pick(IEnumerable<string> names)
-        {
-            hidden = names.ToList();
-            foreach (var (box, _, name) in boxes) box.IsChecked = hidden.Contains(name, StringComparer.OrdinalIgnoreCase);
-            Save();
-        }
-        var shortcuts = new List<(string, string, Action)> { ("Show all", "Leave no class out", () => Pick(Array.Empty<string>())) };
-        if (mine is not null && session.Count > 1)
-            shortcuts.Add(("Only my class", $"Leave out every class in this session but {mine}", () => Pick(session.Where(c => !string.Equals(c, mine, StringComparison.OrdinalIgnoreCase)))));
-        return Block(o, stack, Shortcuts(shortcuts.ToArray()));
     }
 
     private const double MaxPreviewScale = 1.5;
@@ -1201,11 +724,10 @@ internal sealed class RaceHudWidgets
             _preview.Width = bitmap.Width / k;
             _preview.Height = bitmap.Height / k;
             string size = Math.Abs(scale - 1) < 0.01 ? "actual size" : $"{scale * 100:0}% of its size";
-            bool draggable = (_painter.Items ?? new()).GroupBy(i => i.Key).Any(g => g.Count() > 1);
             string note = (race.Frame.Simulated ? "Sample data (no live session)" : "Live from iRacing") + $" · {size}";
             if (!TextCase.Plain(_previewNote!.Text).Equals(note, StringComparison.OrdinalIgnoreCase)) _previewNote.Text = note;
-            if (_previewHint is not null) _previewHint.Visibility = draggable ? Visibility.Visible : Visibility.Collapsed;
             MarkOverflow(w, scale);
+            DrawHighlight();
         }
         catch (Exception ex)
         {
@@ -1231,28 +753,27 @@ internal sealed class RaceHudWidgets
         double k = m.M11;
         if (k < 0.1 || Math.Abs(m.M22 - k) > 0.001 || m.M12 != 0 || m.M21 != 0) return;
         _previewPixels = k;
-        var origin = m.Transform(new System.Windows.Point(0, 0));
+        var origin = m.Transform(new Point(0, 0));
         _previewNudge.X = Math.Clamp(_previewNudge.X - (origin.X - Math.Round(origin.X)) / k, -1, 1);
         _previewNudge.Y = Math.Clamp(_previewNudge.Y - (origin.Y - Math.Round(origin.Y)) / k, -1, 1);
     }
 
     private void MarkOverflow(HudWidgetConfig w, float scale)
     {
-        if (_fitMarks.Count == 0 || HudCatalog.Find(w.Kind) is not { } def) return;
+        if (_context is not { Pickers.Count: > 0 } context || HudCatalog.Find(w.Kind) is not { } def) return;
         var options = new HudOptions(def, w);
         var trials = new List<(string Key, string Id)>();
-        foreach (var key in _fitMarks.Keys.ToList())
+        foreach (var (key, picker) in context.Pickers)
         {
             var hidden = (_painter.Overflow ?? new()).Where(x => x.Key == key).Select(x => x.Id).ToHashSet();
             var picked = options.Columns(key);
             string signature = string.Join(",", hidden.Order()) + "|" + string.Join(",", picked) + $"|{w.W:0}x{w.H:0}|{scale:0.00}";
-            var (mark, last) = _fitMarks[key];
-            if (signature == last) continue;
-            _fitMarks[key] = (mark, signature);
+            if (_fitSignatures.GetValueOrDefault(key) == signature) continue;
+            _fitSignatures[key] = signature;
             _trialRun++;
             var candidates = def.Option(key)?.Choices.Select(c => c.Id).Where(id => !picked.Contains(id)).ToList() ?? new();
-            if (hidden.Count > 0) { mark(hidden, candidates.ToHashSet()); continue; }
-            mark(hidden, new HashSet<string>());
+            if (hidden.Count > 0) { picker.Mark(key, hidden, candidates.ToHashSet()); continue; }
+            picker.Mark(key, hidden, new HashSet<string>());
             trials.AddRange(candidates.Select(id => (key, id)));
         }
         if (trials.Count > 0) TryCandidates(w, scale, trials);
@@ -1270,7 +791,7 @@ internal sealed class RaceHudWidgets
             {
                 var none = new HashSet<string>();
                 foreach (var (key, ids) in blocked)
-                    if (_fitMarks.TryGetValue(key, out var fit)) fit.Mark(none, ids);
+                    if (_context?.Pickers.TryGetValue(key, out var picker) == true) picker.Mark(key, none, ids);
                 return;
             }
             var (k, id) = trials[next++];
@@ -1291,13 +812,61 @@ internal sealed class RaceHudWidgets
     private List<(string Id, System.Drawing.RectangleF Box)> Drawn(string key) =>
         (_painter.Items ?? new()).Where(i => i.Key == key).Select(i => (i.Id, i.Box)).ToList();
 
-    private (string Key, string Id)? ItemAt(System.Windows.Point at)
+    private System.Drawing.PointF PainterPoint(Point at) => new((float)(at.X / _previewScale), (float)(at.Y / _previewScale));
+
+    private (string Key, string Id)? ItemAt(Point at)
     {
         if (_painter.Items is not { } items) return null;
-        var p = new System.Drawing.PointF((float)(at.X / _previewScale), (float)(at.Y / _previewScale));
+        var p = PainterPoint(at);
         for (int i = items.Count - 1; i >= 0; i--)
             if (items[i].Box.Contains(p) && Drawn(items[i].Key).Count > 1) return (items[i].Key, items[i].Id);
         return null;
+    }
+
+    private string? SettingAt(HudEditorDef editor, Point at)
+    {
+        var p = PainterPoint(at);
+        string? best = null;
+        float bestArea = float.MaxValue;
+        void Consider(string name, System.Drawing.RectangleF box)
+        {
+            float area = box.Width * box.Height;
+            if (!box.Contains(p) || area >= bestArea || editor.SettingForRegion(name) is not { } id) return;
+            best = id;
+            bestArea = area;
+        }
+        foreach (var (id, box) in _painter.Regions ?? new()) Consider(id, box);
+        foreach (var (key, _, box) in _painter.Items ?? new()) Consider(key, box);
+        return best;
+    }
+
+    private void Highlight(string? settingId)
+    {
+        if (_hoverSetting == settingId) return;
+        _hoverSetting = settingId;
+        DrawHighlight();
+    }
+
+    private void DrawHighlight()
+    {
+        if (_previewHighlight is null) return;
+        _previewHighlight.Children.Clear();
+        if (_hoverSetting is not { } id || _dragging || Selected() is not { } w || HudCatalog.Find(w.Kind) is not { } def) return;
+        var names = def.EditorDef.RegionsOf(id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var boxes = (_painter.Regions ?? new()).Where(r => names.Contains(r.Id)).Select(r => r.Box).ToList();
+        foreach (var group in (_painter.Items ?? new()).Where(i => names.Contains(i.Key)).GroupBy(i => i.Key))
+            boxes.Add(group.Select(i => i.Box).Aggregate(System.Drawing.RectangleF.Union));
+        double s = _previewScale;
+        foreach (var box in boxes)
+        {
+            var mark = new Border { Width = Math.Max(4, box.Width * s + 4), Height = Math.Max(4, box.Height * s + 4), BorderThickness = new Thickness(2) };
+            mark.SetResourceReference(Border.BorderBrushProperty, "AccentText");
+            var fill = (Ui.Res<Brush>("AccentSoft") as SolidColorBrush)?.Clone();
+            if (fill is not null) { fill.Opacity = 0.35; mark.Background = fill; }
+            Canvas.SetLeft(mark, box.X * s - 2);
+            Canvas.SetTop(mark, box.Y * s - 2);
+            _previewHighlight.Children.Add(mark);
+        }
     }
 
     private string? _dragBefore;
@@ -1306,20 +875,38 @@ internal sealed class RaceHudWidgets
 
     private void HookPreviewDrag(FrameworkElement host, HudWidgetConfig w)
     {
+        var editor = HudCatalog.Find(w.Kind)?.EditorDef;
         host.MouseMove += (_, e) =>
         {
             var at = e.GetPosition(host);
-            if (_press is not { } press) return;
+            if (_press is not { } press)
+            {
+                if (_click is not null || editor is null) return;
+                var hover = SettingAt(editor, at);
+                host.Cursor = hover is null ? null : ItemAt(at) is not null ? Cursors.SizeAll : Cursors.Hand;
+                Highlight(hover);
+                return;
+            }
             if (!_dragging && (at - press.From).Length < 4) return;
-            if (!_dragging) _liftedLook = Lift(press.Key, press.Id);
+            if (!_dragging)
+            {
+                _liftedLook = Lift(press.Key, press.Id);
+                Highlight(null);
+            }
             _dragging = true;
             Reorder(w, press.Key, press.Id, at);
             ShowDrag(press.Key, press.Id, at);
         };
+        host.MouseLeave += (_, _) => { if (_press is null) Highlight(null); };
         host.MouseLeftButtonDown += (_, e) =>
         {
             var at = e.GetPosition(host);
-            if (ItemAt(at) is not { } item) return;
+            if (ItemAt(at) is not { } item)
+            {
+                _click = at;
+                e.Handled = true;
+                return;
+            }
             _press = (item.Key, item.Id, at);
             _dragBefore = w.Options.GetValueOrDefault(item.Key);
             var box = Drawn(item.Key).FirstOrDefault(d => d.Id == item.Id).Box;
@@ -1327,13 +914,21 @@ internal sealed class RaceHudWidgets
             host.CaptureMouse();
             e.Handled = true;
         };
-        host.MouseLeftButtonUp += (_, _) =>
+        host.MouseLeftButtonUp += (_, e) =>
         {
+            var at = e.GetPosition(host);
+            if (_click is { } click)
+            {
+                _click = null;
+                if ((at - click).Length < 4 && editor is not null && SettingAt(editor, at) is { } id && HudCatalog.Find(w.Kind) is { } def) Reveal(w, def, id);
+                return;
+            }
             if (_press is not { } press) return;
             bool dragged = _dragging;
             _press = null;
             EndDrag(host);
             if (dragged) Commit(w, press.Key);
+            else if (editor?.SettingForRegion(press.Key) is { } id && HudCatalog.Find(w.Kind) is { } def) Reveal(w, def, id);
         };
         host.LostMouseCapture += (_, _) =>
         {
@@ -1354,7 +949,7 @@ internal sealed class RaceHudWidgets
         if (host.IsMouseCaptured) host.ReleaseMouseCapture();
     }
 
-    private void Reorder(HudWidgetConfig w, string key, string id, System.Windows.Point at)
+    private void Reorder(HudWidgetConfig w, string key, string id, Point at)
     {
         var def = HudCatalog.Find(w.Kind);
         if (def?.Option(key) is not { Kind: HudOptionKind.Columns } option) return;
@@ -1371,7 +966,7 @@ internal sealed class RaceHudWidgets
         DrawPreview(w);
     }
 
-    private void ShowDrag(string key, string id, System.Windows.Point at)
+    private void ShowDrag(string key, string id, Point at)
     {
         if (_previewMarks is null) return;
         _previewMarks.Children.Clear();
@@ -1415,7 +1010,10 @@ internal sealed class RaceHudWidgets
         string? now = w.Options.GetValueOrDefault(key);
         if (now == _dragBefore) return;
         Changed();
-        if (_columnPickers.TryGetValue(key, out var reload)) reload(now ?? HudCatalog.Find(w.Kind)?.Option(key)?.Default ?? "");
+        if (_context?.Pickers.TryGetValue(key, out var picker) == true && HudCatalog.Find(w.Kind) is { } def
+            && def.EditorDef.SettingForKey(key) is { } setting)
+            picker.Reload(setting.Keys.Select(k => new HudOptions(def, w).Value(k)).ToList());
+        _presets?.Show(HudCatalog.Find(w.Kind)?.EditorDef.PresetName(HudCatalog.Find(w.Kind)!, w));
         DrawPreview(w);
     }
 

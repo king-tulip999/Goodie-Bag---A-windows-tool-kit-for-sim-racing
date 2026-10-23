@@ -70,6 +70,7 @@ internal static class ThemeManager
             res[$"Tool{i + 1}Deep"] = Freeze(new SolidColorBrush(tints[i].Deep));
         }
         res["MeterFill"] = Freeze(new SolidColorBrush(MeterFillColor));
+        res["Changed"] = res["Accent"];
         res["CardEdgeThickness"] = new Thickness(1);
         res["BtnEdgeThickness"] = spec.ButtonEdge;
         res["BtnEdgePressed"] = spec.ButtonEdgePressed;

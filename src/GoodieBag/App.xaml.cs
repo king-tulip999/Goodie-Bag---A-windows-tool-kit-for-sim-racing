@@ -144,7 +144,6 @@ public partial class App : Application
         ThemeManager.Apply(config.Ui.Theme);
         PerfProbe.Mark("theme");
 
-        Quotes.Warm();
         _services = new AppServices(demo, config);
         PerfProbe.Mark("services");
         _services.Start(withTray: screenshotDir is null && showcaseDir is null && perfFile is null, fromStartup: fromStartup && !demo);
@@ -203,11 +202,6 @@ public partial class App : Application
         {
             SingleInstance.Listen(() => Dispatcher.BeginInvoke(new Action(() => window.ShowFromTray(null))));
             var services = _services;
-            CommandPipe.Start(name => Dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (!services.WindowProfiles.ApplyNamed(name))
-                    services.Notify("No window profile to apply", $"A script asked for “{name}”, which isn't a window profile or group (or Window Profiles is off).", NoticeKind.Warning);
-            })));
         }
 
         if (warning is not null)
@@ -282,7 +276,6 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        CommandPipe.Stop();
         _services?.Dispose();
         SingleInstance.Release();
         base.OnExit(e);

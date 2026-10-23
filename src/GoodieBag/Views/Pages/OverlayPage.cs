@@ -358,32 +358,37 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private void BuildGeneral()
     {
         var hotkey = HotkeyEditor("overlay", () => O.Hotkey, hk => O.Hotkey = hk);
+        var std = new OverlayLayout();
+        Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); Changed(); BuildSettings(); }, shown);
         var general = new SettingsFlow();
         general.Children.Add(Ui.Text("General", "H2"));
-        general.Children.Add(Anchored(Ui.SettingRow("Show / hide keybind", null, hotkey), "overlay.hotkey"));
-        general.Children.Add(Ui.Divider());
+        general.Children.Add(Ui.SubHeader("Keybinds", first: true));
+        general.Children.Add(Anchored(Ui.SettingRow("Show / hide", null, hotkey), "overlay.hotkey"));
+        general.Children.Add(Anchored(Ui.SettingRow("Reset FPS statistics", null,
+            HotkeyEditor("overlay.fps", () => O.ResetFpsHotkey, hk => O.ResetFpsHotkey = hk)), "overlay.fpshotkey"));
+        general.Children.Add(Ui.SubHeader("Data"));
         general.Children.Add(Anchored(Ui.SettingRow("Update rate", "All layouts.",
             Ui.Segmented(new[] { "Fast", "Normal", "Relaxed" }, O.UpdateIntervalMs switch { <= 250 => 0, >= 1000 => 2, _ => 1 },
                 i => { O.UpdateIntervalMs = i switch { 0 => 250, 2 => 1000, _ => 500 }; Changed(); }, "Rate",
-                new[] { "Fast: 4 times a second. Smoothest numbers, slightly more CPU", "Normal: twice a second", "Relaxed: once a second. The lightest; numbers jump less" })), "overlay.rate"));
-        general.Children.Add(Ui.Divider());
+                new[] { "Fast: 4 times a second. Smoothest numbers, slightly more CPU", "Normal: twice a second", "Relaxed: once a second. The lightest; numbers jump less" }),
+            D(() => O.UpdateIntervalMs == 500, () => O.UpdateIntervalMs = 500, "Normal")), "overlay.rate"));
         general.Children.Add(Ui.SettingRow("FPS statistics", "Average and 1% low cover the whole session for each game.",
             Ui.LabeledButton("I.Refresh", "Reset", _app.ResetFpsStats)));
-        general.Children.Add(Anchored(Ui.SettingRow("Reset FPS statistics keybind", null,
-            HotkeyEditor("overlay.fps", () => O.ResetFpsHotkey, hk => O.ResetFpsHotkey = hk)), "overlay.fpshotkey"));
-        general.Children.Add(Ui.Divider());
+        general.Children.Add(Ui.SubHeader("Look"));
+        general.Children.Add(Anchored(Ui.SettingRow("Layout style", null,
+            Ui.Segmented(new[] { "Expanded", "Compact" }, (int)L.Style, i => { L.Style = (OverlayStyle)i; Changed(); }, "Style",
+                new[] { "One row per group (CPU, GPU, FPS…), easy to read at a glance", "Everything on one line: takes the least room over your game" }),
+            D(() => L.Style == std.Style, () => L.Style = std.Style, std.Style.ToString())), "overlay.style"));
+        general.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 160, 5),
+            D(() => L.FontScale == std.FontScale, () => L.FontScale = std.FontScale, std.FontScale + "%")), "overlay.font"));
+        general.Children.Add(Anchored(Ui.SettingRow("Background opacity", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5),
+            D(() => L.BackgroundOpacity == std.BackgroundOpacity, () => L.BackgroundOpacity = std.BackgroundOpacity, std.BackgroundOpacity + "%")), "overlay.opacity"));
+        general.Children.Add(Anchored(Ui.SettingRow("Frame-time graph", "Spikes are stutters.",
+            Ui.Switch(L.ShowGraph, v => { L.ShowGraph = v; Changed(); }),
+            D(() => L.ShowGraph == std.ShowGraph, () => L.ShowGraph = std.ShowGraph, std.ShowGraph ? "On" : "Off")), "overlay.graph"));
         var rename = Ui.LabeledButton("I.Pencil", "Rename items…", () => _ = RenameItemsAsync());
         rename.ToolTip = "Your own names for what the overlay shows (e.g. GPU → 7900 XTX)";
         general.Children.Add(Anchored(Ui.SettingRow("Names", null, rename), "overlay.names"));
-        general.Children.Add(Ui.Divider());
-        general.Children.Add(Anchored(Ui.SettingRow("Layout style", null,
-            Ui.Segmented(new[] { "Expanded", "Compact" }, (int)L.Style, i => { L.Style = (OverlayStyle)i; Changed(); }, "Style",
-                new[] { "One row per group (CPU, GPU, FPS…), easy to read at a glance", "Everything on one line: takes the least room over your game" })), "overlay.style"));
-        general.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 160, 5)), "overlay.font"));
-        general.Children.Add(Anchored(Ui.SettingRow("Background opacity", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5)), "overlay.opacity"));
-        general.Children.Add(Anchored(Ui.SettingRow("Frame-time graph", "Spikes are stutters.",
-            Ui.Switch(L.ShowGraph, v => { L.ShowGraph = v; Changed(); })), "overlay.graph"));
-        general.Children.Add(Ui.Divider());
         BuildColors(general);
         _left.Children.Add(Card(general));
     }

@@ -31,7 +31,6 @@ internal sealed class WindowProfilesPlugin : Plugin
         new("Window profiles", "Force a program's window to an exact size and spot: a game across triple screens, a fixed resolution, borderless.", "Window Profiles", PluginIds.WindowProfilesPage, null, "resize window size position borderless triple stretch span game resolution custom resolution windowed"),
         new("Apply window profiles automatically", "Apply each automatic profile when its program starts.", "Window Profiles", PluginIds.WindowProfilesPage, WindowProfilesPage.AutoAnchor, "auto process watcher launch start detect"),
         new("Window profile groups", "One keybind or click moves every running program in the group.", "Window Profiles", PluginIds.WindowProfilesPage, null, "group several multiple programs keybind"),
-        new("Window profiles from scripts", "Apply a profile or group from a script or a Stream Deck through Goodie Bag's command pipe.", "Window Profiles", PluginIds.WindowProfilesPage, WindowProfilesPage.ScriptAnchor, "stream deck script pipe command line automation macro"),
     };
 
     public override void AddTrayItems(WinForms.ToolStripItemCollection items, AppServices app)

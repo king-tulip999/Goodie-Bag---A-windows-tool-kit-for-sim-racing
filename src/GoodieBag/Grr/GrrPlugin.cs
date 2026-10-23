@@ -24,14 +24,14 @@ internal sealed class GrrPlugin : Plugin
     public override bool EnabledByDefault => OnByDefault;
 
     public override string Reads =>
-        "The GRR website's league data (schedule, standings, results; its public league feeds) while the GRR League page or its home card is on screen; read again when it's over 6 hours old, or when you press Refresh. The last read is kept in Goodie Bag's settings folder (grr), so it shows at once and offline.";
+        "The GRR website's league data (schedule, standings, results; its public league feeds) while the GRR League page is on screen; read again when it's over 6 hours old, or when you press Refresh. The last read is kept in Goodie Bag's settings folder (grr), so it shows at once and offline.";
     public override string BackgroundWork =>
         "None: it reads only while its page is on screen.";
     public override string Changes => "Nothing on your PC; it only reads the GRR website.";
 
     public override IReadOnlyList<PluginPage> Pages { get; } = new[]
     {
-        new PluginPage(PageKey, "GRR League", LogoIcon, (app, window) => new GrrPage(app, window)),
+        new PluginPage(PageKey, "GRR League", LogoIcon, (app, window) => new GrrPage(app, window), Sections: GrrPage.SectionsFor),
     };
 
     public override IEnumerable<SearchEntry> SearchEntries { get; } = new SearchEntry[]

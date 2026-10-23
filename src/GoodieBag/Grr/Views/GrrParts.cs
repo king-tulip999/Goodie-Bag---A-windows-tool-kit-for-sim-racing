@@ -327,7 +327,7 @@ internal static class GrrParts
         var card = Ui.Dialog(window, "GRR League", "The leagues you race in and your name on the GRR website. Race times, standings and results come from the GRR website.",
             stack, Ui.DialogButtons(window, "Save", () =>
             {
-                s.Leagues = GrrLeagues.All.Where(l => picked.Contains(l.Id)).Select(l => l.Id).ToList();
+                s.Leagues = s.Leagues.Where(picked.Contains).Concat(GrrLeagues.All.Select(l => l.Id).Where(id => picked.Contains(id) && !s.Leagues.Contains(id, StringComparer.OrdinalIgnoreCase))).ToList();
                 s.DriverName = string.IsNullOrWhiteSpace(name.Text) ? null : name.Text.Trim();
                 s.IracingLeagueIds = GrrSettings.ParseIds(leagueIds.Text);
                 return true;

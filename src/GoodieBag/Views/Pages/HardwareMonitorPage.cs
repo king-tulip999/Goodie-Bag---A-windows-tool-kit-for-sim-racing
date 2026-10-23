@@ -1,29 +1,27 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using GoodieBag.Plugins;
 using GoodieBag.Services;
 
 namespace GoodieBag.Views.Pages;
 
-internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotStates, ICancelEdit, IRevealAnchor
+internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotStates, ICancelEdit, IRevealAnchor, ISectionedPage, IPageHistory
 {
+    private const string PageKey = "monitor";
+
     private readonly AppServices _app;
     private readonly MainWindow _window;
     private readonly StackPanel _body = new() { Margin = new Thickness(28, 0, 28, 28) };
-    private readonly PanelStack _sectionHost = new();
     private readonly ScrollViewer _scroll;
     private readonly PerformanceSection _performance;
     private readonly SensorsSection _sensors;
     private OverlayPage? _overlay;
-    private readonly Collapsible _performanceSection, _sensorsSection;
-    private Collapsible? _overlaySection;
-    private readonly Controls.CollapseAllButton _collapseAll = new();
-    private readonly Controls.Tile _panelTools;
-    private ArrangeList? _arrange;
+    private readonly SectionView _view;
     private bool _shown;
 
     internal static readonly string[] DefaultSections = { "overlay", "performance", "sensors" };
+
+    public event Action? SectionsChanged;
 
     public HardwareMonitorPage(AppServices app, MainWindow window)
     {
@@ -31,252 +29,180 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         _window = window;
         _scroll = new ScrollViewer { Style = Ui.Res<Style>("PageScroll"), Content = Ui.PageFrame(_body) };
         Content = _scroll;
+        _view = new SectionView(() => _scroll);
 
-        var titles = new StackPanel { Margin = new Thickness(0, 0, 0, Ui.HeaderGap) };
-        var heading = new DockPanel();
-        _collapseAll.Requested += fold => { if (fold) CollapseAll(); else ExpandAll(); };
-        _panelTools = Ui.PanelTools("Show, hide and arrange the sections", "monitor.panels", _ => OpenPanelsMenu(), _collapseAll, out _);
-        DockPanel.SetDock(_panelTools, Dock.Right);
-        heading.Children.Add(_panelTools);
-        var title = Ui.PluginTitle(Plugins.PluginIds.HardwareMonitor, "Hardware Monitor");
-        title.HorizontalAlignment = HorizontalAlignment.Left;
-        heading.Children.Add(title);
-        titles.Children.Add(heading);
-        _body.Children.Add(titles);
-        _body.Children.Add(_sectionHost);
+        _view.Empty = new SectionDef("", "Hardware Monitor", "Every section is off. Switch them on again in Settings → Plugins.", "I.Heartbeat",
+            Hues.Tool(PluginIds.HardwareMonitor, Hues.Accent), () => new Border());
+        _view.Heading.Margin = new Thickness(0, 0, 0, Ui.HeaderGap);
+        _body.Children.Add(_view.Heading);
+        _body.Children.Add(_view.Content);
 
         _performance = new PerformanceSection(app, () => window.GoTo("settings", "settings.performance"));
-        _performanceSection = Section("performance", "Performance", "CPU, graphics card, memory, storage, network, motherboard, fans and frame rate, with the last two minutes on graphs.",
-            "I.Activity", ("SageSoft", "SageDeep"), _performance, _performance.Tools);
-        Ui.Anchor(_performanceSection, "monitor.performance");
-
         _sensors = new SensorsSection(app);
-        _sensorsSection = Section("sensors", "Sensors", "Every reading with min and max, one card per device. Arrange moves the devices up and down.",
-            "I.Cpu", ("SlateSoft", "SlateDeep"), _sensors, _sensors.Tools);
-
-        if (app.Plugins.IsActive(PluginIds.Overlay)) BuildOverlay();
-        FillSections();
-        SyncCollapseAll(animate: false);
+        _view.Add(Def("overlay", "A small, click-through panel with FPS, temperatures and load on top of your game. Nothing is injected into the game, so it's safe with anti-cheat. Make several layouts and switch between them with a keybind.",
+            () => _overlay = new OverlayPage(_app, _window, embedded: true), "monitor.overlay",
+            () => _overlay?.OnShown(), () => _overlay?.OnHidden()));
+        _view.Add(Def("performance", "CPU, graphics card, memory, storage, network, motherboard, fans and frame rate, with the last two minutes on graphs.",
+            () => _performance, "monitor.performance", _performance.OnShown, _performance.OnHidden, _performance.Tools));
+        _view.Add(Def("sensors", "Every reading with min and max, one card per device. Arrange moves the devices up and down.",
+            () => _sensors, null, _sensors.OnShown, _sensors.OnHidden, _sensors.Tools));
+        Layout(animate: false);
     }
 
-    private void BuildOverlay()
+    private bool OverlayAvailable => _app.Plugins.IsActive(PluginIds.Overlay);
+
+    private static readonly PageSection[] Parts =
     {
-        _overlay = new OverlayPage(_app, _window, embedded: true);
-        _overlaySection = Section("overlay", "Performance Overlay", "A small, click-through panel with FPS, temperatures and load on top of your game. Nothing is injected into the game, so it's safe with anti-cheat. Make several layouts and switch between them with a keybind.",
-            "I.Overlay", ("ApricotSoft", "ApricotDeep"), _overlay, null);
-        Ui.Anchor(_overlaySection, "monitor.overlay");
+        new("overlay", "Performance Overlay", "I.Overlay", ("ApricotSoft", "ApricotDeep")),
+        new("performance", "Performance", "I.Activity", ("SageSoft", "SageDeep")),
+        new("sensors", "Sensors", "I.Cpu", ("SlateSoft", "SlateDeep")),
+    };
+
+    private static List<string> OrderedFor(AppServices app)
+    {
+        var order = app.Config.Ui.MonitorSectionOrder;
+        int Rank(string id)
+        {
+            int i = order.IndexOf(id);
+            return i >= 0 ? i : order.Count + Array.IndexOf(DefaultSections, id);
+        }
+        return DefaultSections.Where(id => id != "overlay" || app.Plugins.IsActive(PluginIds.Overlay)).OrderBy(Rank).ToList();
     }
 
-    private bool OverlayOn => _app.Plugins.IsActive(PluginIds.Overlay) && !HiddenSections.Contains("overlay");
+    private static List<string> VisibleFor(AppServices app) => OrderedFor(app).Where(id => !app.Config.Ui.MonitorHiddenSections.Contains(id)).ToList();
 
-    private void SetOverlayOn(bool on)
+    internal static SectionList SectionsFor(AppServices app)
     {
-        if (_app.Plugins.Find(PluginIds.Overlay) is not { } plugin) return;
-        bool wasOn = OverlayOn;
-        HiddenSections.Remove("overlay");
-        if (!on && _overlaySection is { } section && _overlay is { } overlay)
-        {
-            if (wasOn && _shown && section.Expanded) overlay.OnHidden();
-            _overlay = null;
-            _overlaySection = null;
-        }
-        _app.Plugins.SetEnabled(plugin, on);
-        if (on && _overlaySection is null)
-        {
-            BuildOverlay();
-            if (_shown && _overlaySection!.Expanded) _overlay!.OnShown();
-        }
-        else if (on && !wasOn && _shown && _overlaySection is { Expanded: true }) _overlay!.OnShown();
-        FillSections();
-        SyncCollapseAll();
+        var visible = VisibleFor(app);
+        string? saved = app.Config.Ui.PageSections.GetValueOrDefault(PageKey);
+        return new SectionList(visible.Select(id => Parts.First(p => p.Id == id)).ToList(), saved is not null && visible.Contains(saved) ? saved : visible.FirstOrDefault());
+    }
+
+    internal static IReadOnlyList<PageSection> Switchable => Parts.Where(p => p.Id != "overlay").ToList();
+
+    internal static bool IsSectionOn(AppServices app, string id) => !app.Config.Ui.MonitorHiddenSections.Contains(id);
+
+    internal static void SetSectionOn(AppServices app, string id, bool on)
+    {
+        var hidden = app.Config.Ui.MonitorHiddenSections;
+        if (hidden.Contains(id) == !on) return;
+        hidden.Remove(id);
+        if (!on) hidden.Add(id);
+        app.Save();
+        app.Plugins.RaiseChanged();
+    }
+
+    private static SectionDef Def(string id, string subtitle, Func<UIElement> build, string? anchor, Action? shown, Action? hidden, FrameworkElement? tools = null)
+    {
+        var p = Parts.First(x => x.Id == id);
+        return new SectionDef(id, p.Title, subtitle, p.Icon, p.Colors, build, anchor, shown, hidden, tools);
     }
 
     private List<string> Order => _app.Config.Ui.MonitorSectionOrder;
+
     private List<string> HiddenSections => _app.Config.Ui.MonitorHiddenSections;
 
-    private IEnumerable<(string Id, string Title, Collapsible Section, IPage Content)> Sections()
+    private List<string> Visible() => VisibleFor(_app);
+
+    public IReadOnlyList<PageSection> Sections => Visible().Select(id => Parts.First(p => p.Id == id)).ToList();
+
+    public string? CurrentSection => _view.Current;
+
+    private void Layout(bool animate)
     {
-        var all = new List<(string, string, Collapsible, IPage)> { ("performance", "Performance", _performanceSection, _performance), ("sensors", "Sensors", _sensorsSection, _sensors) };
-        if (_overlaySection is not null && _overlay is not null) all.Add(("overlay", "Performance Overlay", _overlaySection, _overlay));
-        int Rank(string id)
-        {
-            int i = Order.IndexOf(id);
-            return i >= 0 ? i : Order.Count + Array.IndexOf(DefaultSections, id);
-        }
-        return all.OrderBy(s => Rank(s.Item1));
+        var visible = Visible();
+        string? saved = _app.Config.Ui.PageSections.GetValueOrDefault(PageKey);
+        string? want = _view.Current is { } current && visible.Contains(current) ? current
+            : saved is not null && visible.Contains(saved) ? saved
+            : visible.FirstOrDefault();
+        _view.Show(want, animate && _shown);
+        SectionsChanged?.Invoke();
     }
 
-    private IEnumerable<(string Id, string Title, Collapsible Section, IPage Content)> Visible() => Sections().Where(s => !HiddenSections.Contains(s.Id));
-
-    private void FillSections()
+    public void ShowSection(string id)
     {
-        _sectionHost.Children.Clear();
-        if (_arrange is { Editing: true } arrange)
-        {
-            arrange.Fill();
-            _sectionHost.Children.Add(arrange.Button);
-            _sectionHost.Children.Add(new TextBlock { Text = "Drag the sections into the order you want, then press Done (Esc puts them back).", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 0, 0, 8) });
-            _sectionHost.Children.Add(arrange.View);
-            return;
-        }
-        foreach (var s in Visible())
-            _sectionHost.Children.Add(s.Section);
-        if (!Visible().Any())
-            _sectionHost.Children.Add(new TextBlock { Text = "Every section is off. Switch them on again under Panels.", Style = Ui.Res<Style>("Muted") });
+        if (!Visible().Contains(id) || _view.Current == id) return;
+        _view.Show(id, _shown);
+        _app.Config.Ui.PageSections[PageKey] = id;
+        _app.Save();
+        SectionsChanged?.Invoke();
+    }
+
+    public bool ShowSectionOf(DependencyObject target)
+    {
+        if (_view.SectionOf(target) is not { } id) return false;
+        ShowSection(id);
+        return true;
+    }
+
+    public void MoveSections(IReadOnlyList<string> order)
+    {
+        var all = order.Concat(DefaultSections.Where(id => !order.Contains(id))).ToList();
+        Order.Clear();
+        Order.AddRange(all);
+        _app.Save();
+        SectionsChanged?.Invoke();
+    }
+
+    public object? HistoryState => _view.Current;
+
+    public void RestoreHistory(object? state)
+    {
+        if (state is string id) ShowSection(id);
     }
 
     public bool Reveal(string anchor)
     {
         string? id = anchor is "monitor.performance" or "monitor.network" || anchor.StartsWith("performance.", StringComparison.Ordinal) ? "performance" : null;
-        if (id is null || !HiddenSections.Contains(id)) return false;
-        SetSectionHidden(id, false);
-        return true;
+        if (id is not null && HiddenSections.Contains(id))
+        {
+            SetSectionHidden(id, false);
+            return true;
+        }
+        bool built = false;
+        foreach (var section in Visible().Where(s => !_view.Built(s)))
+        {
+            _view.Build(section);
+            built = true;
+        }
+        return built;
     }
 
     private void SetSectionHidden(string id, bool hidden)
     {
-        var s = Sections().First(x => x.Id == id);
         HiddenSections.Remove(id);
         if (hidden) HiddenSections.Add(id);
         _app.Save();
-        if (_shown && s.Section.Expanded)
-        {
-            if (hidden) s.Content.OnHidden();
-            else s.Content.OnShown();
-        }
-        FillSections();
-        SyncCollapseAll();
+        Layout(animate: true);
     }
 
-    private void OpenPanelsMenu()
-    {
-        var menu = new ContextMenu { PlacementTarget = _panelTools, Placement = PlacementMode.Bottom, MinWidth = 260 };
-        MenuItem Toggle(string label, bool on, Action<bool> set)
-        {
-            var line = new DockPanel { LastChildFill = true, MinWidth = 220 };
-            var sw = Ui.Switch(on, _ => { });
-            sw.IsHitTestVisible = false;
-            sw.Focusable = false;
-            DockPanel.SetDock(sw, Dock.Right);
-            line.Children.Add(sw);
-            line.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-            var item = new MenuItem { Header = line, StaysOpenOnClick = true };
-            item.Click += (_, _) => { on = !on; sw.IsChecked = on; set(on); };
-            return item;
-        }
-        menu.Items.Add(new MenuItem
-        {
-            IsEnabled = false,
-            Header = new TextBlock
-            {
-                Text = "A section that's off reads nothing in the background. Turning off Performance Overlay also stops the overlay and its keybinds. Settings are kept.",
-                TextWrapping = TextWrapping.Wrap, MaxWidth = 260,
-            },
-        });
-        menu.Items.Add(new Separator());
-        foreach (var s in Sections().Where(s => s.Id != "overlay").ToList())
-        {
-            var id = s.Id;
-            var item = Toggle(s.Title, !HiddenSections.Contains(id), on => SetSectionHidden(id, !on));
-            item.ToolTip = $"Off: {s.Title} stops reading sensors until it's switched on again";
-            menu.Items.Add(item);
-        }
-        if (_app.Plugins.Find(PluginIds.Overlay) is not null)
-        {
-            var overlay = Toggle("Performance Overlay", OverlayOn, on => { menu.IsOpen = false; SetOverlayOn(on); });
-            overlay.ToolTip = "Off: the Performance Overlay plugin is turned off everywhere in Goodie Bag (also under Settings → Plugins)";
-            menu.Items.Add(overlay);
-        }
-        menu.Items.Add(new Separator());
-        var arrange = new MenuItem { Header = "Arrange sections…", IsEnabled = Visible().Count() > 1 && _arrange is not { Editing: true } };
-        arrange.Click += (_, _) => StartArrange();
-        menu.Items.Add(arrange);
-        menu.IsOpen = true;
-    }
-
-    private void StartArrange()
-    {
-        _arrange = new ArrangeList(
-            () => Visible().Select(s => (s.Id, s.Title, (Func<FrameworkElement>)(() => ArrangeCard(s.Title)))).ToList(),
-            () => Sections().Select(s => s.Id).ToList(),
-            order =>
-            {
-                Order.Clear();
-                Order.AddRange(order.Concat(Sections().Select(s => s.Id).Where(id => !order.Contains(id))));
-                _app.Save();
-            }, "Arrange", "Drag the sections into a new order");
-        _arrange.EditingChanged += on =>
-        {
-            if (!on) { _arrange = null; FillSections(); }
-        };
-        _arrange.Button.Margin = new Thickness(0, 0, 0, 10);
-        _arrange.Button.HorizontalAlignment = HorizontalAlignment.Left;
-        _arrange.SetEditing(true);
-        FillSections();
-    }
-
-    private static FrameworkElement ArrangeCard(string title) => new Controls.Tile
-    {
-        Style = Ui.Res<Style>("Card"), Padding = new Thickness(16, 12, 16, 12),
-        Child = new TextBlock { Text = title, Style = Ui.Res<Style>("H2") },
-    };
-
-    private void SyncCollapseAll(bool animate = true)
-    {
-        var visible = Visible().ToList();
-        _collapseAll.SetOpen(visible.Count(s => s.Section.Expanded), Math.Max(1, visible.Count), animate);
-    }
-
-    private void ExpandAll()
-    {
-        _sensors.ExpandAll();
-        foreach (var s in Visible().ToList())
-            if (!s.Section.Expanded) s.Section.Toggle();
-    }
-
-    private List<string> Collapsed => _app.Config.Ui.MonitorCollapsed;
-
-    private void CollapseAll()
-    {
-        _sensors.CollapseAll();
-        foreach (var s in Visible().ToList())
-            if (s.Section.Expanded) s.Section.Toggle();
-    }
-
-    private Collapsible Section(string id, string title, string subtitle, string icon, (string, string) colors, IPage content, FrameworkElement? tools) =>
-        new(title, subtitle, icon, colors, !Collapsed.Contains(id), () => (UIElement)content, open =>
-        {
-            Collapsed.Remove(id);
-            if (!open) Collapsed.Add(id);
-            _app.Save();
-            SyncCollapseAll();
-            if (!_shown || HiddenSections.Contains(id)) return;
-            if (open) content.OnShown();
-            else content.OnHidden();
-        }, tools, eager: true, framed: true);
-
-    internal Collapsible Sensors => _sensorsSection;
+    internal FrameworkElement? Sensors => _view.Host("sensors");
 
     public void OnShown()
     {
         _shown = true;
-        foreach (var s in Visible())
-            if (s.Section.Expanded) s.Content.OnShown();
+        _app.Plugins.Changed -= OnPluginsChanged;
+        _app.Plugins.Changed += OnPluginsChanged;
+        Layout(animate: false);
+        _view.SetActive(true);
         Motion.Stagger(_body);
     }
 
     public void OnHidden()
     {
         _shown = false;
-        foreach (var s in Visible())
-            if (s.Section.Expanded) s.Content.OnHidden();
+        _app.Plugins.Changed -= OnPluginsChanged;
+        _view.SetActive(false);
     }
 
-    public bool CancelEdit()
+    private void OnPluginsChanged()
     {
-        if (_arrange?.Cancel() == true) return true;
-        return _sensors.CancelEdit();
+        if (!OverlayAvailable && _view.Current == "overlay") _view.Show(null, false);
+        if (!OverlayAvailable) { _view.Reset("overlay"); _overlay = null; }
+        Layout(animate: true);
     }
+
+    public bool CancelEdit() => _sensors.CancelEdit();
 
     private static Dictionary<FrameworkElement, double> Heights(DependencyObject root)
     {
@@ -298,77 +224,63 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         return "";
     }
 
+    private void Only(string id)
+    {
+        if (HiddenSections.Contains(id)) SetSectionHidden(id, false);
+        ShowSection(id);
+        _scroll.ScrollToHome();
+    }
+
     public IEnumerable<(string Name, Func<Task> Enter)> ScreenshotStates()
     {
-        if (!_performanceSection.Expanded) _performanceSection.Toggle();
+        Only("performance");
         for (int page = 2; page <= 5 && _scroll.VerticalOffset + _scroll.ViewportHeight < _scroll.ExtentHeight - 8; page++)
             yield return ($"dashboard-{page}", () =>
             {
                 _scroll.ScrollToVerticalOffset(_scroll.VerticalOffset + _scroll.ViewportHeight - 60);
                 return Task.CompletedTask;
             });
-        yield return ("sensors", () =>
-        {
-            _scroll.ScrollToHome();
-            if (_performanceSection.Expanded) _performanceSection.Toggle();
-            return Task.CompletedTask;
-        });
+        yield return ("sensors", () => { Only("sensors"); return Task.CompletedTask; });
         foreach (var state in _sensors.ScreenshotStates())
             yield return state;
-        yield return ("both-open", () =>
+        if (OverlayAvailable)
         {
-            if (!_performanceSection.Expanded) _performanceSection.Toggle();
-            return Task.CompletedTask;
-        });
-        if (_overlaySection is not null && _overlay is not null)
-        {
-            yield return ("overlay", () =>
-            {
-                if (!_overlaySection.Expanded) _overlaySection.Toggle();
-                _overlaySection.BringIntoView();
-                return Task.CompletedTask;
-            });
-            foreach (var state in _overlay.ScreenshotStates())
+            yield return ("overlay", () => { Only("overlay"); return Task.CompletedTask; });
+            foreach (var state in _overlay?.ScreenshotStates() ?? Enumerable.Empty<(string, Func<Task>)>())
                 yield return ("overlay-" + state.Name, state.Enter);
         }
-        yield return ("sections-arrange", () => { StartArrange(); _scroll.ScrollToHome(); return Task.CompletedTask; });
-        yield return ("sections-arrange-hide", () => { if (_arrange is not { Editing: true }) StartArrange(); SetSectionHidden("sensors", true); return Task.CompletedTask; });
-        yield return ("sections-arrange-show", () =>
+        yield return ("sections-reordered", () =>
         {
-            SetSectionHidden("sensors", false);
-            if (_arrange?.Button.Parent is null) throw new InvalidOperationException("The Done button went missing while arranging.");
+            MoveSections(Visible().AsEnumerable().Reverse().ToList());
+            if (Sections[0].Id != "sensors") throw new InvalidOperationException("Moving the sections didn't change their order.");
             return Task.CompletedTask;
         });
-        yield return ("sections-done", () => { _arrange?.SetEditing(false); return Task.CompletedTask; });
-        yield return ("sections-folded", () =>
+        yield return ("sections-default-order", () => { MoveSections(DefaultSections); return Task.CompletedTask; });
+        yield return ("sensors-hidden", () =>
         {
-            foreach (var x in Visible().ToList()) if (x.Section.Expanded) x.Section.Toggle();
+            SetSectionHidden("sensors", true);
+            if (Sections.Any(s => s.Id == "sensors") || _view.Current == "sensors") throw new InvalidOperationException("A section that's off is still in the sidebar.");
+            _scroll.ScrollToHome();
             return Task.CompletedTask;
         });
-        yield return ("sections-unfolded", () =>
-        {
-            foreach (var x in Visible().ToList()) if (!x.Section.Expanded) x.Section.Toggle();
-            return Task.CompletedTask;
-        });
-        yield return ("sensors-hidden", () => { SetSectionHidden("sensors", true); _scroll.ScrollToHome(); return Task.CompletedTask; });
         yield return ("sensors-shown", () => { SetSectionHidden("sensors", false); return Task.CompletedTask; });
         yield return ("reentered", async () =>
         {
-            _scroll.ScrollToHome();
-            _window.Navigate("plugins");
+            Only("performance");
+            var performance = _view.Host("performance")!;
+            _window.Navigate("settings");
             await Task.Delay(400);
-            _window.Navigate("monitor");
+            _window.Navigate(PageKey);
             await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
-            double Measured() => _performanceSection.ActualHeight + _sensorsSection.ActualHeight;
-            double first = Measured();
-            var before = Heights(_performanceSection);
+            double first = performance.ActualHeight;
+            var before = Heights(performance);
             await Task.Delay(1500);
             await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
-            if (Math.Abs(Measured() - first) > 2)
+            if (Math.Abs(performance.ActualHeight - first) > 2)
             {
-                var after = Heights(_performanceSection);
+                var after = Heights(performance);
                 var grew = before.Where(b => after.TryGetValue(b.Key, out var h) && Math.Abs(h - b.Value) > 2).Select(b => $"{Label(b.Key)} {b.Value:0}→{after[b.Key]:0}").Take(8);
-                throw new InvalidOperationException($"Hardware Monitor changed height after opening: {first:0} → {Measured():0} px; grew: {string.Join("; ", grew)}");
+                throw new InvalidOperationException($"Hardware Monitor changed height after opening: {first:0} → {performance.ActualHeight:0} px; grew: {string.Join("; ", grew)}");
             }
         });
     }

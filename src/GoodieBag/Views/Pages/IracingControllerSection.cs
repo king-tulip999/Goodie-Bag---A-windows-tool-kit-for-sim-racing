@@ -9,6 +9,7 @@ using GoodieBag.Controls;
 using GoodieBag.Services;
 using GoodieBag.SimRacing;
 using GoodieBag.SimRacing.IracingFiles;
+using GoodieBag.SimRacing.Race;
 using GoodieBag.Theme;
 
 namespace GoodieBag.Views.Pages;
@@ -33,6 +34,9 @@ internal sealed class IracingControllerSection : StackPanel
     private int _area;
     private bool _simRunning;
     private readonly HashSet<string> _searchFolded = new(StringComparer.OrdinalIgnoreCase);
+    private string[] _words = Array.Empty<string>();
+    private bool _changedOnly;
+    private const double SideNavMin = 1080;
     private Action? _draftsChanged;
 
     public IracingControllerSection(AppServices app, MainWindow window, Func<FovSetup> fov)
@@ -414,26 +418,47 @@ internal sealed class IracingControllerSection : StackPanel
     private void AllSettings()
     {
         var areas = Session!.Catalog.Areas;
-        var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
-        var tabs = top;
-        _tab.Children.Add(top);
-        var search = new TextBox { Width = 220, Text = _search, Tag = "Search every setting", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        var layout = new Grid();
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        layout.ColumnDefinitions.Add(new ColumnDefinition());
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var sideNav = new StackPanel();
+        var sideCard = new Tile { Style = Ui.Res<Style>("Card"), Width = 266, Padding = new Thickness(8, 8, 8, 4), Margin = new Thickness(0, 0, 20, 0), VerticalAlignment = VerticalAlignment.Top, Child = sideNav };
+        var topNav = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        Grid.SetRow(topNav, 0);
+        Grid.SetColumnSpan(topNav, 2);
+        Grid.SetRow(sideCard, 1);
+        var content = new StackPanel();
+        Grid.SetRow(content, 1);
+        layout.Children.Add(topNav);
+        layout.Children.Add(sideCard);
+        layout.Children.Add(content);
+        _tab.Children.Add(layout);
+        bool side = false;
+
+        var search = new TextBox { Width = 240, Text = _search, Tag = "Search names, keys and values", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        var onlyChanged = Ui.LabeledButton("I.Sliders", "Changed only", () => { });
+        onlyChanged.ToolTip = "Show only settings that differ from iRacing's default or aren't saved yet";
+        onlyChanged.Margin = new Thickness(0, 0, 8, 0);
+        Ui.SetToggled(onlyChanged, _changedOnly);
         var cards = new List<SectionCard>();
         var foldAll = new CollapseAllButton { VerticalAlignment = VerticalAlignment.Center };
         foldAll.Requested += fold => FoldAll(fold);
         _tabTools.Children.Add(search);
+        _tabTools.Children.Add(onlyChanged);
         _tabTools.Children.Add(foldAll);
         var wide = new StackPanel();
-        _tab.Children.Add(wide);
-        var results = new MasonryPanel { MinColumnWidth = 560, MaxColumns = 3 };
-        _tab.Children.Add(results);
+        content.Children.Add(wide);
+        var results = new MasonryPanel { MinColumnWidth = 520, MaxColumns = 3 };
+        content.Children.Add(results);
 
         IEnumerable<Setting> Listed(SectionInfo sec) => Session.In(sec).Where(s => !s.IsHidden);
-        bool Searching() => _search.Length > 0;
-        bool IsFolded(string key) => Searching() ? _searchFolded.Contains(key) : S.IsCollapsed(key);
+        bool Global() => _search.Length > 0 || _changedOnly;
+        bool IsFolded(string key) => Global() ? _searchFolded.Contains(key) : S.IsCollapsed(key);
         void SetFolded(string key, bool folded)
         {
-            if (Searching())
+            if (Global())
             {
                 if (folded) _searchFolded.Add(key); else _searchFolded.Remove(key);
                 return;
@@ -457,22 +482,57 @@ internal sealed class IracingControllerSection : StackPanel
 
         void FillTabs()
         {
-            tabs.Children.Clear();
+            Panel tabs = side ? sideNav : topNav;
+            sideNav.Children.Clear();
+            topNav.Children.Clear();
+            sideCard.Visibility = side ? Visibility.Visible : Visibility.Collapsed;
+            topNav.Visibility = side ? Visibility.Collapsed : Visibility.Visible;
             for (int i = 0; i < areas.Count; i++)
             {
                 int index = i;
-                int changed = Session.Sections.Where(sec => sec.AreaIndex == i && Shown(sec)).SelectMany(Listed).Count(x => x.IsChanged);
-                bool selected = _search.Length == 0 && i == _area;
+                var listed = Session.Sections.Where(sec => sec.AreaIndex == i && Shown(sec)).SelectMany(Listed).ToList();
+                int modified = listed.Count(x => x.IsModified);
+                int unsaved = listed.Count(x => x.IsChanged);
+                bool selected = !Global() && i == _area;
                 var look = AreaLook(areas[i].Title, i);
-                var glyph = new Icon { Data = Ui.Res<Geometry>(look.Icon), Width = 13, Height = 13, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+                var glyph = new Icon { Data = Ui.Res<Geometry>(look.Icon), Width = 14, Height = 14, Margin = new Thickness(0, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center };
                 glyph.SetResourceReference(Control.ForegroundProperty, look.Hue.Deep);
-                var content = new StackPanel { Orientation = Orientation.Horizontal };
-                content.Children.Add(glyph);
-                content.Children.Add(new TextBlock { Text = areas[i].Title + (changed > 0 ? $" · {changed}" : ""), VerticalAlignment = VerticalAlignment.Center });
+                var row = new DockPanel { LastChildFill = true };
+                DockPanel.SetDock(glyph, Dock.Left);
+                row.Children.Add(glyph);
+                var counts = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+                if (unsaved > 0)
+                {
+                    var u = Ui.Chip(unsaved.ToString(CultureInfo.InvariantCulture), "AccentSoft", "AccentText");
+                    u.Padding = new Thickness(5, 0, 5, 0);
+                    u.ToolTip = RaceFormat.Count(unsaved, "unsaved change");
+                    counts.Children.Add(u);
+                }
+                if (modified > 0)
+                {
+                    var m = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = RaceFormat.Count(modified, "setting") + " changed from iRacing's default" };
+                    var mdot = Ui.ChangedDot();
+                    mdot.Margin = new Thickness(0, 0, 5, 0);
+                    mdot.VerticalAlignment = VerticalAlignment.Center;
+                    m.Children.Add(mdot);
+                    m.Children.Add(new TextBlock { Text = modified.ToString(CultureInfo.InvariantCulture), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center });
+                    counts.Children.Add(m);
+                }
+                DockPanel.SetDock(counts, Dock.Right);
+                row.Children.Add(counts);
+                row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = areas[i].Title, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }));
                 var b = new Button
                 {
-                    Content = content, Style = Ui.Res<Style>(selected ? "SelectedButton" : "GhostButton"), Margin = new Thickness(0, 0, 6, 6),
+                    Content = row, Style = Ui.Res<Style>(selected ? "SelectedButton" : side ? "QuietButton" : "GhostButton"),
+                    Margin = side ? new Thickness(0, 0, 0, 4) : new Thickness(0, 0, 6, 6),
+                    HorizontalAlignment = side ? HorizontalAlignment.Stretch : HorizontalAlignment.Left,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 };
+                if (side)
+                {
+                    b.Height = 38;
+                    b.Padding = new Thickness(12, 0, 10, 0);
+                }
                 if (selected)
                 {
                     b.SetResourceReference(Control.BackgroundProperty, look.Hue.Soft);
@@ -480,7 +540,16 @@ internal sealed class IracingControllerSection : StackPanel
                     b.SetResourceReference(Control.ForegroundProperty, look.Hue.Deep);
                 }
                 AutomationProperties.SetName(b, areas[i].Title);
-                b.Click += (_, _) => { _area = index; _search = ""; search.Text = ""; FillTabs(); Fill(); };
+                b.Click += (_, _) =>
+                {
+                    _area = index;
+                    _search = "";
+                    _changedOnly = false;
+                    Ui.SetToggled(onlyChanged, false);
+                    search.Text = "";
+                    FillTabs();
+                    Fill();
+                };
                 tabs.Children.Add(b);
             }
         }
@@ -491,16 +560,23 @@ internal sealed class IracingControllerSection : StackPanel
             results.Children.Clear();
             cards.Clear();
             var words = _search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            _words = words;
+            bool Hit(Setting s, string w) =>
+                s.Def.Label.Contains(w, StringComparison.OrdinalIgnoreCase) || s.Key.Contains(w, StringComparison.OrdinalIgnoreCase)
+                || s.Def.Help.Contains(w, StringComparison.OrdinalIgnoreCase) || s.SectionInfo.Name.Contains(w, StringComparison.OrdinalIgnoreCase)
+                || s.Draft.Contains(w, StringComparison.OrdinalIgnoreCase) || s.Show(s.Draft).Contains(w, StringComparison.OrdinalIgnoreCase);
             var matches = Session.Sections
-                .Where(sec => Shown(sec) && (words.Length > 0 || sec.AreaIndex == _area))
+                .Where(sec => Shown(sec) && (Global() || sec.AreaIndex == _area))
                 .SelectMany(Listed)
-                .Where(s => words.All(w =>
-                    s.Def.Label.Contains(w, StringComparison.OrdinalIgnoreCase) || s.Key.Contains(w, StringComparison.OrdinalIgnoreCase)
-                    || s.Def.Help.Contains(w, StringComparison.OrdinalIgnoreCase) || s.SectionInfo.Name.Contains(w, StringComparison.OrdinalIgnoreCase)))
+                .Where(s => (!_changedOnly || s.IsModified || s.IsChanged) && words.All(w => Hit(s, w)))
                 .ToList();
             if (matches.Count == 0)
             {
-                results.Children.Add(new TextBlock { Text = words.Length > 0 ? "No settings match." : "None of this area's settings are in your files.", Style = Ui.Res<Style>("Muted"), Margin = new Thickness(2, 6, 0, 0) });
+                results.Children.Add(new TextBlock
+                {
+                    Text = words.Length > 0 ? "No settings match." : _changedOnly ? "Everything is at iRacing's default." : "None of this area's settings are in your files.",
+                    Style = Ui.Res<Style>("Muted"), Margin = new Thickness(2, 6, 0, 0),
+                });
                 UpdateFoldAll();
                 return;
             }
@@ -510,7 +586,7 @@ internal sealed class IracingControllerSection : StackPanel
                 var settings = group.ToList();
                 string key = SectionKey(group.Key);
                 bool span = settings.Count >= WideMinRows && key == WideSection;
-                var card = new SectionCard(this, group.Key, key, settings, words.Length > 0, span, !IsFolded(key), expanded =>
+                var card = new SectionCard(this, group.Key, key, settings, Global(), span, !IsFolded(key), expanded =>
                 {
                     SetFolded(key, !expanded);
                     UpdateFoldAll();
@@ -528,13 +604,37 @@ internal sealed class IracingControllerSection : StackPanel
             UpdateFoldAll();
         }
 
-        _draftsChanged = () => { foreach (var card in cards) card.UpdateSummary(); };
+        _draftsChanged = () =>
+        {
+            foreach (var card in cards) card.UpdateSummary();
+            FillTabs();
+        };
 
+        void Place()
+        {
+            bool now = layout.ActualWidth >= SideNavMin;
+            if (now == side && (sideNav.Children.Count + topNav.Children.Count) > 0) return;
+            side = now;
+            Grid.SetColumn(content, side ? 1 : 0);
+            Grid.SetColumnSpan(content, side ? 1 : 2);
+            FillTabs();
+        }
+        layout.SizeChanged += (_, _) => Place();
+        Sticky.Install(sideCard, layout, () => side, gap: 14);
+
+        onlyChanged.Click += (_, _) =>
+        {
+            _changedOnly = !_changedOnly;
+            Ui.SetToggled(onlyChanged, _changedOnly);
+            _searchFolded.Clear();
+            FillTabs();
+            Fill();
+        };
         var debounce = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         debounce.Tick += (_, _) =>
         {
             debounce.Stop();
-            if (Session is null || top.Parent != _tab) return;
+            if (Session is null || layout.Parent != _tab) return;
             FillTabs();
             Fill();
         };
@@ -568,6 +668,7 @@ internal sealed class IracingControllerSection : StackPanel
     {
         private readonly IracingControllerSection _owner;
         private readonly List<Setting> _settings;
+        private readonly bool _grouped;
         private readonly bool _searching;
         private readonly bool _span;
         private readonly SectionInfo _section;
@@ -577,19 +678,21 @@ internal sealed class IracingControllerSection : StackPanel
         private readonly Border _body = new();
         private readonly Button _header;
         private readonly TextBlock _fileLine;
+        private readonly TextBlock? _note;
 
         public SectionCard(IracingControllerSection owner, SectionInfo section, string key, List<Setting> settings, bool searching, bool span, bool expanded, Action<bool> toggled)
         {
             _owner = owner;
             _section = section;
             Key = key;
-            _settings = settings;
+            _settings = Ordered(settings);
+            _grouped = _settings.Select(x => x.Def.Group ?? "").Distinct().Count() > 1;
             _searching = searching;
             _span = span;
             _toggled = toggled;
             Style = Ui.Res<Style>("Card");
             Padding = new Thickness(0);
-            _body.Margin = new Thickness(18, 0, 18, 18);
+            _body.Margin = new Thickness(12, 0, 12, 14);
 
             var head = new Grid();
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -629,6 +732,11 @@ internal sealed class IracingControllerSection : StackPanel
             var headStack = new StackPanel();
             headStack.Children.Add(head);
             headStack.Children.Add(_fileLine);
+            if (section.Note is { } note)
+            {
+                _note = new TextBlock { Text = note, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+                headStack.Children.Add(_note);
+            }
             _header = new Button
             {
                 Style = Ui.Res<Style>("QuietButton"), Content = headStack,
@@ -660,15 +768,18 @@ internal sealed class IracingControllerSection : StackPanel
             _chevron.Data = Ui.Res<Geometry>(expanded ? "I.ChevronDown" : "I.ChevronRight");
             _header.ToolTip = expanded ? "Fold this section" : "Show this section's settings";
             _fileLine.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            if (_note is not null) _note.Visibility = _fileLine.Visibility;
             if (expanded && _body.Child is null) _body.Child = BuildBody();
             _body.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public void UpdateSummary()
         {
-            int changed = _settings.Count(s => s.IsChanged);
-            _summary.Text = $"{_settings.Count} setting{(_settings.Count == 1 ? "" : "s")}" + (changed > 0 ? $" · {changed} changed" : "");
-            _summary.SetResourceReference(TextBlock.ForegroundProperty, changed > 0 ? "AccentText" : "TextMuted");
+            int modified = _settings.Count(s => s.IsModified);
+            int unsaved = _settings.Count(s => s.IsChanged);
+            _summary.Text = RaceFormat.Count(_settings.Count, "setting") + (modified > 0 ? $" · {modified} changed" : "") + (unsaved > 0 ? $" · {unsaved} unsaved" : "");
+            _summary.ToolTip = modified > 0 ? "Changed = differs from iRacing's default" : null;
+            _summary.SetResourceReference(TextBlock.ForegroundProperty, modified + unsaved > 0 ? "AccentText" : "TextMuted");
         }
 
         private StackPanel BuildBody()
@@ -677,10 +788,21 @@ internal sealed class IracingControllerSection : StackPanel
             Panel list = _span ? new SplitRows { MinColumnWidth = 480, Gap = 32 } : new StackPanel();
             body.Children.Add(list);
             int next = 0;
+            string? lastGroup = null;
             void Add(int count)
             {
                 for (int end = Math.Min(_settings.Count, next + count); next < end; next++)
+                {
+                    string group = _settings[next].Def.Group ?? "";
+                    if (_grouped && group != lastGroup)
+                    {
+                        var head = new TextBlock { Text = group.Length > 0 ? group : "Other", Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(12, lastGroup is null ? 2 : 16, 0, 6) };
+                        head.SetResourceReference(TextBlock.ForegroundProperty, "EyebrowText");
+                        list.Children.Add(head);
+                        lastGroup = group;
+                    }
                     list.Children.Add(_owner.SettingRow(_settings[next]));
+                }
             }
             void More()
             {
@@ -694,6 +816,24 @@ internal sealed class IracingControllerSection : StackPanel
         }
 
         private const int RowsPerBatch = 24;
+
+        private static List<Setting> Ordered(List<Setting> settings)
+        {
+            var groups = new Dictionary<string, int>();
+            foreach (var x in settings) groups.TryAdd(x.Def.Group ?? "", groups.Count);
+            var numbered = settings.GroupBy(x => x.Def.Group ?? "").Where(g => g.Count() > 1 && g.All(x => Numbered(x.Key).Prefix is { } p && p == Numbered(g.First().Key).Prefix)).Select(g => g.Key).ToHashSet();
+            return settings.Select((x, i) => (x, i))
+                .OrderBy(t => groups[t.x.Def.Group ?? ""])
+                .ThenBy(t => numbered.Contains(t.x.Def.Group ?? "") ? Numbered(t.x.Key).Number : t.i)
+                .Select(t => t.x).ToList();
+        }
+
+        private static (string? Prefix, int Number) Numbered(string key)
+        {
+            int at = key.Length;
+            while (at > 0 && char.IsAsciiDigit(key[at - 1])) at--;
+            return at > 0 && at < key.Length && int.TryParse(key.AsSpan(at), NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? (key[..at], n) : (null, 0);
+        }
     }
 
     public void CollapseAll()
@@ -784,25 +924,39 @@ internal sealed class IracingControllerSection : StackPanel
 
     private Border SettingRow(Setting s)
     {
-        var host = new Border { BorderBrush = Ui.Res<Brush>("Line"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 10, 0, 10) };
+        var host = new Border { BorderBrush = Ui.Res<Brush>("Line"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(12, 8, 10, 8) };
+        Ui.HoverHighlight(host);
         void Fill()
         {
+            var words = _words;
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition());
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
+            var text = new StackPanel { Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
             var title = new WrapPanel();
-            title.Children.Add(new TextBlock { Text = s.Def.Label, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+            var label = new TextBlock { FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "Heading");
+            Ui.Highlight(label, s.Def.Label, words);
+            title.Children.Add(label);
             if (s.IsChanged)
             {
-                var chip = Ui.Chip("changed", "AccentSoft", "AccentText");
+                var chip = Ui.Chip("Unsaved", "AccentSoft", "AccentText");
                 chip.Margin = new Thickness(8, 0, 0, 0);
                 chip.Padding = new Thickness(6, 0, 6, 0);
                 chip.VerticalAlignment = VerticalAlignment.Center;
+                chip.ToolTip = "Not written to the file yet: " + s.Show(s.Applied) + " there now";
                 title.Children.Add(chip);
             }
-            text.Children.Add(title);
-            text.Children.Add(new TextBlock { Text = s.Def.Help, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+            var std = Session!.DefaultOf(s);
+            text.Children.Add(Ui.Marked(title, out var dot));
+            dot.Visibility = s.IsModified ? Visibility.Visible : Visibility.Collapsed;
+            if (dot is FrameworkElement d) d.ToolTip = std is null ? null : "Changed from iRacing's default (" + s.Show(std) + ")";
+            if (s.Def.Help.Length > 0)
+            {
+                var help = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+                Ui.Highlight(help, s.Def.Help, words);
+                text.Children.Add(help);
+            }
             void Note(string? note, string brush, string? icon = null)
             {
                 if (string.IsNullOrWhiteSpace(note)) return;
@@ -814,21 +968,30 @@ internal sealed class IracingControllerSection : StackPanel
             Note(s.Def.Danger, "Danger", "I.Alert");
             Note(s.IsChanged ? s.Def.Caution : null, "Warn");
             Note(s.IsInert ? s.Def.DependsOn?.Message : null, "TextFaint");
-            var meta = new List<string>();
-            if (Session!.DefaultOf(s) is { } std) meta.Add("default " + s.Show(std));
-            if (s.IsChanged) meta.Add("in the file now: " + s.Show(s.Applied));
-            var keyLine = new WrapPanel { Margin = new Thickness(0, 3, 0, 0) };
-            keyLine.Children.Add(TextCase.Verbatim(new TextBlock { Text = $"[{s.Section}] {s.Key}", Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>("TextFaint") }));
-            if (meta.Count > 0)
-                keyLine.Children.Add(new TextBlock { Text = " · " + string.Join(" · ", meta), Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>("TextFaint"), TextWrapping = TextWrapping.Wrap });
-            text.Children.Add(keyLine);
+            if (words.Length > 0 && words.Any(w => s.Key.Contains(w, StringComparison.OrdinalIgnoreCase)))
+            {
+                var key = new TextBlock { Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<Brush>("TextFaint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) };
+                Ui.Highlight(key, $"[{s.Section}] {s.Key}", words);
+                text.Children.Add(key);
+            }
+            var details = $"{s.FileName}  [{s.Section}]  {s.Key}";
+            if (std is not null) details += "\nDefault: " + s.Show(std);
+            if (s.IsChanged) details += "\nIn the file now: " + s.Show(s.Applied);
+            text.ToolTip = details;
+            ToolTipService.SetInitialShowDelay(text, 700);
             grid.Children.Add(text);
 
             var control = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (s.IsModified && std is not null)
+            {
+                var reset = Ui.IconButton("I.Undo", "Back to iRacing's default (" + s.Show(std) + ")", () => { Session.SetDraft(s, std); Fill(); UpdatePending(); });
+                reset.Margin = new Thickness(0, 0, 6, 0);
+                control.Children.Add(reset);
+            }
             control.Children.Add(Editor(s, Fill));
             if (s.IsChanged)
             {
-                var undo = Ui.IconButton("I.Undo", "Keep the value in the file", () => { Session.Discard(s); Fill(); UpdatePending(); });
+                var undo = Ui.IconButton("I.X", "Drop this change (keep " + s.Show(s.Applied) + ")", () => { Session.Discard(s); Fill(); UpdatePending(); });
                 undo.Margin = new Thickness(6, 0, 0, 0);
                 control.Children.Add(undo);
             }
@@ -882,8 +1045,8 @@ internal sealed class IracingControllerSection : StackPanel
             case "num" or "range" or "enum":
             {
                 CommentInference.TryNumber(s.Draft, out var n);
-                int dot = s.Draft.IndexOf('.');
-                int decimals = dot < 0 ? 0 : Math.Min(4, s.Draft.Length - dot - 1);
+                static int Places(string v) => v.IndexOf('.') is var at and >= 0 ? v.Length - at - 1 : 0;
+                int decimals = Math.Min(4, Math.Max(Math.Max(Places(Setting.Format(n)), s.Def.Step is { } st ? Places(Setting.Format(st)) : 0), s.Draft.Contains('.') ? 2 : 0));
                 var box = new NumberBox(n, s.Def.Unit ?? "")
                 {
                     Minimum = s.Def.Min ?? -1e9, Maximum = s.Def.Max ?? 1e9, Decimals = decimals,
@@ -895,7 +1058,8 @@ internal sealed class IracingControllerSection : StackPanel
             }
             default:
             {
-                var box = new TextBox { Text = s.Draft, Width = 220 };
+                var box = new TextBox { Text = s.Draft, Width = 260 };
+                box.SetResourceReference(Control.FontFamilyProperty, "MonoFont");
                 box.LostKeyboardFocus += (_, _) => { if (box.Text != s.Draft) Set(box.Text); };
                 return box;
             }
@@ -1230,6 +1394,7 @@ internal sealed class IracingControllerSection : StackPanel
             yield return (Tabs[i].Replace(' ', '-').ToLowerInvariant(), () => { _tabIndex = tab; Build(); return Task.CompletedTask; });
         }
         yield return ("search", () => { _tabIndex = 0; _search = "fps"; Build(); return Task.CompletedTask; });
-        yield return ("back-to-start", () => { _tabIndex = 0; _search = ""; Build(); return Task.CompletedTask; });
+        yield return ("changed-only", () => { _tabIndex = 0; _search = ""; _changedOnly = true; Build(); return Task.CompletedTask; });
+        yield return ("back-to-start", () => { _tabIndex = 0; _search = ""; _changedOnly = false; Build(); return Task.CompletedTask; });
     }
 }

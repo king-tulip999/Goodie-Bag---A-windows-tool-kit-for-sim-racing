@@ -577,7 +577,6 @@
                             <Setter TargetName="Track" Property="Background" Value="{DynamicResource SwitchOn}" />
                             <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource SwitchOnBorder}" />
                             <Setter TargetName="Knob" Property="Background" Value="{DynamicResource SwitchOnKnob}" />
-                            <Setter TargetName="Track" Property="Effect" Value="{DynamicResource AccentGlow}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />

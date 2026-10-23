@@ -111,7 +111,7 @@ internal sealed class DisplayProfilesView : Tile
             var changes = _app.DisplayProfiles.Preview(profile);
             if (changes.Count > 0)
             {
-                stack.Children.Add(new TextBlock { Text = "APPLYING IT WILL", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 8, 0, 4) });
+                stack.Children.Add(new TextBlock { Text = "Applying it will", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 8, 0, 4) });
                 foreach (var change in changes.Take(4))
                     stack.Children.Add(Ui.ChangeLine(change.Text, change.Area));
                 if (changes.Count > 4)
@@ -198,7 +198,7 @@ internal sealed class DisplayProfilesView : Tile
 
 internal sealed class DisplayProfileEditor
 {
-    private const double LabelWidth = 200;
+    private const double LabelWidth = 170;
     private readonly AppServices _app;
     private readonly DisplayProfile _profile;
     private readonly TextBox _name = new() { MaxLength = Ui.NameLength };
@@ -210,7 +210,7 @@ internal sealed class DisplayProfileEditor
     private HdrMode _hdr;
     private TaskbarMode _taskbar;
     private int? _volume;
-    private readonly ComboBox _playback = new() { MinWidth = 420 }, _recording = new() { MinWidth = 420 };
+    private readonly ComboBox _playback = new(), _recording = new();
     private readonly CheckBox _comms = new() { Content = "Also use them for calls (Discord, Teams…)" };
 
     public Border Card { get; }
@@ -234,27 +234,26 @@ internal sealed class DisplayProfileEditor
         string[] layoutOptions = isNew ? new[] { "Save this layout", "", "Don't change displays" } : new[] { "Keep saved layout", "Use current layout", "Don't change displays" };
         var options = layoutOptions.Select((t, i) => (t, i)).Where(x => x.t.Length > 0).ToList();
         stack.Children.Add(Ui.FieldRow("Layout", Ui.Segmented(options.Select(o => o.t).ToList(), Math.Max(0, options.FindIndex(o => o.i == _layoutChoice)),
-            i => _layoutChoice = options[i].i, "layout"), LabelWidth));
-        stack.Children.Add(new TextBlock { Text = "Which monitors are on, their arrangement, resolution, refresh rate, orientation and the main display.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(LabelWidth, 0, 0, 6) });
+            i => _layoutChoice = options[i].i, "layout"), LabelWidth,
+            "Which monitors are on, their arrangement, resolution, refresh rate, orientation and the main display."));
         stack.Children.Add(Ui.FieldRow("HDR", Ui.Segmented(new[] { "Leave as is", "On", "Off" }, (int)_hdr, i => _hdr = (HdrMode)i, "hdr",
             new[] { "Don't change HDR when this profile is applied", "Turn HDR on (on displays that support it)", "Turn HDR off" }), LabelWidth));
         stack.Children.Add(Ui.FieldRow("Taskbar", Ui.Segmented(new[] { "Leave as is", "Every display", "Main display only" }, (int)_taskbar, i => _taskbar = (TaskbarMode)i, "taskbar",
             new[] { "Don't change the taskbar", "Show the taskbar on every display", "Show the taskbar only on the main display (e.g. keeps it off side screens in a triple setup)" }), LabelWidth));
 
         stack.Children.Add(Ui.EditorSection("Audio"));
-        stack.Children.Add(new TextBlock { Text = "The devices to switch to with this profile, e.g. headphones at the desk and the rig's speakers on the triples. Saving the current setup fills these in.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
+        stack.Children.Add(Ui.FieldHint("The devices to switch to, e.g. headphones at the desk and the rig's speakers on the triples. Saving the current setup fills these in.", 0));
         _volume = profile.Volume;
         AudioPicker.Fill(app, _playback, EDataFlow.Render, profile.Audio?.PlaybackId, profile.Audio?.PlaybackName);
         AudioPicker.Fill(app, _recording, EDataFlow.Capture, profile.Audio?.RecordingId, profile.Audio?.RecordingName);
         stack.Children.Add(Ui.FieldRow("Speakers / headset", _playback, LabelWidth));
         stack.Children.Add(Ui.FieldRow("Microphone", _recording, LabelWidth));
         _comms.IsChecked = profile.Audio?.SetCommunications ?? true;
-        _comms.Margin = new Thickness(LabelWidth, 4, 0, 4);
-        stack.Children.Add(_comms);
+        stack.Children.Add(Ui.FieldRow("", _comms, LabelWidth));
         stack.Children.Add(Ui.FieldRow("Volume", AudioPicker.Volume(_volume, v => _volume = v), LabelWidth));
 
         stack.Children.Add(Ui.EditorSection("Wallpapers"));
-        stack.Children.Add(new TextBlock { Text = "One per monitor (leave empty to keep whatever it has). Saving the current setup fills these in.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
+        stack.Children.Add(Ui.FieldHint("One per monitor; empty keeps whatever it has. Saving the current setup fills these in.", 0));
         foreach (var (key, name) in WallpaperMonitors())
         {
             var box = new TextBox { Tag = "Keep its wallpaper", Text = profile.Wallpapers.FirstOrDefault(w => string.Equals(w.Key, key, StringComparison.OrdinalIgnoreCase)).Value ?? "" };

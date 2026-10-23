@@ -365,7 +365,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             "The most specific matching rule wins, then the higher one; with none, the layout above shows.",
             actions, rules));
 
-        _widgets = new RaceHudWidgets(_app, this, sidebar: true, inPage: true);
+        _widgets = new RaceHudWidgets(_app, this, inPage: true);
         root.Children.Add(_widgets.Root);
         return root;
     }
@@ -615,13 +615,19 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             Ui.SettingRow("Click-through", "Clicks go to the game. Off: click a driver in the Relative or Standings to highlight them in both (the window never takes the keyboard).",
                 Ui.Switch(!S.Interactive, on => { S.Interactive = !on; changed(); }))));
         root.Children.Add(new KeybindTree(app, e => e.Id.StartsWith("hud.", StringComparison.Ordinal), skip: 1) { Margin = new Thickness(0, 0, 0, 12) });
+        var stdLook = new HudAppearance();
+        Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); changed(); rebuild(); }, shown);
         root.Children.Add(Group("Look", "The overlay keeps its own colors whatever the app's theme; flags keep their real colors.",
             Ui.SettingRow("Colors", null, colors),
             custom,
-            Ui.SettingRow("Background", null, Ui.SliderWithValue(0, 100, a.Background, "{0:0}%", v => { a.Background = (int)v; changed(); })),
-            Ui.SettingRow("Corners", null, Ui.SliderWithValue(0, 16, a.Corner, "{0:0}", v => { a.Corner = (int)v; changed(); })),
-            Ui.SettingRow("Outline", null, Ui.Switch(a.Outline, on => { a.Outline = on; changed(); })),
-            Ui.SettingRow("Units", null, Ui.Segmented(new[] { "Metric", "Imperial" }, (int)S.Units, i => { S.Units = (HudUnits)i; changed(); }, "hudunits"))));
+            Ui.SettingRow("Background", null, Ui.SliderWithValue(0, 100, a.Background, "{0:0}%", v => { a.Background = (int)v; changed(); }),
+                D(() => a.Background == stdLook.Background, () => a.Background = stdLook.Background, stdLook.Background + "%")),
+            Ui.SettingRow("Corners", null, Ui.SliderWithValue(0, 16, a.Corner, "{0:0} px", v => { a.Corner = (int)v; changed(); }),
+                D(() => a.Corner == stdLook.Corner, () => a.Corner = stdLook.Corner, stdLook.Corner + " px")),
+            Ui.SettingRow("Outline", null, Ui.Switch(a.Outline, on => { a.Outline = on; changed(); }),
+                D(() => a.Outline == stdLook.Outline, () => a.Outline = stdLook.Outline, stdLook.Outline ? "On" : "Off")),
+            Ui.SettingRow("Units", null, Ui.Segmented(new[] { "Metric", "Imperial" }, (int)S.Units, i => { S.Units = (HudUnits)i; changed(); }, "hudunits"),
+                D(() => S.Units == HudUnits.Metric, () => S.Units = HudUnits.Metric, "Metric"))));
         var grid = Ui.SliderWithValue(2, 64, S.GridSize, "{0:0} px", v =>
         {
             S.GridSize = (int)v;
@@ -827,16 +833,33 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             b.ValueChanged += v => { set(v); Changed(); RefreshFormulas(); };
             return b;
         }
+        var std = new HudFuelSettings();
+        Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); Changed(); Build(); }, shown);
         root.Children.Add(Group("Fuel & strategy", null,
-            Ui.SettingRow("Laps measured", "Fuel per lap comes from this many recent clean laps under green; newer laps count more and a lap far from the rest is left out.", Box(fuel.Window, "laps", 1, 30, 1, 0, v => fuel.Window = (int)v)),
-            Ui.SettingRow("Safety reserve", "Extra fuel for how much your laps vary, how sure the average is and how fuel use drifts over a stint (at least 1 / 1.5 / 2% of the fuel to the flag): Aggressive ≈ enough 9 times in 10, Balanced ≈ 19 in 20, Conservative ≈ 99 in 100. A model, not a guarantee; it needs 2 clean laps.",
-                Ui.Segmented(new[] { "Aggressive", "Balanced", "Conservative" }, (int)fuel.Safety, i => { fuel.Safety = (FuelSafety)i; Changed(); RefreshFormulas(); }, "fuelsafety")),
-            Ui.SettingRow("Margin at the flag", "Your own fuel kept in hand on top of the safety reserve, in laps.", Box(fuel.MarginLaps, "laps", 0, 10, 0.1, 1, v => fuel.MarginLaps = v)),
-            Ui.SettingRow("Fixed reserve", "Liters kept on top of everything else (added to your margin).", Box(fuel.ReserveLiters, "L", 0, 50, 0.1, 1, v => fuel.ReserveLiters = v)),
-            Ui.SettingRow("Extra consumption", "This share of the expected fuel to the flag is added, for a pace or style that uses more than your clean laps did.", Box(fuel.ExtraPercent, "%", 0, 25, 0.5, 1, v => fuel.ExtraPercent = v)),
-            Ui.SettingRow("Extra distance", "Distance on top of the race (a long pit lane, the lap after the flag), turned into laps of this track.", Box(fuel.ExtraKm, "km", 0, 50, 0.1, 1, v => fuel.ExtraKm = v)),
-            Ui.SettingRow("A pit stop costs", "Lane plus standing time, for strategy notes.", Box(fuel.PitLaneLossSeconds, "s", 0, 300, 1, 0, v => fuel.PitLaneLossSeconds = v)),
-            Ui.SettingRow("Longest stint", "The Stint time alert warns before it (0 = no limit).", Box(fuel.MaxStintMinutes, "min", 0, 600, 5, 0, v => fuel.MaxStintMinutes = v))));
+            Ui.SettingRow("Laps measured", "Recent clean green-flag laps used for fuel per lap.", Box(fuel.Window, "laps", 1, 30, 1, 0, v => fuel.Window = (int)v),
+                D(() => fuel.Window == std.Window, () => fuel.Window = std.Window, RaceFormat.Count(std.Window, "lap")),
+                "Fuel per lap comes from this many recent clean laps under green; newer laps count more and a lap far from the rest is left out."),
+            Ui.SettingRow("Safety reserve", "Extra fuel for lap-to-lap variation.",
+                Ui.Segmented(new[] { "Aggressive", "Balanced", "Conservative" }, (int)fuel.Safety, i => { fuel.Safety = (FuelSafety)i; Changed(); RefreshFormulas(); }, "fuelsafety"),
+                D(() => fuel.Safety == std.Safety, () => fuel.Safety = std.Safety, std.Safety.ToString()),
+                "Extra fuel for how much your laps vary, how sure the average is and how fuel use drifts over a stint (at least 1 / 1.5 / 2% of the fuel to the flag): Aggressive ≈ enough 9 times in 10, Balanced ≈ 19 in 20, Conservative ≈ 99 in 100. A model, not a guarantee; it needs 2 clean laps."),
+            Ui.SettingRow("Margin at the flag", "Your own fuel on top of the reserve.", Box(fuel.MarginLaps, "laps", 0, 10, 0.1, 1, v => fuel.MarginLaps = v),
+                D(() => fuel.MarginLaps == std.MarginLaps, () => fuel.MarginLaps = std.MarginLaps, $"{std.MarginLaps:0.0} laps")),
+            Ui.SettingRow("Fixed reserve", "Kept on top of everything else.", Box(fuel.ReserveLiters, "L", 0, 50, 0.1, 1, v => fuel.ReserveLiters = v),
+                D(() => fuel.ReserveLiters == std.ReserveLiters, () => fuel.ReserveLiters = std.ReserveLiters, "0 L"),
+                "Liters kept on top of everything else (added to your margin)."),
+            Ui.SettingRow("Extra consumption", "For a pace that uses more than your clean laps.", Box(fuel.ExtraPercent, "%", 0, 25, 0.5, 1, v => fuel.ExtraPercent = v),
+                D(() => fuel.ExtraPercent == std.ExtraPercent, () => fuel.ExtraPercent = std.ExtraPercent, "0%"),
+                "This share of the expected fuel to the flag is added, for a pace or style that uses more than your clean laps did."),
+            Ui.SettingRow("Extra distance", "A long pit lane, the lap after the flag.", Box(fuel.ExtraKm, "km", 0, 50, 0.1, 1, v => fuel.ExtraKm = v),
+                D(() => fuel.ExtraKm == std.ExtraKm, () => fuel.ExtraKm = std.ExtraKm, "0 km"),
+                "Distance on top of the race (a long pit lane, the lap after the flag), turned into laps of this track."),
+            Ui.SettingRow("A pit stop costs", "Lane plus standing time.", Box(fuel.PitLaneLossSeconds, "s", 0, 300, 1, 0, v => fuel.PitLaneLossSeconds = v),
+                D(() => fuel.PitLaneLossSeconds == std.PitLaneLossSeconds, () => fuel.PitLaneLossSeconds = std.PitLaneLossSeconds, $"{std.PitLaneLossSeconds:0} s"),
+                "Lane plus standing time, used for strategy notes."),
+            Ui.SettingRow("Longest stint", "0 = no limit.", Box(fuel.MaxStintMinutes, "min", 0, 600, 5, 0, v => fuel.MaxStintMinutes = v),
+                D(() => fuel.MaxStintMinutes == std.MaxStintMinutes, () => fuel.MaxStintMinutes = std.MaxStintMinutes, "no limit"),
+                "The Stint time alert warns before it (0 = no limit).")));
 
         _formulas = new StackPanel();
         _formulaNote = Caption("", 0);
@@ -946,11 +969,18 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             await Task.Delay(300);
         });
         yield return ("hud-every-widget", () => { _widgets?.DrawEveryKind(); _widgets?.Select("fuel"); return Task.CompletedTask; });
+        yield return ("hud-standings-click-class-heading", () => { _widgets?.Reveal("standings", "classInfo"); return Task.CompletedTask; });
+        yield return ("hud-standings-hover-title-row", () => { _widgets?.Point("standings", "titleRow"); return Task.CompletedTask; });
+        yield return ("hud-standings-add-column", async () => { _widgets?.OpenPicker("standings", "columns"); await Task.Delay(300); });
+        yield return ("hud-relative-pick-classes", () => { _widgets?.SetOption("relative", "classes", "pick"); _widgets?.ShowTab("relative", "content"); return Task.CompletedTask; });
+        yield return ("hud-relative-all-classes", () => { _widgets?.SetOption("relative", "classes", null); return Task.CompletedTask; });
+        yield return ("hud-timing", () => { _widgets?.ShowTab("timing", "content"); return Task.CompletedTask; });
+        yield return ("hud-fuel-sections", () => { _widgets?.ShowTab("fuel", "content"); return Task.CompletedTask; });
         RaceHudWidgets? quick = null;
         Border? quickBox = null;
         yield return ("hud-quick-editor", () =>
         {
-            quick = new RaceHudWidgets(_app, this, sidebar: true);
+            quick = new RaceHudWidgets(_app, this);
             quickBox = new Border { Width = 1000, Height = 720, BorderThickness = new Thickness(1), Child = quick.Root, Margin = new Thickness(0, 12, 0, 0) };
             quickBox.SetResourceReference(Border.BackgroundProperty, "Bg");
             quickBox.SetResourceReference(Border.BorderBrushProperty, "LineStrong");

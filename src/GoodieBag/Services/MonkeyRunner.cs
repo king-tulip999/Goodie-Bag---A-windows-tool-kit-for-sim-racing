@@ -65,10 +65,10 @@ internal static class MonkeyRunner
             (window.Left, window.Top, window.Width, window.Height) = (0, 0, 1280, 820);
             window.Show();
             await Task.Delay(1500);
-            window.Navigate("plugins");
+            window.Navigate(window.FirstPage);
             await Settle();
             int baseline = TickHandlers(app);
-            Log($"tick handlers on the home page: {baseline}");
+            Log($"tick handlers on the first page: {baseline}");
             var end = DateTime.UtcNow.AddMinutes(minutes);
             while (DateTime.UtcNow < end)
             {
@@ -177,8 +177,8 @@ internal static class MonkeyRunner
                 RightClick(window, rnd);
                 break;
             default:
-                Log($"{_step} home page");
-                window.Navigate("plugins");
+                Log($"{_step} first page");
+                window.Navigate(window.FirstPage);
                 break;
         }
         await Settle();
@@ -358,11 +358,11 @@ internal static class MonkeyRunner
 
         while (window.WindowState == WindowState.Minimized || !window.IsVisible) { window.WindowState = WindowState.Normal; window.Show(); await Settle(); }
         Key(window, System.Windows.Input.Key.Escape);
-        window.Navigate("plugins");
+        window.Navigate(window.FirstPage);
         await Task.Delay(300);
         await Settle();
         int now = TickHandlers(app);
-        if (now > baseline) Problem($"tick handlers on the home page grew from {baseline} to {now}");
+        if (now > baseline) Problem($"tick handlers on the first page grew from {baseline} to {now}");
         await Task.Delay(700);
         if (window.PageMove.Y != 0 && !window.PageMove.HasAnimatedProperties)
             Problem($"the page stayed {window.PageMove.Y:0} px off its place after the page animation");

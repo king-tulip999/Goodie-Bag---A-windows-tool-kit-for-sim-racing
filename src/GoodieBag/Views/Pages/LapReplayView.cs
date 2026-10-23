@@ -629,7 +629,7 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
     private readonly AnalysisState _s;
     private readonly Config.SessionStatsSettings _settings;
     private readonly Func<ReplayCar> _follow;
-    private readonly (double Length, double Width) _carSize;
+    private readonly double _carLength;
     private readonly bool _onlyReference;
     private readonly VisualCollection _visuals;
     private readonly DrawingVisual _world = new();
@@ -679,7 +679,7 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
     public ReplayStage(List<ReplayCar> cars, AnalysisState s, Config.SessionStatsSettings settings, Func<ReplayCar> follow, string car)
     {
         _cars = cars;
-        _carSize = CarShape.SizeOf(car);
+        _carLength = CarShape.LengthOf(car);
         _onlyReference = cars.All(c => c.Line.Reference);
         _s = s;
         _settings = settings;
@@ -978,11 +978,11 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
             }
             DrawPedals(dc, follow, 3.5 * px);
         }
-        double carPx = Math.Max(_carSize.Length * scale, 22), carWide = carPx * _carSize.Width / _carSize.Length;
+        double carPx = Math.Max(_carLength * CarShape.Enlarge * scale, CarShape.MinPixels);
         for (int i = 0; i < _cars.Count; i++)
         {
             var brush = Ui.Res<Brush>(_cars[i].Line.BrushKey);
-            using (var dc = _carVisuals[i].RenderOpen()) CarShape.Draw(dc, brush, carPx, carWide, _cars[i] == follow);
+            using (var dc = _carVisuals[i].RenderOpen()) CarShape.Draw(dc, brush, carPx, _cars[i] == follow);
         }
         for (int i = 0; i < _labelVisuals.Length; i++)
         {
@@ -1137,59 +1137,54 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 
 internal static class CarShape
 {
-    public static readonly (double Length, double Width) Default = (4.619, 2.050);
+    public const double DefaultLength = 4.619;
+    public const double Enlarge = 2.5, MinPixels = 44;
 
-    private static readonly (string[] Words, double Length, double Width)[] Sizes =
+    private static readonly (string[] Words, double Length)[] Lengths =
     {
-        (new[] { "gt3 cup", "cup (992)" }, 4.585, 1.920),
-        (new[] { "mx-5", "mx5", "miata" }, 3.915, 1.735),
-        (new[] { "gtp", "lmdh", "963", "v-series.r", "m hybrid v8", "arx-06" }, 5.100, 2.000),
-        (new[] { "ir18", "ir-18", "indycar" }, 5.000, 1.970),
-        (new[] { "w12", "w13", "w14", "mercedes-amg f1" }, 5.600, 2.000),
-        (new[] { "next gen", "nascar cup" }, 4.900, 2.030),
+        (new[] { "gt3 cup", "cup (992)" }, 4.585),
+        (new[] { "mx-5", "mx5", "miata" }, 3.915),
+        (new[] { "gtp", "lmdh", "963", "v-series.r", "m hybrid v8", "arx-06" }, 5.100),
+        (new[] { "ir18", "ir-18", "indycar" }, 5.000),
+        (new[] { "w12", "w13", "w14", "mercedes-amg f1" }, 5.600),
+        (new[] { "next gen", "nascar cup" }, 4.900),
     };
 
-    public static (double Length, double Width) SizeOf(string car)
+    public static double LengthOf(string car)
     {
-        foreach (var (words, length, width) in Sizes)
+        foreach (var (words, length) in Lengths)
             foreach (var word in words)
-                if (System.Text.RegularExpressions.Regex.IsMatch(car, $"(?<![a-z0-9]){System.Text.RegularExpressions.Regex.Escape(word)}(?![a-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)) return (length, width);
-        return Default;
+                if (System.Text.RegularExpressions.Regex.IsMatch(car, $"(?<![a-z0-9]){System.Text.RegularExpressions.Regex.Escape(word)}(?![a-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)) return length;
+        return DefaultLength;
     }
 
-    private const double OuterWidth = 0.52;
+    private static ImageBrush? _lines, _body;
+    private static ImageBrush Lines => _lines ??= Mask("CarTop.png");
+    private static ImageBrush Body => _body ??= Mask("CarTopBody.png");
+    private static double Aspect => Lines.ImageSource.Width / Lines.ImageSource.Height;
 
-    private static readonly Geometry Body = Geometry.Parse(
-        "M-0.06,-0.5 L0.06,-0.5 L0.17,-0.42 L0.2,-0.28 L0.2,-0.12 L0.22,0.02 L0.22,0.3 L0.2,0.42 L0.1,0.47 L-0.1,0.47 L-0.2,0.42 L-0.22,0.3 L-0.22,0.02 L-0.2,-0.12 L-0.2,-0.28 L-0.17,-0.42 Z");
-    private static readonly Geometry Cabin = Geometry.Parse("M-0.12,-0.12 L0.12,-0.12 L0.14,0.02 L0.13,0.16 L-0.13,0.16 L-0.14,0.02 Z M-0.1,0.16 L-0.08,0.26 L0.08,0.26 L0.1,0.16");
-    private static readonly Geometry Wing = Geometry.Parse("M-0.24,0.43 L0.24,0.43 L0.24,0.5 L-0.24,0.5 Z M-0.06,0.43 L-0.06,0.36 M0.06,0.43 L0.06,0.36");
-    private static readonly Geometry Wheels = Geometry.Parse(
-        "M-0.25,-0.36 h0.05 v0.15 h-0.05 Z M0.2,-0.36 h0.05 v0.15 h-0.05 Z M-0.26,0.14 h0.05 v0.16 h-0.05 Z M0.21,0.14 h0.05 v0.16 h-0.05 Z");
-
-    static CarShape()
+    private static ImageBrush Mask(string file)
     {
-        Body.Freeze();
-        Cabin.Freeze();
-        Wing.Freeze();
-        Wheels.Freeze();
+        var image = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/GoodieBag;component/Assets/" + file));
+        var brush = new ImageBrush(image) { Stretch = Stretch.Fill };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.HighQuality);
+        brush.Freeze();
+        return brush;
     }
 
-    public static void Draw(DrawingContext dc, Brush brush, double length, double width, bool strong)
+    public static void Draw(DrawingContext dc, Brush brush, double length, bool strong)
     {
-        dc.PushTransform(new ScaleTransform(width / OuterWidth, length));
-        double px = 1 / Math.Min(length, width / OuterWidth);
+        double width = length * Aspect;
+        var box = new Rect(-width / 2, -length / 2, width, length);
         var fill = brush.Clone();
         fill.Opacity = strong ? 0.28 : 0.16;
         fill.Freeze();
-        var pen = new Pen(brush, (strong ? 1.6 : 1.2) * px) { LineJoin = PenLineJoin.Round };
-        pen.Freeze();
-        var dark = new Pen(Ui.Res<Brush>("Bg"), 3.5 * px) { LineJoin = PenLineJoin.Round };
-        dark.Freeze();
-        dc.DrawGeometry(null, dark, Body);
-        dc.DrawGeometry(fill, pen, Body);
-        dc.DrawGeometry(null, pen, Cabin);
-        dc.DrawGeometry(fill, pen, Wing);
-        dc.DrawGeometry(brush, null, Wheels);
+        dc.PushOpacityMask(Body);
+        dc.DrawRectangle(Ui.Res<Brush>("Bg"), null, box);
+        dc.DrawRectangle(fill, null, box);
+        dc.Pop();
+        dc.PushOpacityMask(Lines);
+        dc.DrawRectangle(brush, null, box);
         dc.Pop();
     }
 }

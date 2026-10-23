@@ -67,15 +67,6 @@ internal sealed class WindowProfileService : IDisposable
     public static bool IsRunning(WindowProfile p, HashSet<string> running) =>
         !string.IsNullOrWhiteSpace(p.ProcessName) && running.Contains(AppWatcher.Normalize(p.ProcessName));
 
-    public bool ApplyNamed(string name)
-    {
-        if (!Active) return false;
-        if (FindProfile(name) is { } profile) _ = ApplyAsync(profile);
-        else if (FindGroup(name) is { } group) _ = ApplyGroupAsync(group);
-        else return false;
-        return true;
-    }
-
     public async Task ApplyGroupAsync(WindowGroup group)
     {
         var members = S.Members(group).ToList();

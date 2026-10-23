@@ -49,7 +49,7 @@ internal static class PerfProbe
             Controls.NavIcon.RefreshAll();
             window.Topography.Refresh();
             window.Navigate("settings");
-            window.Navigate("plugins");
+            window.Navigate(window.FirstPage);
             await Task.Delay(1500);
             await Idle("idle_main_still", window, lines);
             ui.Animations = true;
@@ -57,7 +57,7 @@ internal static class PerfProbe
             window.Topography.Refresh();
             HitchWatch.WatchFrames(true);
             foreach (var pass in new[] { "first", "again" })
-                foreach (var key in window.NavKeys.Where(k => k != "plugins").Append("plugins"))
+                foreach (var key in window.NavKeys.Where(k => k != window.FirstPage).Append(window.FirstPage))
                 {
                     var opened = new TaskCompletionSource();
                     var input = LongestInputWait(window, opened.Task);
@@ -121,26 +121,28 @@ internal static class PerfProbe
             await Idle("idle_monitor", window, lines);
             if (window.PageOf("monitor") is Views.Pages.HardwareMonitorPage monitor)
             {
-                var sensors = monitor.Sensors;
-                if (!sensors.Expanded) { sensors.Toggle(); await Rendered(window); await Task.Delay(1000); }
+                monitor.ShowSection("sensors");
+                await Rendered(window);
+                await Task.Delay(1000);
+                string back = monitor.Sections.FirstOrDefault(x => x.Id != "sensors")?.Id ?? "sensors";
                 for (int i = 0; i < 3; i++)
                 {
                     var clock = Stopwatch.StartNew();
-                    sensors.Toggle();
+                    monitor.ShowSection(back);
                     await Rendered(window);
-                    Put($"sensors_fold_{i}_ms", clock.Elapsed.TotalMilliseconds);
+                    Put($"sensors_leave_{i}_ms", clock.Elapsed.TotalMilliseconds);
                     await Task.Delay(500);
                     clock.Restart();
-                    sensors.Toggle();
+                    monitor.ShowSection("sensors");
                     await Rendered(window);
-                    Put($"sensors_unfold_{i}_ms", clock.Elapsed.TotalMilliseconds);
+                    Put($"sensors_open_{i}_ms", clock.Elapsed.TotalMilliseconds);
                     await Task.Delay(500);
                 }
             }
             window.Navigate("windows");
             await Task.Delay(2000);
             await Idle("idle_windows", window, lines);
-            window.Navigate("plugins");
+            window.Navigate(window.FirstPage);
             await Task.Delay(3000);
             await Idle("idle_main_settled", window, lines);
             Put("home_frame_rate_consumers", AppServices.Current!.Frames.ConsumerCount);
@@ -155,7 +157,7 @@ internal static class PerfProbe
             Controls.NavIcon.RefreshAll();
             window.Topography.Refresh();
             window.Navigate("settings");
-            window.Navigate("plugins");
+            window.Navigate(window.FirstPage);
             await Task.Delay(1500);
             await Idle("idle_main_settled_still", window, lines);
             ui.Animations = true;
@@ -218,7 +220,7 @@ internal static class PerfProbe
                 Theme.ThemeManager.Apply(theme.Id);
                 await Rendered(window);
             }
-            window.Navigate("plugins");
+            window.Navigate(window.FirstPage);
             await Task.Delay(500);
             GC.Collect();
             GC.WaitForPendingFinalizers();

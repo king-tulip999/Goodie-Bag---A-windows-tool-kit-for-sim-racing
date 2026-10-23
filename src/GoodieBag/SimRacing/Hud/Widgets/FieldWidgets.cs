@@ -286,14 +286,14 @@ internal static class FieldColumns
 
     public static readonly HudOption NameFormat = HudOption.Choice("nameFormat", "Names", "full",
         new HudChoice("full", "Full name"), new HudChoice("initial", "First initial and last name"), new HudChoice("last", "Last name only"), new HudChoice("first", "First name and last initial"));
-    public static readonly HudOption NoDigits = HudOption.Bool("noDigits", "Leave numbers out of names", false, "Some drivers have a number after their name (“Max Verstappen2”)");
+    public static readonly HudOption NoDigits = HudOption.Bool("noDigits", "No numbers in names", false, "Some drivers have a number after their name (“Max Verstappen2”)");
     public static readonly HudOption TimeFormat = HudOption.Choice("timeFormat", "Lap times", "full",
         new HudChoice("full", "1:42.123"), new HudChoice("mixed", "1:42.1"), new HudChoice("minutes", "1:42"),
         new HudChoice("sfull", "42.123"), new HudChoice("smixed", "42.1"), new HudChoice("s", "42"));
     public static readonly HudOption Decimals = HudOption.Int("decimals", "Gap decimals", 1, 0, 3);
     public static readonly HudOption BadgeFormat = HudOption.Choice("badgeFormat", "Badge shows", "both",
         new HudChoice("both", "License and iRating"), new HudChoice("license", "License only"), new HudChoice("rating", "iRating only"));
-    public static readonly HudOption PitShow = HudOption.Choice("pitShow", "Pit column after a stop", "lap",
+    public static readonly HudOption PitShow = HudOption.Choice("pitShow", "Pit column shows", "lap",
         new HudChoice("lap", "Lap of the last stop (L12)"), new HudChoice("since", "Laps since the last stop"), new HudChoice("stops", "Stops made (2×)"));
     public static readonly HudOption PitTime = HudOption.Bool("pitTime", "Time in the pit lane", true, "Seconds in the pit lane beside PIT, counting while a car is in it");
     public static readonly HudOption AvgLaps = HudOption.Int("avgLaps", "Laps in the average", 5, 3, 10);
@@ -320,7 +320,7 @@ internal static class FieldColumns
         if ((flags & RaceFlags.Blue) != 0) list.Add(("", default, default, FlagKind.Blue));
     }
 
-    public static readonly HudOption MarksOption = HudOption.Bool("marks", "Fastest lap and flags by the name", true,
+    public static readonly HudOption MarksOption = HudOption.Bool("marks", "FL and flag tags", true,
         "FL on the session's fastest lap (per class in multiclass), and the flag when a driver has a black, repair (meatball), disqualified or blue flag");
 
     public static Column? Make(string id, HudPainter p, HudView v, Func<int, Cell> gap, string gapHeader)
@@ -452,12 +452,12 @@ internal sealed class RelativeWidget : HudWidget
             FieldColumns.Badge, FieldColumns.IRatingChange, FieldColumns.Last, FieldColumns.Best, FieldColumns.AvgLap,
             FieldColumns.PaceDelta, FieldColumns.Laps, FieldColumns.LapsDone, FieldColumns.Pit, FieldColumns.OutLap, FieldColumns.Stint, FieldColumns.Incidents, FieldColumns.Trend,
             new HudChoice("gap", "Gap (seconds)")),
-        HudOption.Choice("classes", "Classes", "all", new HudChoice("all", "Every class"), new HudChoice("mine", "My class only")) with { Group = HudOptionGroup.Filter },
-        HudOption.Classes("hideClasses", "Hide classes", "Classes left out of the list (they're still counted)."),
+        Editors.HudClassFilter.Scope,
+        Editors.HudClassFilter.List,
         HudOption.Choice("hidePits", "Cars in the pits", "false", new HudChoice("false", "Show them"),
-            new HudChoice("stall", "Hide cars parked in their pit stall", "Cars driving down the pit lane still show"), new HudChoice("true", "Hide every car in the pit lane")) with { Group = HudOptionGroup.Filter },
+            new HudChoice("stall", "Hide cars parked in their pit stall", "Cars driving down the pit lane still show"), new HudChoice("true", "Hide every car in the pit lane")),
         HudOption.Number("close", "Close gap", 1.0, 0, 5, 0.1, "s", "Same-class cars within this gap are highlighted (battles)."),
-        HudOption.Bool("lapColors", "Color cars lapping / being lapped", true, "Red: lapping you. Blue: a lap or more behind you"),
+        HudOption.Bool("lapColors", "Lap colors", true, "Red: lapping you. Blue: a lap or more behind you"),
         FieldColumns.MarksOption,
         HudOption.Columns("header", "Header", "session,remain,inc,bias", Strips.Header),
         HudOption.Columns("footer", "Footer", "lap,clock,wetness,air,track", Strips.Footer),
@@ -484,6 +484,7 @@ internal sealed class RelativeWidget : HudWidget
             var kind = v.Frame.Status == SimStatus.Connected ? HudFlags.BannerKind(v.Frame.Flags) : FlagKind.None;
             if (kind == FlagKind.None && p.IsPreview) kind = FlagKind.Yellow;
             HudFlags.DrawBanner(p, outer, kind, banner, spare);
+            if (t > 0) p.Region("flag", new RectangleF(outer.X, outer.Y, outer.Width - spare, t));
         }
     }
 
@@ -540,7 +541,13 @@ internal sealed class RelativeWidget : HudWidget
         var fitted = HudTable.Fit(p, cols, area.Width, font);
         var style = RowStyle.Of(v);
         float y = area.Y;
-        if (headings) { HudTable.Header(p, fitted, new RectangleF(area.X, y, area.Width, headH)); y += headH; }
+        p.Region("rows", area);
+        if (headings)
+        {
+            HudTable.Header(p, fitted, new RectangleF(area.X, y, area.Width, headH));
+            p.Region("headings", new RectangleF(area.X, y, area.Width, headH));
+            y += headH;
+        }
         int missingAbove = ahead - rows.Count(r => r.TrackDistance > 0);
         y += Math.Max(0, missingAbove) * rowH;
         bool lapColors = o.Bool("lapColors") && f.SessionKind == SessionKind.Race;
@@ -555,6 +562,7 @@ internal sealed class RelativeWidget : HudWidget
             Color? tint = lapColors && row.LapDiff != 0 && !row.IsPlayer
                 ? (row.LapDiff > 0 ? p.P.Lapping : p.P.Lapped) : null;
             HudTable.Row(p, fitted, box, row.CarIdx, cls, emphasis, dim, font, tint, stripes && i % 2 == 1, style);
+            if (row.IsPlayer) p.Region("myrow", box);
             _hits.Add((row.CarIdx, box));
             y += rowH;
         }
@@ -605,19 +613,19 @@ internal sealed class StandingsWidget : HudWidget
             FieldColumns.Pit, FieldColumns.OutLap, FieldColumns.Stint, FieldColumns.Incidents),
         HudOption.Bool("group", "Group by class", true, "Multiclass: one block per class, positions within the class."),
         HudOption.Choice("classOrder", "Class order", "position", new HudChoice("position", "By their leader's position"), new HudChoice("fastest", "Fastest class first")),
-        HudOption.Set("classInfo", "Class headings show", "cars,sof", null,
+        HudOption.Set("classInfo", "Class headings", "cars,sof", null,
             new HudChoice("cars", "Cars in the class"), new HudChoice("sof", "Strength of field"), new HudChoice("laps", "Laps the leader will do", "Timed races: from the class leader's recent pace")),
         HudOption.Choice("divider", "Break in the list", "line", new HudChoice("line", "A line"), new HudChoice("accent", "An accent line"), new HudChoice("none", "Nothing"))
             with { Help = "Where cars are left out (the list doesn't fit): between the leaders and the cars around you" },
         HudOption.Bool("title", "Title row", true, "Session name and time or laps left"),
         HudOption.Bool("progress", "Session progress bar", false, "Under the title row"),
         HudOption.Choice("gapTo", "Gap to", "leader", new HudChoice("leader", "Leader (class leader when grouped)"), new HudChoice("interval", "Car ahead"), new HudChoice("player", "You")),
-        HudOption.Choice("classes", "Classes", "all", new HudChoice("all", "Every class"), new HudChoice("mine", "My class only")) with { Group = HudOptionGroup.Filter },
-        HudOption.Classes("hideClasses", "Hide classes", "Classes left out of the list."),
-        HudOption.Int("top", "Leaders always shown", 3, 1, 20, help: "When the list doesn't fit: this many from the top of each class, then the cars around you."),
+        Editors.HudClassFilter.Scope,
+        Editors.HudClassFilter.List,
+        HudOption.Int("top", "Leaders kept", 3, 1, 20, help: "When the list doesn't fit: this many from the top of each class, then the cars around you."),
         HudOption.Int("otherRows", "Cars per other class", 0, 0, 30, help: "Multiclass: at most this many cars of each class but yours (0 = as many as fit)."),
         FieldColumns.MarksOption,
-        HudOption.Bool("retired", "Show cars that left", true, "Cars no longer in the session stay in the list, dimmed.") with { Group = HudOptionGroup.Filter },
+        HudOption.Bool("retired", "Show cars that left", true, "Cars no longer in the session stay in the list, dimmed."),
         HudOption.Bool("showHeader", "Column headings", true),
         HudOption.Columns("header", "Header", "", Strips.Header),
         HudOption.Columns("footer", "Footer", "inc,sof,fastest", Strips.Footer),
@@ -646,6 +654,7 @@ internal sealed class StandingsWidget : HudWidget
         {
             var tr = new RectangleF(box.X, box.Y, box.Width, pill);
             p.TitleBar(tr, v.Race.SessionLabel, RelativeWidget.Remaining(v));
+            p.Region("title", tr);
             if (o.Bool("progress") && Progress(f) is { } done)
                 p.Bar(new RectangleF(tr.X + 8 * p.Density, tr.Bottom - 5 * p.Density, tr.Width - 16 * p.Density, 3 * p.Density), done, p.P.Accent, HudPalette.Alpha(p.P.LineStrong, 90));
             box = new RectangleF(box.X, tr.Bottom + sep, box.Width, box.Height - pill - sep);
@@ -720,9 +729,11 @@ internal sealed class StandingsWidget : HudWidget
         float rowH = p.LineHeight(font) * 1.38f * p.Density;
         float y = area.Y;
         float headH = o.Bool("showHeader") ? p.LineHeight(p.Tiny) + 4 : 0;
+        p.Region("rows", area);
         if (headH > 0 && !group)
         {
             HudTable.Header(p, fitted, new RectangleF(area.X, y, area.Width, headH));
+            p.Region("headings", new RectangleF(area.X, y, area.Width, headH));
             y += headH;
         }
         float blockGap = p.PieceGap, blockPad = 5 * p.Density;
@@ -769,6 +780,7 @@ internal sealed class StandingsWidget : HudWidget
                 p.Panel(new RectangleF(box.X, y, box.Width, classHead + rowsH + blockPad * 2));
                 y += blockPad;
                 var hr = new RectangleF(area.X, y + 2, area.Width, classHead - 4);
+                p.Region("classhead", hr);
                 float radius = p.CornerRadius(2);
                 string name = (d?.ClassName is { Length: > 0 } cn ? cn : "Class").ToUpperInvariant();
                 var tag = new RectangleF(hr.X, hr.Y, Math.Min(hr.Width * 0.6f, p.Measure(name, p.SmallBold) + 16), hr.Height);
@@ -782,6 +794,7 @@ internal sealed class StandingsWidget : HudWidget
                 if (firstBlock && headH > 0)
                 {
                     HudTable.Header(p, fitted, new RectangleF(area.X, y, area.Width, headH));
+                    p.Region("headings", new RectangleF(area.X, y, area.Width, headH));
                     y += headH;
                 }
                 firstBlock = false;
@@ -798,6 +811,7 @@ internal sealed class StandingsWidget : HudWidget
                     float h = divider == "accent" ? 2 * p.Density : Math.Max(1, p.Density);
                     float inset = divider == "accent" ? 0 : 12 * p.Density;
                     p.Line(area.X + inset, y + room / 2, area.Right - inset, y + room / 2, color, h);
+                    p.Region("divider", new RectangleF(area.X, y, area.Width, room));
                     y += room;
                 }
                 last = index;
@@ -810,6 +824,7 @@ internal sealed class StandingsWidget : HudWidget
                 if (race && car != me && v.Race.StandingOf(me) is { } mine && FieldOrder.ClassOf(f, car) == FieldOrder.ClassOf(f, me))
                     tint = row.LapsDown < mine.LapsDown ? p.P.Lapping : row.LapsDown > mine.LapsDown ? p.P.Lapped : null;
                 HudTable.Row(p, fitted, rowBox, car, p.ClassColor(f.Session, FieldOrder.ClassOf(f, car)), emphasis, dim, font, tint, stripes && drawn++ % 2 == 1, style);
+                if (car == me) p.Region("myrow", rowBox);
                 _hits.Add((car, rowBox));
                 y += rowH;
             }

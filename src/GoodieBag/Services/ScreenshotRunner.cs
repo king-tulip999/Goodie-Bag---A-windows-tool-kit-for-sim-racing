@@ -537,7 +537,7 @@ internal static class ScreenshotRunner
     }
 
     private static (double W, double H) BaseSize =>
-        Arg("--window")?.Split('x') is [var w, var h] && double.TryParse(w, out double width) && double.TryParse(h, out double height) ? (width, height) : (1280, 820);
+        Arg("--window")?.Split('x') is [var w, var h] && double.TryParse(w, out double width) && double.TryParse(h, out double height) ? (width, height) : (1280 + MainWindow.SidebarDips(AppServices.Current?.Config.Ui.ScaleFactor ?? Config.UiSettings.BaseScale), 820);
 
     private static string? Arg(string name)
     {
@@ -548,7 +548,7 @@ internal static class ScreenshotRunner
 
     private static async Task CaptureSizesAsync(MainWindow window, string folder)
     {
-        window.Navigate("plugins");
+        window.Navigate(window.FirstPage);
         var ui = AppServices.Current!.Config.Ui;
         int scale = ui.InterfaceScale;
         foreach (var (w, h, size) in new[] { (1280, 1040, 100), (1280, 820, 100), (1100, 740, 100), (1040, 680, 100), (1040, 680, 90), (960, 600, 110) })

@@ -158,7 +158,7 @@ internal static class DemoData
         hud.Remember("GT3", "BMW M4 GT3", "Autodromo Nazionale Monza");
         config.Plugins[Grr.GrrPlugin.PluginId] = true;
         config.Ui.MonitorHiddenSections.Clear();
-        config.Ui.MonitorSectionsVersion = 1;
+        config.Ui.MonitorSectionsVersion = 2;
         return config;
     }
 

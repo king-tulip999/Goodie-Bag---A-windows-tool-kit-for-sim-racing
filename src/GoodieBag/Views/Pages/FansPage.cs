@@ -1372,10 +1372,20 @@ internal sealed class CalibrationDialog
         var minPct = new TextBox { Text = (existing?.MinStablePercent ?? 20).ToString(), Width = 120 };
         var stopPct = new TextBox { Text = existing?.StopPercent?.ToString() ?? "", Tag = "leave empty", Width = 120 };
         var startPct = new TextBox { Text = existing?.StartPercent?.ToString() ?? "", Tag = "leave empty", Width = 120 };
-        _content.Children.Add(Ui.SettingRow("Maximum speed (RPM)", null, maxRpm));
-        _content.Children.Add(Ui.SettingRow("Lowest steady speed (%)", "Below this it stalls or surges.", minPct));
-        _content.Children.Add(Ui.SettingRow("Stops at or below (%)", "Only if the fan supports stopping.", stopPct));
-        _content.Children.Add(Ui.SettingRow("Needs to restart (%)", "Speed that gets it spinning again.", startPct));
+        static StackPanel WithUnit(TextBox box, string unit)
+        {
+            box.TextAlignment = TextAlignment.Right;
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(box);
+            var u = new TextBlock { Text = unit, Width = 34, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            u.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+            row.Children.Add(u);
+            return row;
+        }
+        _content.Children.Add(Ui.SettingRow("Maximum speed", null, WithUnit(maxRpm, "rpm")));
+        _content.Children.Add(Ui.SettingRow("Lowest steady speed", "Below this it stalls or surges.", WithUnit(minPct, "%")));
+        _content.Children.Add(Ui.SettingRow("Stops at or below", "Only if the fan supports stopping.", WithUnit(stopPct, "%")));
+        _content.Children.Add(Ui.SettingRow("Needs to restart", "Speed that gets it spinning again.", WithUnit(startPct, "%")));
         var error = new TextBlock { Foreground = Ui.Res<Brush>("Danger"), FontSize = 12.5, Visibility = Visibility.Collapsed };
         _content.Children.Add(error);
 

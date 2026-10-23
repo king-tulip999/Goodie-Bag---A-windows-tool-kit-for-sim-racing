@@ -17,7 +17,7 @@ public enum HudColors { Default, Custom }
 
 public sealed class RaceHudSettings
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; }
 
@@ -167,6 +167,7 @@ public sealed class RaceHudSettings
             Layouts.AddRange(defaults());
             Rules.AddRange(defaultRules());
         }
+        bool before2 = Version < 2;
         Version = CurrentVersion;
         Appearance ??= new();
         var builtIn = defaults();
@@ -184,6 +185,7 @@ public sealed class RaceHudSettings
                 w.Kind ??= "";
                 if (string.IsNullOrWhiteSpace(w.Id) || !ids.Add(w.Id)) { w.Id = HudWidgetConfig.NewId(w.Kind); ids.Add(w.Id); }
                 SideBannerToTop(w);
+                if (before2) ShowClassesInsteadOfHiding(w);
                 w.Clamp();
             }
         }
@@ -196,7 +198,7 @@ public sealed class RaceHudSettings
         AlertGroupOrder = (AlertGroupOrder ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         AlertGroupsFolded = (AlertGroupsFolded ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         FoldedPanels = (FoldedPanels ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        EditorSectionsToggled = (EditorSectionsToggled ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        EditorSectionsToggled = (EditorSectionsToggled ?? new()).Where(x => !string.IsNullOrWhiteSpace(x) && (!before2 || x.Contains(':'))).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (Layout(ActiveLayout) is null) ActiveLayout = Layouts[0].Name;
         Appearance ??= new();
         Appearance.Clamp();
@@ -212,6 +214,9 @@ public sealed class RaceHudSettings
         KnownCars = Clean(KnownCars);
         KnownTracks = Clean(KnownTracks);
     }
+
+    internal void ShowClassesInsteadOfHiding(HudWidgetConfig w) =>
+        SimRacing.Hud.Editors.HudClassFilter.Migrate(w, (KnownClasses ?? new()).Concat(SimRacing.Race.SessionNames.Classes));
 
     internal static void SideBannerToTop(HudWidgetConfig w)
     {

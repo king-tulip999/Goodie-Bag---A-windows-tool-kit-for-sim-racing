@@ -25,7 +25,7 @@ internal enum PageSensors
 }
 
 internal sealed record PluginPage(string Key, string Title, string Icon, Func<AppServices, MainWindow, FrameworkElement> Create,
-    PageSensors Sensors = PageSensors.None);
+    PageSensors Sensors = PageSensors.None, Func<AppServices, SectionList>? Sections = null);
 
 internal sealed record PluginHotkey(string Id, string Label, Func<string?> Get, Action<string?> Set, Action Invoke, string? Group = null, string? Default = null);
 

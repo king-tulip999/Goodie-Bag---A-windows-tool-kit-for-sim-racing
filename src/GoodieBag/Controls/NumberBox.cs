@@ -25,6 +25,8 @@ internal sealed class NumberBox : Grid
 
     public event Action<double>? ValueChanged;
 
+    public static readonly RoutedEvent ChangedEvent = EventManager.RegisterRoutedEvent("Changed", RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(NumberBox));
+
     public NumberBox(double value, string unit, double width = 92)
     {
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -154,6 +156,7 @@ internal sealed class NumberBox : Grid
             ShowValue();
         if (changed)
             ValueChanged?.Invoke(value);
+            RaiseEvent(new RoutedEventArgs(ChangedEvent));
     }
 
     internal static double Precise(double value, int decimals, double step)

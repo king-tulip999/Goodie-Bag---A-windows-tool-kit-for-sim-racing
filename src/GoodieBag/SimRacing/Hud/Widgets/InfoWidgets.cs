@@ -95,6 +95,7 @@ internal sealed class SessionWidget : HudWidget
         }
         if (progress)
         {
+            p.Region("progress", new RectangleF(area.X, area.Bottom - barH, area.Width, barH));
             double? done = session?.Laps is > 0 and var total2 && f.LapCompleted is { } lc ? (lc + (f.LapDistPct ?? 0)) / total2
                 : f.SessionTimeTotal is > 0 && f.SessionTimeRemain is { } rem ? 1 - rem / f.SessionTimeTotal.Value : null;
             if (done is { } d) p.Bar(new RectangleF(area.X, area.Bottom - barH + 4, area.Width, barH - 4), d, p.P.Accent, p.Solid(p.Raised(0.10), 130));
@@ -108,7 +109,7 @@ internal sealed class AlertsWidget : HudWidget
     {
         HudOption.Int("max", "Alerts at once", 3, 1, 8),
         HudOption.Bool("big", "Large text", false),
-        HudOption.Bool("history", "Recent alerts when none are up", false),
+        HudOption.Bool("history", "Recent when quiet", false),
     };
 
     public override bool HasContent(HudView v) =>
@@ -434,7 +435,7 @@ internal sealed class WindWidget : HudWidget
         HudOption.Bool("turn", "Turns with the car", true, "On: the opening points where the wind blows as you drive (down = a headwind). Off: up = north."),
         HudOption.Choice("colors", "Colors", "headtail", new HudChoice("headtail", "By headwind / crosswind / tailwind", "Red at the nose, amber across, green behind"), new HudChoice("accent", "The accent color")),
         HudOption.Choice("speedUnit", "Speed in", "units", new HudChoice("units", "Overlay units"), new HudChoice("kmh", "km/h"), new HudChoice("mph", "mph"), new HudChoice("ms", "m/s")),
-        HudOption.Bool("unit", "Unit under the speed", false),
+        HudOption.Bool("unit", "Unit label", false),
         HudOption.Bool("title", "Title", false, "“Wind” over the ring"),
     };
 

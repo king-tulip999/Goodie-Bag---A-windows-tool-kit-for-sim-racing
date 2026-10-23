@@ -18,12 +18,12 @@ internal sealed class WindowProfileEditor
     private readonly TextBox _name = new() { MaxLength = Ui.NameLength, Tag = "e.g. RaceRoom on triples" };
     private readonly TextBox _process = new() { Tag = "e.g. RRRE64.exe" };
     private readonly HotkeyBox _hotkey = new();
-    private readonly TextBlock _shared = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(LabelWidth, 0, 0, 6) };
+    private readonly TextBlock _shared = Ui.FieldHint("", LabelWidth);
     private readonly TextBlock _error = new() { Visibility = Visibility.Collapsed };
     private readonly NumberBox _width, _height, _x, _y, _delay;
-    private readonly CheckBox _keepSize = new() { Content = "Keep its size", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
+    private readonly CheckBox _keepSize = new() { Content = "Keep the size the program sets" };
     private readonly CheckBox _borders, _titleBar, _auto;
-    private readonly MonitorLayoutView _preview = new() { Height = 130 };
+    private readonly MonitorLayoutView _preview = new() { Height = 120 };
     private readonly List<MonitorInfo> _monitors;
     private string? _groupId;
     private bool _nameTouched;
@@ -83,30 +83,28 @@ internal sealed class WindowProfileEditor
         var presetRow = new DockPanel();
         DockPanel.SetDock(current, Dock.Right);
         presetRow.Children.Add(current);
+        presets.MinWidth = 0;
         presetRow.Children.Add(presets);
         stack.Children.Add(Ui.FieldRow("Copy values from", presetRow, LabelWidth));
 
         var screen = Span();
-        _width = new NumberBox(profile.Width ?? screen.Width, "px", 96) { Minimum = 100, Maximum = 32000 };
-        _height = new NumberBox(profile.Height ?? screen.Height, "px", 96) { Minimum = 100, Maximum = 32000 };
-        _x = new NumberBox(profile.X, "px", 96) { Minimum = -32000, Maximum = 32000 };
-        _y = new NumberBox(profile.Y, "px", 96) { Minimum = -32000, Maximum = 32000 };
+        _width = new NumberBox(profile.Width ?? screen.Width, "px", 84) { Minimum = 100, Maximum = 32000 };
+        _height = new NumberBox(profile.Height ?? screen.Height, "px", 84) { Minimum = 100, Maximum = 32000 };
+        _x = new NumberBox(profile.X, "px", 84) { Minimum = -32000, Maximum = 32000 };
+        _y = new NumberBox(profile.Y, "px", 84) { Minimum = -32000, Maximum = 32000 };
         _keepSize.IsChecked = profile.Width is null;
         _keepSize.ToolTip = "Only move the window; leave its size as the program sets it";
         _keepSize.Click += (_, _) => SizeChanged();
         foreach (var box in new[] { _width, _height, _x, _y }) box.ValueChanged += _ => SizeChanged();
-        stack.Children.Add(Ui.FieldRow("Size", Pair(_width, "×", _height, _keepSize), LabelWidth));
-        stack.Children.Add(Ui.FieldRow("Position", Pair(_x, ",", _y), LabelWidth));
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Pixels on the Windows desktop: 0, 0 is the top left of the main display, so a screen to its left starts at a negative x.",
-            Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(LabelWidth, 0, 0, 6),
-        });
-        stack.Children.Add(new Tile { Style = Ui.Res<Style>("Inset"), Padding = new Thickness(8), Margin = new Thickness(LabelWidth, 2, 0, 4), Child = _preview });
+        stack.Children.Add(Ui.FieldRow("Size", Pair("W", _width, "H", _height), LabelWidth));
+        stack.Children.Add(Ui.FieldRow("", _keepSize, LabelWidth));
+        stack.Children.Add(Ui.FieldRow("Position", Pair("X", _x, "Y", _y), LabelWidth,
+            "Desktop pixels: 0, 0 is the main display's top left, so screens to its left are negative."));
+        stack.Children.Add(new Tile { Style = Ui.Res<Style>("Inset"), Padding = new Thickness(8), Margin = new Thickness(LabelWidth, 6, 0, 4), Width = Ui.FieldWidth, HorizontalAlignment = HorizontalAlignment.Left, Child = _preview });
 
         stack.Children.Add(Ui.EditorSection("Window"));
         _borders = new CheckBox { Content = "Remove borders", IsChecked = profile.RemoveBorders, ToolTip = "Strips the frame and title bar. Only for games without a borderless option of their own." };
-        _titleBar = new CheckBox { Content = "Hide the title bar of Store / Xbox games", IsChecked = profile.HideTitleBar, Margin = new Thickness(0, 8, 0, 0),
+        _titleBar = new CheckBox { Content = "Hide the title bar of Store / Xbox games", IsChecked = profile.HideTitleBar, Margin = new Thickness(0, 10, 0, 0),
             ToolTip = "For Store / Xbox app games (e.g. Forza Horizon 4) that keep a title strip after removing borders: pushes it above the screen. Does nothing for other programs." };
         _borders.Click += (_, _) => _titleBar.IsEnabled = _borders.IsChecked == true;
         _titleBar.IsEnabled = profile.RemoveBorders;
@@ -116,22 +114,22 @@ internal sealed class WindowProfileEditor
         stack.Children.Add(Ui.FieldRow("Style", look, LabelWidth));
 
         stack.Children.Add(Ui.EditorSection("Applying"));
-        _auto = new CheckBox { Content = "When the program starts", IsChecked = profile.Auto, VerticalAlignment = VerticalAlignment.Center };
+        _auto = new CheckBox { Content = "When the program starts", IsChecked = profile.Auto };
         _delay = new NumberBox(profile.DelayMs / 1000.0, "s", 96) { Minimum = 0, Maximum = WindowProfileSettings.MaxDelayMs / 1000.0, Step = 0.25, Decimals = 2 };
-        _delay.ToolTip = "Wait this long after the program starts. For about 35 s after that, Goodie Bag moves the window back if the game resizes it.";
+        _delay.ToolTip = "For about 35 s after that, Goodie Bag moves the window back if the game resizes it.";
         _auto.Click += (_, _) => _delay.IsEnabled = _auto.IsChecked == true;
         _delay.IsEnabled = profile.Auto;
-        var autoRow = new StackPanel { Orientation = Orientation.Horizontal };
-        autoRow.Children.Add(_auto);
-        autoRow.Children.Add(new TextBlock { Text = "after", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 10, 0) });
-        autoRow.Children.Add(_delay);
-        stack.Children.Add(Ui.FieldRow("Automatically", autoRow, LabelWidth));
+        stack.Children.Add(Ui.FieldRow("Automatically", _auto, LabelWidth));
         if (!settings.AutoApply)
-            stack.Children.Add(new TextBlock { Text = "Applying automatically is off for every profile (switch at the top of the page).", Style = Ui.Res<Style>("Caption"), Foreground = Ui.Res<System.Windows.Media.Brush>("Warn"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(LabelWidth, 0, 0, 6) });
+        {
+            var off = Ui.FieldHint("Applying automatically is off for every profile (switch at the top of the page).", LabelWidth);
+            off.Foreground = Ui.Res<System.Windows.Media.Brush>("Warn");
+            stack.Children.Add(off);
+        }
+        stack.Children.Add(Ui.FieldRow("Delay", _delay, LabelWidth, "Waits this long after the program starts."));
         _hotkey.SetHotkey(profile.Hotkey);
         _hotkey.HotkeyChanged += _ => UpdateShared();
         stack.Children.Add(Ui.FieldRow("Keybind", _hotkey, LabelWidth));
-        _shared.Style = Ui.Res<Style>("Caption");
         stack.Children.Add(_shared);
         UpdateShared();
         SizeChanged();
@@ -206,13 +204,14 @@ internal sealed class WindowProfileEditor
         _preview.SetTarget(keep ? null : new Rect(_x.Value, _y.Value, _width.Value, _height.Value));
     }
 
-    private static StackPanel Pair(FrameworkElement a, string between, FrameworkElement b, FrameworkElement? extra = null)
+    private static StackPanel Pair(string first, FrameworkElement a, string second, FrameworkElement b)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        TextBlock Tag(string text, double left) => new() { Text = text, Width = 16, Style = Ui.Res<Style>("Muted"), Margin = new Thickness(left, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Add(Tag(first, 0));
         panel.Children.Add(a);
-        panel.Children.Add(new TextBlock { Text = between, Margin = new Thickness(10, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(Tag(second, 22));
         panel.Children.Add(b);
-        if (extra is not null) panel.Children.Add(extra);
         return panel;
     }
 
@@ -331,8 +330,7 @@ internal sealed class WindowGroupEditor
         _hotkey.SetHotkey(group.Hotkey);
         var stack = new StackPanel();
         stack.Children.Add(Ui.FieldRow("Name", _name, 120));
-        stack.Children.Add(Ui.FieldRow("Keybind", _hotkey, 120));
-        stack.Children.Add(new TextBlock { Text = "Moves every program in the group that's running. Put profiles in it from their editor.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(120, 0, 0, 0) });
+        stack.Children.Add(Ui.FieldRow("Keybind", _hotkey, 120, "Moves every program in the group that's running. Put profiles in it from their editor."));
         Card = Ui.Dialog(window, isNew ? "New group" : "Edit group", "Several window profiles applied together.", stack,
             Ui.DialogButtons(window, isNew ? "Save group" : "Save changes", Save), _error, 520);
     }

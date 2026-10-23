@@ -13,7 +13,6 @@ namespace GoodieBag.Views.Pages;
 internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
 {
     public const string AutoAnchor = "windows.auto";
-    public const string ScriptAnchor = "windows.scripts";
     private const string Consumer = "Window Profiles page";
     private readonly AppServices _app;
     private readonly MainWindow _window;
@@ -129,27 +128,7 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
             Ui.Switch(S.AutoApply, v => { S.AutoApply = v; _app.WindowProfiles.RaiseChanged(); }));
         Ui.Anchor(auto, AutoAnchor);
         flow.Children.Add(auto);
-        flow.Children.Add(Ui.Divider());
-        var copy = Ui.LabeledButton("I.Copy", "Copy command", CopyCommand, "GhostButton");
-        copy.ToolTip = "Copies a PowerShell command that applies a profile, for a script or a Stream Deck";
-        var scripts = Ui.SettingRow("From scripts and Stream Deck", $"Write apply-window \"name\" to the pipe \\\\.\\pipe\\{CommandPipe.Name} while Goodie Bag runs (a profile or group name).", copy);
-        Ui.Anchor(scripts, ScriptAnchor);
-        flow.Children.Add(scripts);
         return new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 18), Padding = new Thickness(20, 8, 20, 8), Child = flow };
-    }
-
-    private void CopyCommand()
-    {
-        string name = S.Profiles.FirstOrDefault()?.Name ?? "Profile name";
-        try
-        {
-            Clipboard.SetText(CommandPipe.PowerShell(name));
-            _app.Notify("Command copied", $"Applies “{name}”. Change the name in it for another profile or group.", NoticeKind.Success);
-        }
-        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or System.Runtime.InteropServices.ExternalException)
-        {
-            _app.Notify("Couldn't copy", "Another program is holding the clipboard. Try again.", NoticeKind.Warning);
-        }
     }
 
     private Tile EmptyState()

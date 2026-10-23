@@ -19,7 +19,7 @@
     <ApplicationIcon>Assets\GoodieBag.ico</ApplicationIcon>
     <AssemblyName>GoodieBag</AssemblyName>
     <RootNamespace>GoodieBag</RootNamespace>
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <Title>Goodie Bag</Title>
     <AssemblyTitle>Goodie Bag</AssemblyTitle>
     <Product>Goodie Bag</Product>
@@ -60,6 +60,7 @@
     <!-- the GRR theme: Barlow (SIL Open Font License, the licence text beside the fonts) and the GRR logo -->
     <Resource Include="Assets\Fonts\*" />
     <Resource Include="Assets\GrrLogo.png" />
+    <Resource Include="Assets\CarTop*.png" />
   </ItemGroup>
 
   <!-- Topography background: the pixel shader is compiled by fxc.exe from the Windows 10 / 11 SDK on every build that

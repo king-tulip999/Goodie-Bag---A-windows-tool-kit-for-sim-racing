@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:GoodieBag.Controls"
         xmlns:v="clr-namespace:GoodieBag.Views"
-        Title="Goodie Bag" Width="1280" Height="820" MinWidth="960" MinHeight="600"
+        Title="Goodie Bag" Width="1472" Height="820" MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen" Icon="/Assets/GoodieBag.ico"
         Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
         FontFamily="{DynamicResource UiFont}" FontSize="13.5"
@@ -25,7 +25,7 @@
             <Rectangle x:Name="TopoLayer" Grid.RowSpan="2" IsHitTestVisible="False" Visibility="Collapsed" Fill="{DynamicResource Bg}" />
 
             <!-- title bar (draggable; buttons opt out of the caption area) -->
-            <DockPanel x:Name="TitleBar" Grid.Row="0" LastChildFill="False">
+            <DockPanel x:Name="TitleBar" Grid.Row="0" LastChildFill="True">
                 <!-- left: the brand (just the mark, not a button) and, while a newer version is available, the update badge.
                      Lined up with the pages' content (28 px). -->
                 <StackPanel x:Name="TitleLeft" DockPanel.Dock="Left" Orientation="Horizontal" Margin="28,8,0,0" VerticalAlignment="Top">
@@ -66,60 +66,52 @@
                     </Button.ToolTip>
                     <Image x:Name="ThemeLogoImage" Stretch="Uniform" Height="28" RenderOptions.BitmapScalingMode="HighQuality" />
                 </Button>
+                <!-- a quote between the brand and the window buttons (Services/Quotes.cs), one line, trimmed with the whole text
+                     on hover; a new one every QuoteSeconds while the window shows; dragging on it moves the window -->
+                <Border x:Name="QuoteBar" Margin="32,8,24,0" Height="34" VerticalAlignment="Top" Background="Transparent"
+                        WindowChrome.IsHitTestVisibleInChrome="True" Visibility="Collapsed">
+                    <TextBlock x:Name="QuoteText" HorizontalAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               FontStyle="Italic" FontSize="14" Foreground="{DynamicResource TextMuted}" />
+                </Border>
             </DockPanel>
 
             <!-- the accent line between the title bar and the page, as between a page's panels; spans the window -->
             <v:DividerLine x:Name="TitleRule" Grid.Row="0" VerticalAlignment="Bottom" Margin="28,0,28,0" />
 
-            <!-- back to the main page, centred on the window, with back-to-top on its left and the app-wide search on its right;
-                 hidden on the main page itself. All three (and the brand) are TitleButtonHeight tall. -->
-            <Grid x:Name="HomeBar" Grid.Row="0" VerticalAlignment="Top" Margin="0,8,0,0">
+            <!-- the sidebar (Views/Sidebar.cs: every tool, the open tool's sections, Settings) beside the page, left or right
+                 (UiSettings.SidebarRight) -->
+            <Grid x:Name="Body" Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button x:Name="TopButton" Grid.Column="0" HorizontalAlignment="Right" Margin="0,0,8,0" Style="{StaticResource IconButton}"
-                        Width="34" Height="34" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Back to the top of this page" AutomationProperties.Name="Back to top">
-                    <c:Icon Data="{StaticResource I.ArrowUpToLine}" Width="16" Height="16" />
-                </Button>
-                <!-- navigation, not a main action: the neutral button, like back-to-top and search beside it -->
-                <Button x:Name="HomeButton" Grid.Column="1" Padding="22,0" MinWidth="160" Height="34"
-                        Style="{StaticResource GhostButton}"
-                        WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Back to the home page with every tool" AutomationProperties.Name="Home page" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <Button x:Name="SearchButton" Style="{StaticResource IconButton}" Width="34" Height="34" Margin="0" WindowChrome.IsHitTestVisibleInChrome="True"
-                            ToolTip="Search settings and keybinds (Ctrl+F)" AutomationProperties.Name="Search">
-                        <c:Icon Data="{StaticResource I.Search}" Width="16" Height="16" />
-                    </Button>
-                    <Border x:Name="TitleSearchHost" Width="300" Height="34" Visibility="Collapsed" WindowChrome.IsHitTestVisibleInChrome="True" />
-                </StackPanel>
-            </Grid>
-
-            <Grid Grid.Row="1" ClipToBounds="True">
-                <!-- every theme: a faint piece of track (ThemeSpec.Track, Theme/TrackDecor.cs: edges, kerbs, dashed racing line,
-                     apex rings) in the bottom-right 55 % × 60 % of the page area, scaled with it; cards are opaque, so it only
-                     shows in the gaps between them. One frozen brush, cached as a bitmap (redrawn only on resize). -->
-                <Grid x:Name="TrackDecor" Margin="0,0,24,8" IsHitTestVisible="False" Visibility="{DynamicResource TrackVisibility}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="45*" />
-                        <ColumnDefinition Width="55*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="40*" />
-                        <RowDefinition Height="60*" />
-                    </Grid.RowDefinitions>
-                    <Rectangle Grid.Row="1" Grid.Column="1" Fill="{DynamicResource TrackBrush}">
-                        <Rectangle.CacheMode>
-                            <BitmapCache />
-                        </Rectangle.CacheMode>
-                    </Rectangle>
+                <ContentControl x:Name="SidebarHost" Grid.Column="0" Focusable="False" Margin="16,14,0,16" />
+                <Grid x:Name="PageArea" Grid.Column="1" ClipToBounds="True">
+                    <!-- every theme: a faint piece of track (ThemeSpec.Track, Theme/TrackDecor.cs: edges, kerbs, dashed racing line,
+                         apex rings) in the bottom-right 55 % × 60 % of the page area, scaled with it; cards are opaque, so it only
+                         shows in the gaps between them. One frozen brush, cached as a bitmap (redrawn only on resize). -->
+                    <Grid x:Name="TrackDecor" Margin="0,0,24,8" IsHitTestVisible="False" Visibility="{DynamicResource TrackVisibility}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="45*" />
+                            <ColumnDefinition Width="55*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="40*" />
+                            <RowDefinition Height="60*" />
+                        </Grid.RowDefinitions>
+                        <Rectangle Grid.Row="1" Grid.Column="1" Fill="{DynamicResource TrackBrush}">
+                            <Rectangle.CacheMode>
+                                <BitmapCache />
+                            </Rectangle.CacheMode>
+                        </Rectangle>
+                    </Grid>
+                    <ContentControl x:Name="PageContent" Focusable="False">
+                        <ContentControl.RenderTransform>
+                            <TranslateTransform x:Name="PageMove" />
+                        </ContentControl.RenderTransform>
+                    </ContentControl>
                 </Grid>
-                <ContentControl x:Name="PageContent" Focusable="False">
-                    <ContentControl.RenderTransform>
-                        <TranslateTransform x:Name="PageMove" />
-                    </ContentControl.RenderTransform>
-                </ContentControl>
             </Grid>
 
             <StackPanel x:Name="Toasts" Grid.RowSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,28,24" Width="360" />

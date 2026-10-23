@@ -103,7 +103,7 @@ internal static class ConfigTransfer
         };
         if (c.Plugins.Count > 0)
             lines.Add($"Plugins: {c.Plugins.Count(p => p.Value)} on, {c.Plugins.Count(p => !p.Value)} off");
-        lines.Add("Window, startup, home page order, page layouts, sim racing tools and update settings");
+        lines.Add("Window, startup, sidebar order, page layouts, sim racing tools and update settings");
         return lines;
     }
 

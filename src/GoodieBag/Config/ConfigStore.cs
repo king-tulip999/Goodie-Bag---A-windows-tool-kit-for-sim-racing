@@ -115,14 +115,16 @@ public static class ConfigStore
         config.SimRacing.MigratePanelLayout();
         (config.SessionStats ??= new()).Normalize();
         (config.SimRacing.Hud ??= new()).Normalize(SimRacing.Hud.HudPresets.DefaultLayouts, SimRacing.Hud.HudPresets.DefaultRules);
-        if (string.Equals(config.Ui.StartPage, "home", StringComparison.OrdinalIgnoreCase)) config.Ui.StartPage = "plugins";
+        if (config.Ui.StartPage is null || config.Ui.StartPage.Equals("home", StringComparison.OrdinalIgnoreCase) || config.Ui.StartPage.Equals("plugins", StringComparison.OrdinalIgnoreCase))
+            config.Ui.StartPage = UiSettings.LastUsedPage;
+        config.Ui.PageSections ??= new(StringComparer.OrdinalIgnoreCase);
+        if (config.Ui.Window is null) config.Ui.SidebarVersion = 1;
+        foreach (var key in config.Ui.PageSections.Where(p => string.IsNullOrWhiteSpace(p.Value)).Select(p => p.Key).ToList()) config.Ui.PageSections.Remove(key);
         config.Ui.LandingVersion = 1;
         if (config.Ui.InterfaceScaleVersion < 1) config.Ui.InterfaceScale = UiSettings.MigrateScale(config.Ui.InterfaceScale);
         config.Ui.InterfaceScaleVersion = 1;
-        if (config.Ui.MonitorSectionsVersion < 1)
-            foreach (var id in new[] { "performance", "sensors" })
-                if (!config.Ui.MonitorHiddenSections.Contains(id)) config.Ui.MonitorHiddenSections.Add(id);
-        config.Ui.MonitorSectionsVersion = 1;
+        if (config.Ui.MonitorSectionsVersion < 2) config.Ui.MonitorHiddenSections.RemoveAll(id => id is "performance" or "sensors");
+        config.Ui.MonitorSectionsVersion = 2;
         config.Ui.LandingLayout ??= new();
         config.Ui.LandingLayout.RemoveAll(slot => slot.Id == "home");
         foreach (var layout in new[] { config.Ui.SensorsLayout, config.Fans.Layout })
@@ -169,6 +171,7 @@ public static class ConfigStore
         foreach (var profile in config.Displays.Profiles)
             profile.Wallpapers = IgnoreCase(profile.Wallpapers);
         config.Displays.Names = IgnoreCase(config.Displays.Names);
+        config.Ui.PageSections = IgnoreCase(config.Ui.PageSections);
         var iracing = config.SimRacing.IracingController ??= new();
         iracing.IgnoredValues = IgnoreCase(iracing.IgnoredValues);
         iracing.SavedLayout = IgnoreCase(iracing.SavedLayout);
@@ -302,7 +305,7 @@ public static class ConfigStore
     {
         var config = new AppConfig();
         config.Ui.InterfaceScaleVersion = 1;
-        config.Ui.MonitorSectionsVersion = 1;
+        config.Ui.MonitorSectionsVersion = 2;
         config.Fans.PresetNamesVersion = 1;
         return config;
     }

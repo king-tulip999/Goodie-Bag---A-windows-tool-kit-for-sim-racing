@@ -62,6 +62,7 @@ internal sealed class SectionDef
     public string? Name { get; set; }
     public string? Use { get; set; }
     public string? Why { get; set; }
+    public string? Note { get; set; }
     public bool ManagedBySim { get; set; }
     public bool KnownOnly { get; set; }
 }
@@ -102,6 +103,7 @@ internal sealed class SettingDef
     public double? Step { get; set; }
     public string? Unit { get; set; }
     [JsonPropertyName("std")] public double? Default { get; set; }
+    public double? SimWrites { get; set; }
     public bool ReadOnly { get; set; }
     public string? ReadOnlyNote { get; set; }
     public bool Hidden { get; set; }

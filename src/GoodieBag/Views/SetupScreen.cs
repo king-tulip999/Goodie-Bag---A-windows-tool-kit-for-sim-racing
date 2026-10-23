@@ -122,7 +122,7 @@ internal sealed class SetupScreen : UserControl
         brand.Children.Add(word);
         stack.Children.Add(brand);
 
-        stack.Children.Add(new TextBlock { Text = _firstRun ? "WELCOME" : "SETUP", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(2, 30, 0, 6) });
+        stack.Children.Add(new TextBlock { Text = _firstRun ? "Welcome" : "Setup", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(2, 30, 0, 6) });
         stack.Children.Add(new TextBlock { Text = "Set up your workspace", Style = Ui.Res<Style>("H1"), FontSize = 32, TextWrapping = TextWrapping.Wrap });
         stack.Children.Add(new TextBlock
         {

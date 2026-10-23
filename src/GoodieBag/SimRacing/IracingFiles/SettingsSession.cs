@@ -32,6 +32,11 @@ internal sealed class Setting
     public string Draft { get; internal set; }
 
     public bool IsChanged => !SameValue(Draft, Applied);
+    public bool IsModified => !IsReadOnly && !SectionInfo.ManagedBySim && Def.Default is not null && !IsDefault(Draft);
+
+    public bool IsDefault(string value) =>
+        Def.Default is { } std && (SameValue(value, Format(std)) || Def.SimWrites is { } kept && SameValue(value, Format(kept)));
+
     public bool IsReadOnly => Def.ReadOnly;
     public bool IsHidden => Def.Hidden;
 
@@ -41,8 +46,8 @@ internal sealed class Setting
         {
             if (Session.IsIgnored(this)) return false;
             if (Def.UnusualAbove is { } above) return CommentInference.TryNumber(Draft, out var v) && v > above;
-            if (Def.Default is not { } std || SectionInfo.ManagedBySim) return false;
-            return !SameValue(Draft, Format(std));
+            if (Def.Default is null || SectionInfo.ManagedBySim) return false;
+            return !IsDefault(Draft);
         }
     }
 
@@ -104,6 +109,7 @@ internal sealed class SectionInfo
     public int Order { get; init; }
     public bool IsRare { get; set; }
     public bool ManagedBySim { get; init; }
+    public string? Note { get; init; }
 }
 
 internal sealed record WriteResult(Backup? Backup, int Written, IReadOnlyList<string> Skipped);
@@ -202,6 +208,7 @@ internal sealed class SettingsSession
             Order = order,
             IsRare = def is not null ? def.Use == "rare" : !renderer,
             ManagedBySim = def?.ManagedBySim ?? false,
+            Note = def?.Note,
         };
     }
 
@@ -279,7 +286,7 @@ internal sealed class SettingsSession
         return new WriteResult(backup, written, skipped);
     }
 
-    public string? DefaultOf(Setting s) => s.Def.Default is { } d ? KeepStyle(s.Applied, d) : null;
+    public string? DefaultOf(Setting s) => (s.Def.SimWrites ?? s.Def.Default) is { } d ? KeepStyle(s.Applied, d) : null;
 
     public bool IsIgnored(Setting s) => _ignored.TryGetValue(s.Id, out var v) && Setting.SameValue(v, s.Draft);
 

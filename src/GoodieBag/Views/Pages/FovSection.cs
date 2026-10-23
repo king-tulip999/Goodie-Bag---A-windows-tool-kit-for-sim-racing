@@ -34,13 +34,13 @@ internal sealed class FovSection : StackPanel
             _iracingFov = null;
         }
     }
-    private readonly StackPanel _inputs = new(), _numbers = new(), _sims = new(), _compare = new(), _measure = new(), _warnings = new();
+    private readonly StackPanel _inputs = new(), _numbers = new(), _compare = new(), _measure = new(), _warnings = new();
     private readonly RigDiagram _diagram = new() { MinHeight = 300 };
     private readonly Stack<FovSetup> _undo = new();
     private DateTime _lastUndoPush;
     private Button? _undoButton;
     private int _mode = 2;
-    private readonly FrameworkElement _compareCard;
+    private readonly FrameworkElement _compareCard, _measureCard;
     private bool _bottomWide = true;
 
     private static readonly (string Label, Func<FovSetup> Make)[] Presets =
@@ -80,9 +80,6 @@ internal sealed class FovSection : StackPanel
         var inputsCard = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 14, 18, 14), Child = _inputs };
         var left = new StackPanel();
         left.Children.Add(inputsCard);
-        var iracingCard = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 14, 18, 16), Margin = new Thickness(0, 16, 0, 0), Child = _iracing };
-        Ui.Anchor(iracingCard, "simracing.fov.iracing");
-        left.Children.Add(iracingCard);
         _top.Children.Add(left);
         var diagramStack = new DockPanel();
         var diagramHead = Heading("Top-down view", "I.Target");
@@ -103,15 +100,15 @@ internal sealed class FovSection : StackPanel
         _bottom.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _bottom.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _bottom.Margin = new Thickness(0, 16, 0, 0);
-        var simsCard = Card("Enter in your sim", "I.Wheel", _sims);
-        _bottom.Children.Add(simsCard);
+        var iracingCard = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 14, 18, 16), Child = _iracing };
+        Ui.Anchor(iracingCard, "simracing.fov.iracing");
+        _bottom.Children.Add(iracingCard);
         var right = new StackPanel();
         _compareCard = Card("Compare setups", "I.Layers", _compare);
         Ui.Anchor(_compareCard, "simracing.compare");
         right.Children.Add(_compareCard);
-        var measureCard = Card("Measure your rig", "I.Ruler", _measure);
-        measureCard.Margin = new Thickness(0, 16, 0, 0);
-        right.Children.Add(measureCard);
+        _measureCard = Card("Measure your rig", "I.Ruler", _measure);
+        ((Tile)_measureCard).Padding = new Thickness(16, 12, 16, 12);
         Grid.SetColumn(right, 2);
         _bottom.Children.Add(right);
         Children.Add(_bottom);
@@ -282,14 +279,14 @@ internal sealed class FovSection : StackPanel
             var angle = new StackPanel { Orientation = Orientation.Horizontal };
             angle.Children.Add(Ui.Segmented(new[] { "Ideal", "My rig" }, C.AutoAngle ? 0 : 1, i => Change(() => C.AutoAngle = i == 0, rebuild: true), "Angle",
                 new[] { "Work out the angle that makes each side screen face your eyes square-on", "Enter the angle your side screens are turned in now" }));
-            if (!C.AutoAngle)
-            {
-                var degrees = new NumberBox(C.SideAngleDeg, "°", 56) { Minimum = 0, Maximum = 120, Step = 0.5, Decimals = 1, Margin = new Thickness(8, 0, 0, 0) };
-                degrees.ValueChanged += v => Change(() => C.SideAngleDeg = v);
-                angle.Children.Add(degrees);
-            }
             _inputs.Children.Add(Row("Side angle", angle,
                 "Ideal turns each side screen to face your eyes square-on: the angle to set your rig to. My rig: how far your side screens are turned in from flat (0° = in line with the center)."));
+            if (!C.AutoAngle)
+            {
+                var degrees = new NumberBox(C.SideAngleDeg, "°", 56) { Minimum = 0, Maximum = 120, Step = 0.5, Decimals = 1 };
+                degrees.ValueChanged += v => Change(() => C.SideAngleDeg = v);
+                _inputs.Children.Add(Row("Your angle", degrees, "How far your side screens are turned in from flat (0° = in line with the center)."));
+            }
         }
         tripleRows.AddRange(Enumerable.Range(tripleFrom, _inputs.Children.Count - tripleFrom).Select(i => _inputs.Children[i]));
         if (!C.Triple)
@@ -424,6 +421,8 @@ internal sealed class FovSection : StackPanel
             ? Number("Side angle", $"{r.SideAngle:0.0}°", C.AutoAngle ? $"Turned in from flat · {180 - r.SideAngle:0.0}° between screens" : $"Your angle · ideal is {r.OptimalSideAngle:0.0}°", "I.Rotate", "ApricotSoft", "ApricotDeep")
             : Number("Detail", $"{r.PixelsPerDegree:0.0}", "Pixels per degree (horizontal)", "I.Rotate", "ApricotSoft", "ApricotDeep"));
         if (numbers != _numbers) _numbers.Children.Add(numbers);
+        _measureCard.Margin = _mode == 2 ? new Thickness(6, 0, 6, 12) : new Thickness(0);
+        _numbers.Children.Add(_measureCard);
 
         _warnings.Children.Clear();
         if (r.Triple && r.OptimalUnreachable && C.AutoAngle)
@@ -436,7 +435,6 @@ internal sealed class FovSection : StackPanel
         S.AssignCompareColors();
         var compared = S.Compare.Select(setup => (Result: FovCalculator.Calculate(setup), Color: CompareBrush(setup))).ToList();
         _diagram.Show(r, Imperial, compared, C.Color ?? SimRacingSettings.AccentColor);
-        FillSims(r);
         FillCompare(r, compared.Select(c => c.Result).ToList());
         FillMeasure(r);
         FillIracing(r);
@@ -484,51 +482,6 @@ internal sealed class FovSection : StackPanel
         B("I.Download", "Write into iRacing", () => _ = ExportIntoIracing(), "PrimaryButton", $"FOV {target:0.#}° into app.ini and the screen setup into rendererDX11Monitor.ini (iRacing must be closed)").IsEnabled = folder is not null;
         B("I.Save", "Save copies…", ExportCopies, "GhostButton", "Updated app.ini and rendererDX11Monitor.ini plus _backup copies, in a folder you pick").IsEnabled = folder is not null;
         _iracing.Children.Add(buttons);
-    }
-
-    private void FillSims(FovResult r)
-    {
-        _sims.Children.Clear();
-        var values = FovCalculator.SimValues(r);
-        var picked = values.FirstOrDefault(v => v.Sim == S.Sim) ?? values[0];
-        var head = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
-        head.Inlines.Add(new System.Windows.Documents.Run(picked.Degrees is { } d ? $"{d:0.0}°  " : picked.Axis + "  ") { FontSize = 22, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("AccentText") });
-        head.Inlines.Add(new System.Windows.Documents.Run(picked.Degrees is null ? $"{picked.Sim}: {picked.Note}" : $"{picked.Axis.ToLowerInvariant()} FOV for {picked.Sim}. {picked.Note}") { Foreground = Ui.Res<Brush>("TextMuted") });
-        _sims.Children.Add(head);
-
-        var grid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 0) };
-        foreach (var v in values)
-        {
-            bool mine = v == picked;
-            var line = new Grid();
-            line.ColumnDefinitions.Add(new ColumnDefinition());
-            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            line.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = v.Sim, FontWeight = mine ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center }));
-            var value = new TextBlock
-            {
-                Text = v.Degrees is { } deg ? $"{deg:0.0}° {(v.Axis == "Horizontal" ? "H" : "V")}" : "–",
-                FontWeight = FontWeights.SemiBold, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                Foreground = Ui.Res<Brush>(v.OutOfRange ? "Danger" : v.Degrees is null ? "TextFaint" : "Text"),
-            };
-            Grid.SetColumn(value, 1);
-            line.Children.Add(value);
-            var row = new Tile
-            {
-                Padding = new Thickness(10, 5, 10, 5), CornerRadius = ThemeManager.Round(8), Margin = new Thickness(4, 1, 4, 1), Child = line, Cursor = System.Windows.Input.Cursors.Hand,
-                Background = mine ? Ui.Res<Brush>("AccentSoft") : Brushes.Transparent,
-                ToolTip = $"{v.Axis} FOV. {v.Note}" + (v.Extra is null ? "" : $" {v.Extra}.") + (v.OutOfRange ? $" Outside its {v.Range} range." : v.Range is null ? "" : $" Range {v.Range}."),
-            };
-            var sim = v.Sim;
-            row.MouseLeftButtonUp += (_, _) => { S.Sim = sim; _app.Save(); FillSims(FovCalculator.Calculate(C)); };
-            Motion.Pressable(row);
-            grid.Children.Add(row);
-        }
-        _sims.Children.Add(grid);
-        _sims.Children.Add(new TextBlock
-        {
-            Text = "H = horizontal, V = vertical. The calculated value is the right starting point; fine-tune by feel (around ±10%).",
-            Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0),
-        });
     }
 
     private void FillCompare(FovResult current, IReadOnlyList<FovResult> others)
@@ -698,7 +651,7 @@ internal sealed class FovSection : StackPanel
             swatches.Children.Add(choice);
         }
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock { Text = "COLOR", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(2, 0, 0, 6) });
+        stack.Children.Add(new TextBlock { Text = "Color", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(2, 0, 0, 6) });
         stack.Children.Add(swatches);
         popup.Child = new Tile
         {
@@ -749,7 +702,7 @@ internal sealed class FovSection : StackPanel
     private void FillMeasure(FovResult r)
     {
         _measure.Children.Clear();
-        var grid = new UniformGrid { Columns = 2, Margin = new Thickness(-8, 0, -8, 0) };
+        var grid = new UniformGrid { Columns = _mode == 2 ? 1 : 3, Margin = new Thickness(-8, 0, -8, 0) };
         void M(string label, string value, string? help)
         {
             var cell = new StackPanel { Margin = new Thickness(8, 4, 8, 4), ToolTip = help };
@@ -956,7 +909,6 @@ internal sealed class FovSection : StackPanel
     {
         yield return ("compare", () =>
         {
-            S.Sim = "iRacing";
             S.Compare.Clear();
             S.CompareRows.Clear();
             S.Compare.Add(Presets[1].Make());

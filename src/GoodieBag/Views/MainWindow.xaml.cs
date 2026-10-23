@@ -39,11 +39,24 @@ public partial class MainWindow : Window
     {
         _app = app;
         InitializeComponent();
+        SidebarHost.Content = _sidebar;
+        _sidebar.PageClicked += Navigate;
+        _sidebar.SectionClicked += OpenSection;
+        _sidebar.PagesMoved += keys => SetNavOrder(keys);
+        _sidebar.SectionsMoved += (key, order) => { if (_nav.ContainsKey(key) && EnsurePage(key) is ISectionedPage page) page.MoveSections(order); };
+        _searchButton = Ui.IconButton("I.Search", "Search settings and keybinds (Ctrl+F)", OpenSearch);
+        System.Windows.Automation.AutomationProperties.SetName(_searchButton, "Search");
+        TextFit.TipWhenTrimmed(QuoteText);
+        QuoteBar.MouseLeftButtonDown += OnQuoteBarDown;
+        _quoteTimer.Tick += (_, _) => NextQuote(animate: true);
+        ApplySidebarSide();
         ApplyInterfaceScale();
+        Width = 1280 + SidebarDips(_app.Config.Ui.ScaleFactor);
         Topmost = _app.Config.Ui.AlwaysOnTop;
         ApplySavedBounds();
         LocationChanged += (_, _) => RememberBounds();
         SizeChanged += (_, _) => RememberBounds();
+        PageArea.SizeChanged += (_, _) => { if (ModalLayer.Visibility == Visibility.Visible) PlaceModal(); };
         StateChanged += (_, _) => RememberBounds();
 
         Topography = new TopographyLayer(_app, this, TopoLayer, TrackDecor);
@@ -52,7 +65,7 @@ public partial class MainWindow : Window
         ApplyThemeIcon();
         _app.Plugins.Changed += OnPluginsChanged;
         ThemeManager.Changed += OnThemeChanged;
-        IsVisibleChanged += (_, _) => { UpdatePageSensors(); UpdatePageActive(); ScheduleTrim(); };
+        IsVisibleChanged += (_, _) => { UpdatePageSensors(); UpdatePageActive(); ScheduleTrim(); UpdateQuoteTimer(); };
         _trimTimer.Tick += (_, _) => { _trimTimer.Stop(); if (!OnScreen) TrimWhileHidden(); };
 
         MinButton.Click += (_, _) => WindowState = WindowState.Minimized;
@@ -60,7 +73,7 @@ public partial class MainWindow : Window
         CloseButton.Click += (_, _) => Close();
         SetupMinButton.Click += (_, _) => WindowState = WindowState.Minimized;
         SetupCloseButton.Click += (_, _) => Close();
-        StateChanged += (_, _) => { OnStateChanged(); UpdatePageSensors(); UpdatePageActive(); ScheduleTrim(); };
+        StateChanged += (_, _) => { OnStateChanged(); UpdatePageSensors(); UpdatePageActive(); ScheduleTrim(); UpdateQuoteTimer(); };
         TitleBar.SizeChanged += (_, _) => FitThemeLogo();
         ThemeLogo.SizeChanged += (_, _) => FitThemeLogo();
         Loaded += (_, _) => FitThemeLogo();
@@ -80,10 +93,6 @@ public partial class MainWindow : Window
         _app.IsWindowVisible = () => IsVisible && WindowState != WindowState.Minimized;
         _app.Notice += (title, message, kind) => ShowToast(title, message, kind);
         _app.Updates.Changed += UpdateBadgeState;
-        HomeButton.Content = Ui.IconLabel("I.Home", "Home page", 19, 15);
-        HomeButton.Click += (_, _) => Navigate("plugins");
-        SearchButton.Click += (_, _) => OpenTitleSearch();
-        TopButton.Click += (_, _) => ScrollPageToTop();
         UpdateBadge.Click += (_, _) => _ = _app.Updates.InstallAsync();
 
         Activated += (_, _) => Motion.SetWindowActive(true);
@@ -115,26 +124,112 @@ public partial class MainWindow : Window
             return;
         }
         if (key is null || !_nav.ContainsKey(key))
-            key = "plugins";
+            key = key is not null && key.Length == 0 && _app.Config.Ui.LastPage is { } last && _nav.ContainsKey(last) ? last : FirstPage;
         if (_current == key)
+        {
+            SyncSidebar();
             return;
+        }
 
         DeactivatePage();
-        if (!_pages.TryGetValue(key, out var page))
-        {
-            page = _factories[key]();
-            _pages[key] = page;
-        }
+        var page = EnsurePage(key);
 
         _current = key;
         Show(page);
-        ShowHomeButton(key != "plugins");
+        WatchSections(page as ISectionedPage);
+        SyncSidebar();
+        if (_app.Config.Ui.LastPage != key)
+        {
+            _app.Config.Ui.LastPage = key;
+            if (!ScreenshotRunner.Active) _app.Save();
+        }
 
         UpdatePageSensors();
         UpdatePageActive();
         page.UpdateLayout();
         if (!_themeRebuild) Swipe();
         RecordHistory();
+    }
+
+    private FrameworkElement EnsurePage(string key)
+    {
+        if (!_pages.TryGetValue(key, out var page))
+        {
+            page = _factories[key]();
+            _pages[key] = page;
+        }
+        return page;
+    }
+
+    internal string FirstPage => _nav.Keys.FirstOrDefault(k => k != "settings") ?? "settings";
+
+    private readonly Sidebar _sidebar = new();
+
+    internal FrameworkElement SidebarView => _sidebar;
+
+    private ISectionedPage? _watched;
+
+    private ISectionedPage? CurrentSectioned => _current is not null ? _pages.GetValueOrDefault(_current) as ISectionedPage : null;
+
+    private void WatchSections(ISectionedPage? page)
+    {
+        if (ReferenceEquals(page, _watched)) return;
+        if (_watched is not null) _watched.SectionsChanged -= OnSectionsChanged;
+        _watched = page;
+        if (page is not null) page.SectionsChanged += OnSectionsChanged;
+    }
+
+    private void OnSectionsChanged()
+    {
+        SyncSidebar();
+        RecordHistory();
+    }
+
+    private void SyncSidebar(bool animate = true) => _sidebar.Select(_current, SectionsOf, _app.Config.Ui.SidebarAllOpen, animate && !_themeRebuild);
+
+    internal void RefreshSidebar() => SyncSidebar();
+
+    private SectionList? SectionsOf(string key)
+    {
+        if (_pages.GetValueOrDefault(key) is ISectionedPage page) return new SectionList(page.Sections, page.CurrentSection, page.SectionsMovable);
+        if (key == "settings") return SettingsPage.SectionsFor(_app);
+        return _app.Plugins.PageOwner(key) is { Page.Sections: { } sections } ? sections(_app) : null;
+    }
+
+    internal void OpenSection(string key, string section)
+    {
+        if (!_nav.ContainsKey(key)) return;
+        if (_current != key && EnsurePage(key) is ISectionedPage waiting) waiting.ShowSection(section);
+        Navigate(key);
+        CurrentSectioned?.ShowSection(section);
+    }
+
+    internal static double SidebarDips(double scale) => (Sidebar.PanelWidth + 16) * scale;
+
+    internal const double BaseMinWidth = 960;
+
+    internal void ApplySidebarSide()
+    {
+        bool right = _app.Config.Ui.SidebarRight;
+        Grid.SetColumn(SidebarHost, right ? 2 : 0);
+        SidebarHost.Margin = right ? new Thickness(0, 14, 16, 16) : new Thickness(16, 14, 0, 16);
+        _sidebar.SetSide(right);
+    }
+
+    private void StepPage(int by)
+    {
+        var keys = _nav.Keys.ToList();
+        if (keys.Count == 0) return;
+        int at = _current is null ? -1 : keys.IndexOf(_current);
+        Navigate(keys[((at + by) % keys.Count + keys.Count) % keys.Count]);
+    }
+
+    private void StepSection(int by)
+    {
+        if (CurrentSectioned is not { } page || page.Sections.Count < 2) return;
+        var ids = page.Sections.Select(s => s.Id).ToList();
+        int at = page.CurrentSection is { } id ? ids.FindIndex(i => string.Equals(i, id, StringComparison.OrdinalIgnoreCase)) : -1;
+        page.ShowSection(ids[((at + by) % ids.Count + ids.Count) % ids.Count]);
     }
 
     private readonly List<(string Page, object? State)> _history = new();
@@ -306,10 +401,32 @@ public partial class MainWindow : Window
             var p = page;
             Item(p.Key, p.Title, () => p.Create(_app, this));
         }
-        Item("plugins", "Home page", () => new PluginsPage(_app, this));
         Item("settings", "Settings", () => new SettingsPage(_app, this));
         var titles = _nav.Select(n => (n.Key, n.Value)).ToList();
         _app.NavPages = () => titles;
+        BuildSidebar();
+    }
+
+    private void BuildSidebar()
+    {
+        var keys = _nav.Keys.ToList();
+        var pages = new List<SidebarPage>();
+        foreach (var plugin in _app.Plugins.Active)
+            foreach (var page in plugin.Pages.Where(p => _nav.ContainsKey(p.Key)))
+                pages.Add(new SidebarPage(page.Key, page.Title, page.Icon, Hues.Tool(plugin.Id, plugin.Colors)));
+        pages = pages.OrderBy(p => keys.IndexOf(p.Key)).ToList();
+        _sidebar.Build(pages, new SidebarPage("settings", "Settings", "I.Tune", Hues.Accent), _searchButton, _searchHost, ThemeButton());
+        _sidebar.SetSide(_app.Config.Ui.SidebarRight);
+        SyncSidebar(animate: false);
+    }
+
+    private Button? ThemeButton()
+    {
+        if (Themes.Variant(ThemeManager.Current) is { } variant)
+            return Ui.IconButton(ThemeManager.Current.Dark ? "I.Sun" : "I.Moon", $"Switch to {variant.Name}", () => _app.SetTheme(variant.Id));
+        if (Themes.OledSibling(ThemeManager.Current) is { } sibling)
+            return Ui.IconButton(sibling.Id == Config.AppTheme.OledPastel ? "I.Palette" : "I.Sparkles", $"Switch to {sibling.Name}", () => _app.SetTheme(sibling.Id));
+        return null;
     }
 
     internal void SetNavOrder(IReadOnlyList<string> keys)
@@ -324,7 +441,7 @@ public partial class MainWindow : Window
         DropPages(keepCurrent: true);
         BuildNav();
         if (_current is not null && !_nav.ContainsKey(_current))
-            Navigate("plugins");
+            Navigate(FirstPage);
         foreach (var key in _pages.Keys.Where(k => !_nav.ContainsKey(k)).ToList())
         {
             if (key == _current)
@@ -345,6 +462,7 @@ public partial class MainWindow : Window
     {
         double scale = _app.Config.Ui.ScaleFactor;
         Root.LayoutTransform = Math.Abs(scale - 1) < 0.001 ? Transform.Identity : new ScaleTransform(scale, scale);
+        MinWidth = BaseMinWidth + SidebarDips(scale);
         if (rebuild) Dispatcher.BeginInvoke(new Action(OnThemeChanged), DispatcherPriority.Background);
     }
 
@@ -462,6 +580,7 @@ public partial class MainWindow : Window
             }
             if (PageFor(page) is { } p && Ui.FindAnchor(p, anchor) is { } target)
             {
+                if (p is ISectionedPage sectioned) sectioned.ShowSectionOf(target);
                 for (DependencyObject? cur = target; cur is not null; cur = LogicalTreeHelper.GetParent(cur))
                     if (cur is Collapsible { Expanded: false } section) section.Toggle();
                 target.UpdateLayout();
@@ -475,38 +594,72 @@ public partial class MainWindow : Window
 
     private const double TitleButtonHeight = 34;
 
-    private void ScrollPageToTop()
+    private readonly Button _searchButton;
+    private readonly Border _searchHost = new() { Visibility = Visibility.Collapsed };
+    private SettingsSearchBox? _search;
+
+    internal void OpenSearch()
     {
-        var queue = new Queue<DependencyObject>();
-        if (_current is not null && _pages.GetValueOrDefault(_current) is { } shown) queue.Enqueue(shown);
-        while (queue.Count > 0)
+        if (_search is null)
         {
-            var d = queue.Dequeue();
-            if (d is ScrollViewer viewer) { viewer.ScrollToTop(); return; }
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++) queue.Enqueue(VisualTreeHelper.GetChild(d, i));
+            _search = new SettingsSearchBox(this) { VerticalAlignment = VerticalAlignment.Center };
+            _search.Opened += CloseSearch;
+            _search.Dismissed += CloseSearch;
+            _searchHost.Child = _search;
         }
+        _searchHost.Visibility = Visibility.Visible;
+        _searchButton.Visibility = Visibility.Collapsed;
+        Dispatcher.BeginInvoke(new Action(_search.FocusBox), DispatcherPriority.Loaded);
     }
 
-    private SettingsSearchBox? _titleSearch;
-
-    private void OpenTitleSearch()
+    private void CloseSearch()
     {
-        if (_titleSearch is null)
-        {
-            _titleSearch = new SettingsSearchBox(this) { VerticalAlignment = VerticalAlignment.Center };
-            _titleSearch.Opened += CloseTitleSearch;
-            _titleSearch.Dismissed += CloseTitleSearch;
-            TitleSearchHost.Child = _titleSearch;
-        }
-        SearchButton.Visibility = Visibility.Collapsed;
-        TitleSearchHost.Visibility = Visibility.Visible;
-        Dispatcher.BeginInvoke(new Action(_titleSearch.FocusBox), DispatcherPriority.Loaded);
+        _searchHost.Visibility = Visibility.Collapsed;
+        _searchButton.Visibility = Visibility.Visible;
     }
 
-    private void CloseTitleSearch()
+    private const int QuoteSeconds = 30;
+
+    private readonly DispatcherTimer _quoteTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(QuoteSeconds) };
+
+    private void UpdateQuoteTimer()
     {
-        TitleSearchHost.Visibility = Visibility.Collapsed;
-        SearchButton.Visibility = Visibility.Visible;
+        if (OnScreen)
+        {
+            if (_quoteTimer.IsEnabled) return;
+            NextQuote(animate: false);
+            _quoteTimer.Start();
+        }
+        else _quoteTimer.Stop();
+    }
+
+    private void NextQuote(bool animate)
+    {
+        if (Quotes.Next() is not { } quote)
+        {
+            QuoteBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+        string text = $"“{quote.Text}”" + (quote.Author.Length > 0 ? " — " + quote.Author : "");
+        QuoteBar.Visibility = Visibility.Visible;
+        if (!animate || !Motion.Enabled)
+        {
+            QuoteText.Text = text;
+            return;
+        }
+        Motion.FadeTo(QuoteText, 0, 220, () =>
+        {
+            QuoteText.Text = text;
+            Motion.FadeTo(QuoteText, 1, 320);
+        });
+    }
+
+    private void OnQuoteBarDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+        e.Handled = true;
+        if (e.ClickCount == 2) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        else DragMove();
     }
 
     internal List<SearchEntry> Search(string query) => SettingsIndex.Find(
@@ -548,41 +701,6 @@ public partial class MainWindow : Window
         Topmost = _app.Config.Ui.AlwaysOnTop;
         if (page is not null)
             Navigate(page);
-    }
-
-    private void ShowHomeButton(bool show, bool animate = true)
-    {
-        if (!show) CloseTitleSearch();
-        HomeBar.BeginAnimation(OpacityProperty, null);
-        if (!animate || !Motion.Enabled)
-        {
-            HomeBar.Opacity = 1;
-            HomeBar.IsHitTestVisible = true;
-            HomeBar.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            return;
-        }
-        if (show)
-        {
-            bool wasHidden = HomeBar.Visibility != Visibility.Visible || !HomeBar.IsHitTestVisible;
-            HomeBar.Visibility = Visibility.Visible;
-            HomeBar.IsHitTestVisible = true;
-            if (wasHidden)
-                HomeBar.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = Motion.Ease });
-            else
-                HomeBar.Opacity = 1;
-            return;
-        }
-        if (HomeBar.Visibility != Visibility.Visible) return;
-        HomeBar.IsHitTestVisible = false;
-        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { BeginTime = TimeSpan.FromMilliseconds(220), EasingFunction = Motion.Ease };
-        fade.Completed += (_, _) =>
-        {
-            if (HomeBar.IsHitTestVisible) return;
-            HomeBar.Visibility = Visibility.Collapsed;
-            HomeBar.BeginAnimation(OpacityProperty, null);
-            HomeBar.Opacity = 1;
-        };
-        HomeBar.BeginAnimation(OpacityProperty, fade);
     }
 
     private void OnStateChanged()
@@ -660,11 +778,17 @@ public partial class MainWindow : Window
     {
         if (Keyboard.FocusedElement is HotkeyBox)
             return;
+        if (_modal is null && !SetupOpen && Keyboard.Modifiers is ModifierKeys.Control or (ModifierKeys.Control | ModifierKeys.Shift) && e.Key is Key.Tab or Key.PageDown or Key.PageUp)
+        {
+            bool back = e.Key == Key.PageUp || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+            if (e.Key == Key.Tab) StepPage(back ? -1 : 1);
+            else if (Keyboard.Modifiers == ModifierKeys.Control) StepSection(back ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
         if (_modal is null && !SetupOpen && (IsShortcut(e, _app.Config.Ui.SearchKey) || (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.K)))
         {
-            Navigate("settings");
-            if (PageFor("settings") is SettingsPage settings)
-                Dispatcher.BeginInvoke(new Action(settings.FocusSearch), DispatcherPriority.Loaded);
+            OpenSearch();
             e.Handled = true;
         }
     }
@@ -703,6 +827,12 @@ public partial class MainWindow : Window
     private void ApplySavedBounds()
     {
         if (!Remembers || _app.Config.Ui.Window is not { Width: > 0, Height: > 0 } b) return;
+        if (_app.Config.Ui.SidebarVersion < 1)
+        {
+            _app.Config.Ui.SidebarVersion = 1;
+            if (!b.Maximized) b.Width = Math.Min(b.Width + SidebarDips(_app.Config.Ui.ScaleFactor), SystemParameters.VirtualScreenWidth);
+            _app.Save();
+        }
         double width = Math.Max(MinWidth, b.Width), height = Math.Max(MinHeight, b.Height);
         var titleBar = new Rect(b.Left + 40, b.Top, Math.Max(1, width - 80), 40);
         var primary = System.Windows.Forms.Screen.PrimaryScreen;
@@ -727,6 +857,7 @@ public partial class MainWindow : Window
         bool maximized = WindowState == WindowState.Maximized;
         if (b.Left == normal.Left && b.Top == normal.Top && b.Width == normal.Width && b.Height == normal.Height && b.Maximized == maximized) return;
         (b.Left, b.Top, b.Width, b.Height, b.Maximized) = (normal.Left, normal.Top, normal.Width, normal.Height, maximized);
+        _app.Config.Ui.SidebarVersion = 1;
         _app.Save();
     }
 
@@ -874,6 +1005,7 @@ public partial class MainWindow : Window
         _modal = new TaskCompletionSource<bool>();
         ClosePopupsOf(ModalContent);
         ModalContent.Content = content;
+        PlaceModal();
         ModalLayer.Visibility = Visibility.Visible;
         ModalLayer.BeginAnimation(OpacityProperty, null);
         ModalLayer.Opacity = 0;
@@ -889,6 +1021,19 @@ public partial class MainWindow : Window
     }
 
     private IInputElement? _focusBeforeModal;
+
+    private void PlaceModal()
+    {
+        if (!PageArea.IsLoaded || PageArea.ActualWidth <= 0)
+        {
+            ModalContent.Margin = new Thickness(0);
+            return;
+        }
+        var at = PageArea.TranslatePoint(new Point(0, 0), ContentArea);
+        double right = Math.Max(0, ContentArea.ActualWidth - at.X - PageArea.ActualWidth);
+        double bottom = Math.Max(0, ContentArea.ActualHeight - at.Y - PageArea.ActualHeight);
+        ModalContent.Margin = new Thickness(Math.Max(0, at.X), Math.Max(0, at.Y), right, bottom);
+    }
 
     internal void CloseModal(bool result)
     {
@@ -1000,7 +1145,7 @@ public partial class MainWindow : Window
             DeactivatePage();
             UpdatePageActive();
         }
-        Navigate(_current ?? "plugins");
+        Navigate(_current ?? _app.Config.Ui.StartPage);
     }
 
     internal Task<bool> Confirm(string title, string message, string confirmText, bool danger = false)

@@ -48,6 +48,7 @@ internal sealed class TimingWidget : HudWidget
         var top = area.Top(Math.Min(topH, area.Height), out var rest);
         var deltaBlock = wide ? top.Left(top.Width * 0.42f, out var times) : top.Top(Math.Min(top.Height, p.LineHeight(p.Huge) + p.LineHeight(p.Label) + 10), out times);
         if (!wide) times = rest.Top(Math.Min(rest.Height, p.BoxedStatHeight()), out rest);
+        p.Region("delta", deltaBlock);
         var tint = d is null ? p.Raised(0.05) : HudPalette.Mix(p.Raised(0.05), d < 0 ? p.P.Good : p.P.Danger, 0.22);
         if (d is null) p.Fill(deltaBlock, p.Solid(tint, 130)); else p.Soft(deltaBlock, d < 0 ? p.P.Good : p.P.Danger, 75);
         var inner = deltaBlock.Inflated(-8 * p.Density, -4 * p.Density);
@@ -83,6 +84,7 @@ internal sealed class TimingWidget : HudWidget
         if (bar && rest.Height >= 7 * p.Density + 4)
         {
             var barBox = rest.Top(barH, out rest);
+            p.Region("bar", barBox);
             var track = new RectangleF(barBox.X, barBox.Y + 4, barBox.Width, 7 * p.Density);
             p.Fill(track, p.Solid(p.Raised(0.10), 130), 3);
             float mid = track.X + track.Width / 2;
@@ -94,7 +96,11 @@ internal sealed class TimingWidget : HudWidget
             }
             p.Line(mid, track.Y - 2, mid, track.Bottom + 2, p.P.Heading, 1.5f);
         }
-        if (sectors && rest.Height > p.LineHeight(p.Small) + 6) Sectors(p, v, rest);
+        if (sectors && rest.Height > p.LineHeight(p.Small) + 6)
+        {
+            p.Region("sectors", rest);
+            Sectors(p, v, rest);
+        }
     }
 
     private static Color LastColor(HudPainter p, HudView v)
@@ -162,9 +168,9 @@ internal sealed class FuelWidget : HudWidget
 
     public static IReadOnlyList<HudOption> Options { get; } = new[]
     {
-        HudOption.Columns("parts", "Sections, top to bottom", "header,gauge,grid", Parts)
-            with { Group = HudOptionGroup.Parts, Help = "The blocks the widget is built of; what each one shows is picked under What to show" },
-        HudOption.Columns("head", "Header shows", "togo,nextpit,stops",
+        HudOption.Columns("parts", "Sections", "header,gauge,grid", Parts)
+            with { Help = "The blocks the widget is built of, top to bottom; each one's figures are picked below it" },
+        HudOption.Columns("head", "Header", "togo,nextpit,stops",
             new HudChoice("togo", "Laps to go", "Colored by how sure the estimate is"), new HudChoice("nextpit", "Next pit lap", "The lap the pit window opens (one stop then reaches the flag)"),
             new HudChoice("pitby", "Pit by lap", "The last lap before the tank runs dry"), new HudChoice("stops", "Stops left"),
             new HudChoice("add", "Add at the next stop"), new HudChoice("level", "Fuel in the tank")),
@@ -176,7 +182,7 @@ internal sealed class FuelWidget : HudWidget
             new HudChoice("use", "Per lap"), new HudChoice("laps", "Laps it lasts"), new HudChoice("refuel", "Refuel to the flag", "What to add, in total, to reach the flag at that rate (with the plan's reserve)"),
             new HudChoice("finish", "Left at the flag", "Fuel in the tank at the flag at that rate, without stopping (negative = short)")),
         HudOption.Int("avgLaps", "Laps in the average", 5, 3, 10),
-        HudOption.Bool("statusEdge", "Border in the fuel status color", true, "Green: enough to the flag. Amber: a stop to come. Red: under the low-fuel alert's laps"),
+        HudOption.Bool("statusEdge", "Status border", true, "Green: enough to the flag. Amber: a stop to come. Red: under the low-fuel alert's laps"),
         HudOption.Bool("title", "Title row", false, "“Fuel” with how many clean laps the estimate has"),
         HudOption.Columns("top", "Big figures", "level,laps,togo", Figures),
         HudOption.Columns("cols", "Table columns", "last,avg,max",
@@ -204,6 +210,7 @@ internal sealed class FuelWidget : HudWidget
         {
             string sub = measured == 0 ? "measuring…" : $"{measured} clean lap{(measured == 1 ? "" : "s")} · {Confidence(estimate.Reliability)}";
             p.TitleBar(new RectangleF(0, 0, bounds.Width, p.PillHeight), "Fuel", r.FuelData.EnergyUnits ? "" : sub);
+            p.Region("title", new RectangleF(0, 0, bounds.Width, p.PillHeight));
             top = p.PillHeight + p.PieceGap;
         }
         if (f.Fuel is not { } level || r.FuelData.EnergyUnits)

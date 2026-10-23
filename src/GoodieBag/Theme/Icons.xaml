@@ -45,6 +45,8 @@
     <Geometry x:Key="I.Target">M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0zM18 12a6 6 0 1 1-12 0a6 6 0 1 1 12 0zM14 12a2 2 0 1 1-4 0a2 2 0 1 1 4 0z</Geometry>
     <Geometry x:Key="I.Hash">M4 9h16M4 15h16M10 3 8 21M16 3l-2 18</Geometry>
     <Geometry x:Key="I.Info">M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0zM12 16v-4M12 8h.01</Geometry>
+    <Geometry x:Key="I.Grip">M10 5a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM10 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM10 19a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM16 5a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM16 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM16 19a1 1 0 1 1-2 0a1 1 0 1 1 2 0z</Geometry>
+    <Geometry x:Key="I.More">M6 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM13 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0zM20 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0z</Geometry>
     <Geometry x:Key="I.Alert">M21.73 18l-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01</Geometry>
     <Geometry x:Key="I.ChevronRight">M9 18l6-6-6-6</Geometry>
     <Geometry x:Key="I.ChevronLeft">M15 18l-6-6 6-6</Geometry>

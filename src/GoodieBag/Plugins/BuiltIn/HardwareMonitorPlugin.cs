@@ -22,7 +22,7 @@ internal sealed class HardwareMonitorPlugin : Plugin
 
     public override IReadOnlyList<PluginPage> Pages { get; } = new[]
     {
-        new PluginPage("monitor", "Hardware Monitor", "I.Heartbeat", (app, window) => new HardwareMonitorPage(app, window), PageSensors.Basic),
+        new PluginPage("monitor", "Hardware Monitor", "I.Heartbeat", (app, window) => new HardwareMonitorPage(app, window), PageSensors.Basic, HardwareMonitorPage.SectionsFor),
     };
 
 

@@ -185,11 +185,13 @@
    "section": "Autochat Messages",
    "name": "Chat macros",
    "use": "occasional",
-   "why": "Canned chat lines and pit commands sent with a key press."
+   "why": "Canned chat lines and pit commands sent with a key press.",
+   "note": "Each macro is sent with its bound key. End it with $ to send it at once; # runs pit commands, e.g. #fuel 10l$."
   },
   {
    "file": "app.ini",
-   "section": "AutoLoadHUD", "knownOnly": true,
+   "section": "AutoLoadHUD",
+   "knownOnly": true,
    "name": "HUD profile",
    "use": "rare",
    "why": "Default HUD profile name. Normally picked in the sim."
@@ -217,7 +219,8 @@
   },
   {
    "file": "app.ini",
-   "section": "ControlProfiles", "knownOnly": true,
+   "section": "ControlProfiles",
+   "knownOnly": true,
    "name": "Control profile",
    "use": "rare",
    "why": "Default control profile name. Normally picked in the sim."
@@ -507,11 +510,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "more self-shadowing objects when shadow mapping"
+     "label": "More self-shadowing objects when shadow mapping"
     }
    ],
    "source": "research",
@@ -572,6 +575,7 @@
    "max": 200,
    "unit": "1/100 s",
    "std": 5,
+   "simWrites": 4,
    "dependsOn": {
     "key": "DNSMEnable",
     "op": "eq",
@@ -610,11 +614,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "track walls cast shadows"
+     "label": "Track walls cast shadows"
     }
    ],
    "source": "research",
@@ -631,11 +635,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "track objects cast shadows"
+     "label": "Track objects cast shadows"
     }
    ],
    "source": "research",
@@ -652,11 +656,11 @@
    "options": [
     {
      "value": 0,
-     "label": "per-AA-sample shadows"
+     "label": "Per-AA-sample shadows"
     },
     {
      "value": 1,
-     "label": "per-pixel shadow"
+     "label": "Per-pixel shadow"
     }
    ],
    "source": "research",
@@ -755,11 +759,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "render trees with higher quality in two passes"
+     "label": "Render trees with higher quality in two passes"
     }
    ],
    "source": "research",
@@ -822,6 +826,7 @@
    "min": 0,
    "max": 100,
    "std": 10,
+   "simWrites": 9,
    "source": "research",
    "tier": "more",
    "group": "Anti-aliasing"
@@ -896,23 +901,23 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 2,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 3,
-     "label": "high"
+     "label": "High"
     },
     {
      "value": 4,
-     "label": "ultra"
+     "label": "Ultra"
     }
    ],
    "source": "research",
@@ -962,11 +967,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "dynamic shadow maps trim some objects by size"
+     "label": "Dynamic shadow maps trim some objects by size"
     }
    ],
    "source": "reason",
@@ -983,11 +988,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "dynamic shadow maps for cars"
+     "label": "Dynamic shadow maps for cars"
     }
    ],
    "source": "research",
@@ -1004,11 +1009,11 @@
    "options": [
     {
      "value": 0,
-     "label": "fewer shadows"
+     "label": "Fewer shadows"
     },
     {
      "value": 1,
-     "label": "maximum shadows"
+     "label": "Maximum shadows"
     }
    ],
    "source": "reason",
@@ -1038,11 +1043,11 @@
    "options": [
     {
      "value": 0,
-     "label": "low detail"
+     "label": "Low detail"
     },
     {
      "value": 1,
-     "label": "high detail in mirrors"
+     "label": "High detail in mirrors"
     }
    ],
    "caution": "Large FPS cost, multiplied by each mirror.",
@@ -1071,15 +1076,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 1,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 2,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1096,15 +1101,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 1,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 2,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1121,19 +1126,19 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 2,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 3,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1150,15 +1155,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 1,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 2,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1175,15 +1180,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 1,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 2,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1200,19 +1205,19 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 2,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 3,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1229,19 +1234,19 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 2,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 3,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1258,15 +1263,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low"
+     "label": "Low"
     },
     {
      "value": 1,
-     "label": "med"
+     "label": "Med"
     },
     {
      "value": 2,
-     "label": "high"
+     "label": "High"
     }
    ],
    "source": "research",
@@ -1283,15 +1288,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low update rate"
+     "label": "Low update rate"
     },
     {
      "value": 1,
-     "label": "med update rate"
+     "label": "Med update rate"
     },
     {
      "value": 2,
-     "label": "high update rate"
+     "label": "High update rate"
     }
    ],
    "source": "research",
@@ -1716,11 +1721,11 @@
    "options": [
     {
      "value": 0,
-     "label": "normal trees"
+     "label": "Normal trees"
     },
     {
      "value": 1,
-     "label": "trees sway with wind"
+     "label": "Trees sway with wind"
     }
    ],
    "source": "reason",
@@ -1737,11 +1742,11 @@
    "options": [
     {
      "value": 0,
-     "label": "render without displacement"
+     "label": "Render without displacement"
     },
     {
      "value": 1,
-     "label": "render using track displacement shaders"
+     "label": "Render using track displacement shaders"
     }
    ],
    "source": "reason",
@@ -1884,15 +1889,15 @@
    "options": [
     {
      "value": 0,
-     "label": "low quality"
+     "label": "Low quality"
     },
     {
      "value": 1,
-     "label": "medium"
+     "label": "Medium"
     },
     {
      "value": 2,
-     "label": "high quality"
+     "label": "High quality"
     }
    ],
    "source": "research",
@@ -1909,11 +1914,11 @@
    "options": [
     {
      "value": 0,
-     "label": "disabled"
+     "label": "Disabled"
     },
     {
      "value": 1,
-     "label": "multithreaded scene sort"
+     "label": "Multithreaded scene sort"
     }
    ],
    "source": "reason",
@@ -1930,11 +1935,11 @@
    "options": [
     {
      "value": 0,
-     "label": "color headlights"
+     "label": "Color headlights"
     },
     {
      "value": 1,
-     "label": "all white (less blotches/banding"
+     "label": "All white (less blotches/banding"
     }
    ],
    "source": "reason",
@@ -1951,11 +1956,11 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
-     "label": "headlights illuminate track surface in mirrors"
+     "label": "Headlights illuminate track surface in mirrors"
     }
    ],
    "source": "research",
@@ -1995,11 +2000,11 @@
    "options": [
     {
      "value": 0,
-     "label": "uncompressed"
+     "label": "Uncompressed"
     },
     {
      "value": 1,
-     "label": "block compress (recommended"
+     "label": "Block compress (recommended"
     }
    ],
    "source": "reason",
@@ -2016,11 +2021,11 @@
    "options": [
     {
      "value": 0,
-     "label": "uncompressed"
+     "label": "Uncompressed"
     },
     {
      "value": 1,
-     "label": "block compress (recommended"
+     "label": "Block compress (recommended"
     }
    ],
    "source": "reason",
@@ -2051,7 +2056,7 @@
    "options": [
     {
      "value": 0,
-     "label": "off"
+     "label": "Off"
     },
     {
      "value": 1,
@@ -3240,6 +3245,7 @@
    "type": "num",
    "unit": "1/100 s",
    "std": 5,
+   "simWrites": 4,
    "source": "research",
    "displayScale": 0.01,
    "displayUnit": "s",
@@ -3446,6 +3452,7 @@
    "min": 0,
    "max": 100,
    "std": 10,
+   "simWrites": 9,
    "source": "reason",
    "tier": "more",
    "group": "Effects"
@@ -5067,7 +5074,7 @@
    "section": "Autochat Messages",
    "key": "AutoChatStr1",
    "label": "Chat macro 1",
-   "help": "Chat macro 1, sent with its bound key. A trailing $ sends it; # pit commands like #fuel work.",
+   "help": "",
    "type": "text",
    "source": "research",
    "tier": "more"
@@ -7462,7 +7469,8 @@
    "std": 0.25,
    "source": "research",
    "tier": "core",
-   "group": "Car alongside"
+   "group": "Car alongside",
+   "unit": "m"
   },
   {
    "file": "app.ini",
@@ -7809,7 +7817,24 @@
    "key": "verbosity",
    "label": "Chattiness",
    "help": "How much the spotter talks. Several calls need Medium or High.",
-   "type": "num",
+   "type": "enum",
+   "options": [
+    {
+     "value": 0,
+     "label": "Low",
+     "tip": "Essential calls only."
+    },
+    {
+     "value": 1,
+     "label": "Medium",
+     "tip": "Adds faster-class warnings and more race reports."
+    },
+    {
+     "value": 2,
+     "label": "High",
+     "tip": "Every call the spotter has."
+    }
+   ],
    "std": 2,
    "source": "research",
    "tier": "core",

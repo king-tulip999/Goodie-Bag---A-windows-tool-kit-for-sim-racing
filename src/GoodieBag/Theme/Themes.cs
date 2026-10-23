@@ -16,7 +16,7 @@ internal sealed record ThemeSpec
     public string? MetricFont { get; init; }
     public FontWeight HeadingWeight { get; init; } = FontWeights.Bold;
     public FontStyle HeadingStyle { get; init; } = FontStyles.Normal;
-    public bool Caps { get; init; } = true;
+    public bool Caps { get; init; }
     public bool MonoLabels { get; init; } = true;
 
     public Uri? WindowIcon { get; init; }

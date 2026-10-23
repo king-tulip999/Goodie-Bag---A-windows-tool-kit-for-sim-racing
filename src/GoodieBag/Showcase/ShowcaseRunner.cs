@@ -134,7 +134,7 @@ internal static class ShowcaseRunner
     private static async Task Home()
     {
         Mark("home");
-        S.Caption("Home page", "Goodie Bag");
+        S.Caption("Every tool in the sidebar", "Goodie Bag");
         await Task.Delay(650);
         var current = ThemeManager.Current;
         foreach (var theme in Themes.All.Where(t => t.Id != current.Id).Append(current))
@@ -214,10 +214,9 @@ internal static class ShowcaseRunner
         await DragSetup(sim, "baseline_safe.sto", "Daytona");
         await DragSetup(sim, "Qualifying.sto", "Road Atlanta");
 
-        if (sim.PanelSection("hud") is { } hud)
+        if (await Section(sim, "hud", "iRacing Overlay") is { } hud)
         {
             S.Caption("iRacing Overlay", "Sim Racing Tools");
-            await ScrollTo(sim.Scroll, Top(hud, sim.Scroll) - 8, 650);
             await Stage.Rendered();
             if (HudCatalog.Find("relative") is { } def
                 && Find.Shown<RadioButton>(hud).FirstOrDefault(r => Find.Shown<TextBlock>(r).Any(t => Find.Is(t.Text, def.Name))) is { } item)
@@ -229,18 +228,16 @@ internal static class ShowcaseRunner
             else Skip("hud: widget relative");
         }
 
-        if (sim.PanelSection("iracing") is { } controller)
+        if (await Section(sim, "fov", "FOV calculator") is { } fov)
         {
-            if (sim.PanelSection("fov") is { } fov)
-            {
-                S.Caption("FOV calculator", "Sim Racing Tools");
-                double fovTop = Top(fov, sim.Scroll) - 8;
-                await ScrollTo(sim.Scroll, fovTop, 650);
-                double drift = Math.Clamp(fov.ActualHeight - sim.Scroll.ViewportHeight * 0.6, 120, 320);
-                await ScrollTo(sim.Scroll, fovTop + drift, 1500, t => t);
-            }
+            S.Caption("FOV calculator", "Sim Racing Tools");
+            double drift = Math.Clamp(fov.ActualHeight - sim.Scroll.ViewportHeight * 0.6, 120, 320);
+            await ScrollTo(sim.Scroll, drift, 1500, t => t);
+        }
+
+        if (await Section(sim, "iracing", "iRacing Controller") is { } controller)
+        {
             S.Caption("iRacing Controller", "Sim Racing Tools");
-            await ScrollTo(sim.Scroll, Top(controller, sim.Scroll) - 8, 650);
             await Stage.Rendered();
             foreach (var tab in new[] { "Overview", "Triple screens", "Backups" })
             {
@@ -254,9 +251,23 @@ internal static class ShowcaseRunner
             }
         }
 
-        S.Caption("Trading Paints · Garage 61", "Sim Racing Tools");
-        await ScrollTo(sim.Scroll, sim.Scroll.ScrollableHeight, 1200);
-        await Task.Delay(500);
+        if (await Section(sim, "tradingpaints", "Trading Paints") is not null)
+        {
+            S.Caption("Trading Paints · Garage 61", "Sim Racing Tools");
+            await Task.Delay(700);
+            await Section(sim, "garage61", "Garage 61");
+            await Task.Delay(500);
+        }
+    }
+
+    private static async Task<FrameworkElement?> Section(SimRacingPage sim, string id, string title)
+    {
+        var row = Find.Shown<Tile>(W.SidebarView).FirstOrDefault(t => AutomationProperties.GetName(t) == title);
+        if (row is not null) await ClickOn(row);
+        else Skip("sidebar: section " + title);
+        if (sim.CurrentSection != id) sim.ShowSection(id);
+        await Stage.Rendered();
+        return sim.CurrentSection == id ? sim.PanelSection(id) : null;
     }
 
     private static async Task DragSetup(SimRacingPage sim, string file, string folder)
@@ -427,31 +438,19 @@ internal static class ShowcaseRunner
         await Task.Delay(1800);
     }
 
-    private static string _page = "plugins";
-
     private static async Task<FrameworkElement?> Open(string card, string key, string caption, string? kicker = null)
     {
-        if (_page != "plugins")
-        {
-            await Pointer.Glide(Find.At(W.HomeButton));
-            S.Freeze();
-            _onLeave?.Invoke();
-            _onLeave = null;
-            await Pointer.Click();
-            if (!Showing("plugins")) W.Navigate("plugins");
-            await S.Reveal();
-            _page = "plugins";
-        }
+        _onLeave?.Invoke();
+        _onLeave = null;
         Mark(key);
-        var target = W.PageFor("plugins") is { } home ? Find.Shown<Tile>(home).FirstOrDefault(t => AutomationProperties.GetName(t) == card) : null;
+        var target = Find.Shown<Tile>(W.SidebarView).FirstOrDefault(t => AutomationProperties.GetName(t) == card);
         if (target is not null) await Pointer.Glide(Find.At(target, 0.42));
-        else Skip("home: card " + card);
+        else Skip("sidebar: tool " + card);
         S.Freeze();
         S.Caption(caption, kicker);
         if (target is not null) await Pointer.Click();
         if (!Showing(key)) W.Navigate(key);
         await S.Reveal();
-        _page = key;
         return W.PageFor(key);
     }
 
@@ -469,8 +468,8 @@ internal static class ShowcaseRunner
             await Stage.Rendered();
             if (W.PageFor(key) is SimRacingPage sim)
             {
-                foreach (var id in SimRacingPage.DefaultPanelOrder)
-                    if (sim.PanelSection(id) is { } section && section.Expanded != (id is "setups" or "hud" or "fov" or "iracing" or "tradingpaints" or "garage61")) section.Toggle();
+                sim.Reveal("");
+                sim.ShowSection("setups");
                 await Stage.Rendered();
                 if (sim.Setups?.ScreenshotStates().FirstOrDefault(s => s.Name == "setups") is { Enter: { } enter }) await enter();
                 sim.Scroll.ScrollToTop();
@@ -484,7 +483,7 @@ internal static class ShowcaseRunner
             await Task.Delay(500);
             await Stage.Rendered();
         }
-        W.Navigate("plugins");
+        W.Navigate(W.FirstPage);
         await Stage.Rendered();
         await Task.Delay(1500);
     }

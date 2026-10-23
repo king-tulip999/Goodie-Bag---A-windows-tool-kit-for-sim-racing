@@ -81,8 +81,8 @@ internal sealed class TopographyLayer
         _effect.Line = TopographyEffect.Vector(LineColor);
         bool dark = ThemeManager.Dark;
         _effect.Background = TopographyEffect.Vector(dark ? Colors.Black : ThemeManager.ColorOf("Bg", Colors.Black));
-        _effect.Haze = dark ? 0 : 1.6;
-        _effect.Strength = dark ? 1 : 2.6;
+        _effect.Haze = dark ? 0 : 0.6;
+        _effect.Strength = dark ? 1 : 1.6;
     }
 
     private void Fit()

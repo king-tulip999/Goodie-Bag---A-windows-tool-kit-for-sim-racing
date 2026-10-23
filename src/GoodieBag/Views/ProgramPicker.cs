@@ -28,7 +28,7 @@ internal static class ProgramPicker
         browse.Margin = new Thickness(0, 8, 0, 0);
 
         var stack = new StackPanel { Width = 360 };
-        stack.Children.Add(new TextBlock { Text = "RUNNING NOW", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(2, 0, 0, 6) });
+        stack.Children.Add(new TextBlock { Text = "Running now", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(2, 0, 0, 6) });
         stack.Children.Add(search);
         stack.Children.Add(scroll);
         stack.Children.Add(browse);

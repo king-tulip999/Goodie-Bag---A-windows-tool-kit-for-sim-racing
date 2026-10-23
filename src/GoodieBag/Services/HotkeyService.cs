@@ -99,7 +99,7 @@ internal sealed class HotkeyService : IDisposable
     }
 
     public List<HotkeyEntry> Catalog() => HotkeyCatalog.Build(_app.Config,
-        _app.Plugins.Active.SelectMany(p => p.Hotkeys(_app).Select(h => (p.Id, p.Name, p.Pages.FirstOrDefault()?.Key ?? "plugins", h))),
+        _app.Plugins.Active.SelectMany(p => p.Hotkeys(_app).Select(h => (p.Id, p.Name, p.Pages.FirstOrDefault()?.Key ?? "settings", h))),
         Plugins.BuiltIn.SimRacingPlugin.FeatureOn(_app, "iracing") ? _app.IracingKeys.Actions() : null, SetIracing);
 
     private void SetIracing(string action, string? hotkey)

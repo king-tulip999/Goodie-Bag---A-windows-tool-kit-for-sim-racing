@@ -110,7 +110,7 @@ internal sealed class HudQuickEditor : Window, IHudEditorHost
             Text = "Drag a widget on screen to move it; drag its right or bottom edge or its corner to resize. Click one on screen to open its settings here.",
             Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(18, 10, 18, 2),
         };
-        _widgets = new RaceHudWidgets(app, this, sidebar: true);
+        _widgets = new RaceHudWidgets(app, this);
         var body = new DockPanel();
         DockPanel.SetDock(barHost, Dock.Top);
         DockPanel.SetDock(hint, Dock.Top);

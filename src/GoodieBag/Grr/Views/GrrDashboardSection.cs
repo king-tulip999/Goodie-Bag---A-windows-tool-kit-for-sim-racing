@@ -61,6 +61,14 @@ internal sealed class GrrDashboardSection : StackPanel
     }
 
     private string? League => _app.Config.Grr.DashboardLeagueOrNull();
+
+    internal bool LeagueTabs { get; init; } = true;
+
+    internal void ShowLeague()
+    {
+        _shape = "";
+        Build();
+    }
     private string? Driver => _app.Config.Grr.DriverName;
 
     public void OnShown()
@@ -122,7 +130,7 @@ internal sealed class GrrDashboardSection : StackPanel
         _shape = shape;
         _heroClock = null;
         _heroRace = null;
-        _leaguePicker.Content = LeaguePicker(league);
+        _leaguePicker.Content = LeagueTabs ? LeaguePicker(league) : null;
         UpdateFreshness();
         if (league is null)
         {
@@ -548,7 +556,12 @@ internal sealed class GrrDashboardSection : StackPanel
                     TextTrimming = TextTrimming.CharacterEllipsis, IsHitTestVisible = false, Typography = { NumeralAlignment = FontNumeralAlignment.Tabular },
                 });
                 if (col == columns[^1]) t.FontWeight = FontWeights.SemiBold;
-                if (col.Fill) t.Margin = new Thickness(FillGap, 0, 8, 0);
+                if (col.Fill)
+                {
+                    t.Margin = new Thickness(FillGap, 6, 8, 6);
+                    t.TextWrapping = TextWrapping.Wrap;
+                    t.TextTrimming = TextTrimming.None;
+                }
                 Cell(t, r, c + 2);
             }
         }

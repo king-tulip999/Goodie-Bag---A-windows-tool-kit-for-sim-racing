@@ -20,8 +20,6 @@ internal enum HudOptionKind
 
 internal sealed record HudChoice(string Id, string Label, string? Help = null);
 
-internal enum HudOptionGroup { Show, Filter, Options, Parts }
-
 internal sealed record HudOption(string Key, string Label, HudOptionKind Kind, string Default, string? Help = null)
 {
     public IReadOnlyList<HudChoice> Choices { get; init; } = Array.Empty<HudChoice>();
@@ -29,14 +27,6 @@ internal sealed record HudOption(string Key, string Label, HudOptionKind Kind, s
     public double Max { get; init; } = 100;
     public double Step { get; init; } = 1;
     public string? Unit { get; init; }
-    public HudOptionGroup? Group { get; init; }
-
-    public HudOptionGroup Section => Group ?? Kind switch
-    {
-        HudOptionKind.Columns or HudOptionKind.Set => HudOptionGroup.Show,
-        HudOptionKind.Classes => HudOptionGroup.Filter,
-        _ => HudOptionGroup.Options,
-    };
 
     public static HudOption Bool(string key, string label, bool on, string? help = null) => new(key, label, HudOptionKind.Bool, on ? "true" : "false", help);
 
@@ -67,6 +57,10 @@ internal sealed record HudWidgetDef(string Kind, string Name, string Description
     public string? Limits { get; init; }
     public bool Clickable { get; init; }
     public bool? HideWhenEmpty { get; init; }
+    public Editors.HudEditorDef? Editor { get; init; }
+
+    private Editors.HudEditorDef? _plain;
+    public Editors.HudEditorDef EditorDef => Editor ?? (_plain ??= Editors.HudEditorDef.Plain(this));
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyList<HudOption>, Dictionary<string, HudOption>> ByKey = new();
 
@@ -93,6 +87,35 @@ internal sealed class HudOptions
 
     public string Raw(string key) =>
         _config.Options.TryGetValue(key, out var v) ? v : _def.Option(key)?.Default ?? "";
+
+    public HudOption? Option(string key) => _def.Option(key);
+
+    public string Value(string key) => _def.Option(key) is { } o
+        ? o.Kind is HudOptionKind.Columns or HudOptionKind.Set or HudOptionKind.Classes ? string.Join(",", Columns(key)) : Normal(o, Raw(key))
+        : Raw(key);
+
+    public static string Normal(HudOption? o, string raw)
+    {
+        if (o is null) return raw;
+        switch (o.Kind)
+        {
+            case HudOptionKind.Bool:
+                return (bool.TryParse(raw, out var b) ? b : o.Default == "true") ? "true" : "false";
+            case HudOptionKind.Int:
+                int i = int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var x) ? x
+                    : int.TryParse(o.Default, NumberStyles.Integer, CultureInfo.InvariantCulture, out var d) ? d : 0;
+                return ((int)Math.Clamp(i, o.Min, o.Max)).ToString(CultureInfo.InvariantCulture);
+            case HudOptionKind.Number:
+                double n = double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var y) && double.IsFinite(y) ? y
+                    : double.TryParse(o.Default, NumberStyles.Float, CultureInfo.InvariantCulture, out var e) ? e : 0;
+                return Math.Clamp(n, o.Min, o.Max).ToString("0.###", CultureInfo.InvariantCulture);
+            case HudOptionKind.Choice:
+                return o.Choices.Any(c => c.Id == raw) ? raw : o.Default;
+            default:
+                return string.Join(",", raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(id => o.Kind == HudOptionKind.Classes || o.Choices.Any(c => c.Id == id)).Distinct());
+        }
+    }
 
     public bool Bool(string key) => bool.TryParse(Raw(key), out var b) ? b : _def.Option(key)?.Default == "true";
 
@@ -145,16 +168,22 @@ internal sealed class HudView
     public HudUnits Units => Settings.Units;
     public double Now => Race.Now;
 
-    public bool ClassShown(int car, string key = "hideClasses", string? scopeKey = "classes")
+    public bool ClassShown(int car)
     {
         if (!Frame.Session.ByCar.TryGetValue(car, out var d)) return false;
-        if (scopeKey is not null && Def.Option(scopeKey) is not null && Options.Choice(scopeKey) == "mine"
-            && Frame.Session.Player is { } me && me.ClassId != d.ClassId) return false;
-        if (Def.Option(key) is null) return true;
-        var hidden = Options.Columns(key);
-        for (int i = 0; i < hidden.Count; i++)
-            if (SessionNames.ClassMatches(d.ClassName, hidden[i])) return false;
-        return true;
+        if (Def.Option(Editors.HudClassFilter.ScopeKey) is null) return true;
+        switch (Options.Choice(Editors.HudClassFilter.ScopeKey))
+        {
+            case Editors.HudClassFilter.Mine:
+                return Frame.Session.Player is not { } me || me.ClassId == d.ClassId;
+            case Editors.HudClassFilter.Pick:
+                var shown = Options.Columns(Editors.HudClassFilter.ListKey);
+                for (int i = 0; i < shown.Count; i++)
+                    if (SessionNames.ClassMatches(d.ClassName, shown[i])) return true;
+                return false;
+            default:
+                return true;
+        }
     }
 }
 
