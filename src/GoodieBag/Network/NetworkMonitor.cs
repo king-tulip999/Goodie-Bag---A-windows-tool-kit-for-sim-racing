@@ -54,20 +54,16 @@ internal sealed class NetworkMonitor : IDisposable
             _dirty = true;
             _timer?.Dispose();
             _timer = new System.Threading.Timer(_ => Sample(generation), null, 0, 1000);
+        }
+        if (Interlocked.Exchange(ref _subscribed, 1) == 0)
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                lock (_gate)
-                {
-                    if (generation != _generation || _subscribed) return;
-                    NetworkChange.NetworkAddressChanged += OnAddressChanged;
-                    NetworkChange.NetworkAvailabilityChanged += OnAvailabilityChanged;
-                    _subscribed = true;
-                }
+                NetworkChange.NetworkAddressChanged += OnAddressChanged;
+                NetworkChange.NetworkAvailabilityChanged += OnAvailabilityChanged;
             });
-        }
     }
 
-    private bool _subscribed;
+    private int _subscribed;
 
     public void Release(string consumer)
     {
@@ -76,12 +72,6 @@ internal sealed class NetworkMonitor : IDisposable
             if (!_consumers.Remove(consumer) || _consumers.Count > 0)
                 return;
             _generation++;
-            if (_subscribed)
-            {
-                NetworkChange.NetworkAddressChanged -= OnAddressChanged;
-                NetworkChange.NetworkAvailabilityChanged -= OnAvailabilityChanged;
-                _subscribed = false;
-            }
             _timer?.Dispose();
             _timer = null;
             _down.Clear(); _up.Clear(); _ping.Clear(); _pingResults.Clear();
@@ -272,14 +262,13 @@ internal sealed class NetworkMonitor : IDisposable
         {
             _consumers.Clear();
             _generation++;
-            if (_subscribed)
-            {
-                NetworkChange.NetworkAddressChanged -= OnAddressChanged;
-                NetworkChange.NetworkAvailabilityChanged -= OnAvailabilityChanged;
-                _subscribed = false;
-            }
             _timer?.Dispose();
             _timer = null;
+        }
+        if (Interlocked.Exchange(ref _subscribed, 0) == 1)
+        {
+            NetworkChange.NetworkAddressChanged -= OnAddressChanged;
+            NetworkChange.NetworkAvailabilityChanged -= OnAvailabilityChanged;
         }
     }
 }

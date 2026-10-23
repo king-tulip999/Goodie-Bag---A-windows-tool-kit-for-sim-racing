@@ -117,7 +117,7 @@ internal sealed class WindowProfileEditor
 
         stack.Children.Add(Ui.EditorSection("Applying"));
         _auto = new CheckBox { Content = "When the program starts", IsChecked = profile.Auto, VerticalAlignment = VerticalAlignment.Center };
-        _delay = new NumberBox(profile.DelayMs, "ms", 96) { Minimum = 0, Maximum = WindowProfileSettings.MaxDelayMs, Step = 250 };
+        _delay = new NumberBox(profile.DelayMs / 1000.0, "s", 96) { Minimum = 0, Maximum = WindowProfileSettings.MaxDelayMs / 1000.0, Step = 0.25, Decimals = 2 };
         _delay.ToolTip = "Wait this long after the program starts. For about 35 s after that, Goodie Bag moves the window back if the game resizes it.";
         _auto.Click += (_, _) => _delay.IsEnabled = _auto.IsChecked == true;
         _delay.IsEnabled = profile.Auto;
@@ -262,7 +262,7 @@ internal sealed class WindowProfileEditor
         p.RemoveBorders = _borders.IsChecked == true;
         p.HideTitleBar = p.RemoveBorders && _titleBar.IsChecked == true;
         p.Auto = _auto.IsChecked == true;
-        p.DelayMs = (int)_delay.Value;
+        p.DelayMs = (int)Math.Round(_delay.Value * 1000);
         p.Hotkey = _hotkey.Hotkey;
         p.GroupId = _groupId;
         if (p.Name.Length == 0) p.Name = Path.GetFileNameWithoutExtension(p.ProcessName);

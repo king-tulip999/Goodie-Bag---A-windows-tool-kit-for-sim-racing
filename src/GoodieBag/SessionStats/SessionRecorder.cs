@@ -64,10 +64,10 @@ internal sealed class SessionRecorder
     private double _x, _y;
     private int? _incStart;
     private int _shifts, _lastGear;
-    private bool _pitThisLap, _offThisLap, _refuelled;
+    private bool _pitThisLap, _offThisLap, _refuelled, _lapFromPits;
 
     private double _stint, _pitStart;
-    private bool _onPitRoad, _sawStall, _wasDriving;
+    private bool _onPitRoad, _sawStall, _wasDriving, _leftPits;
     private int _run, _lapRun;
     private int? _lapsAtCheckered;
     private readonly TyreWearTracker _tyres = new();
@@ -159,7 +159,7 @@ internal sealed class SessionRecorder
         ResetLap();
         _lastGear = 0;
         _stint = 0;
-        _onPitRoad = _wasDriving = false;
+        _onPitRoad = _wasDriving = _leftPits = false;
         _run = 0;
         _lapsAtCheckered = null;
         _tyres.Reset();
@@ -228,9 +228,10 @@ internal sealed class SessionRecorder
 
     private void PitVisit(TelemetryFrame f, SessionRow row, bool driving)
     {
-        if (!driving) { _onPitRoad = false; return; }
+        if (!driving) { _onPitRoad = _leftPits = false; return; }
         double t = f.SessionTime ?? 0;
-        if (f.OnPitRoad)
+        if (!f.OnPitRoad) _leftPits = true;
+        if (f.OnPitRoad && _leftPits)
         {
             if (!_onPitRoad) { _onPitRoad = true; _pitStart = t; _sawStall = false; }
             if (f.InPitStall) _sawStall = true;
@@ -238,7 +239,13 @@ internal sealed class SessionRecorder
         else if (_onPitRoad)
         {
             _onPitRoad = false;
-            if (_sawStall && t > _pitStart) { row.PitStops++; row.PitS += t - _pitStart; _run++; }
+            if (_sawStall && t > _pitStart)
+            {
+                row.PitStops++;
+                row.PitS += t - _pitStart;
+                _run++;
+                if (_lapFromPits) _lapRun = _run;
+            }
         }
     }
 
@@ -246,23 +253,26 @@ internal sealed class SessionRecorder
     {
         int me = f.PlayerCarIdx;
         if ((uint)me >= TelemetryFrame.MaxCars) return;
-        int pos = f.CarClassPosition[me] > 0 ? f.CarClassPosition[me] : f.CarPosition[me];
+        int pos = f.CarClassPosition[me] > 0 ? f.CarClassPosition[me] : f.CarPosition[me] > 0 ? f.CarPosition[me]
+            : f.PlayerClassPosition is > 0 and var classPos ? classPos : f.PlayerPosition ?? 0;
         if (pos <= 0) return;
         if (row.StartPos is null && f.Phase == SessionPhase.Racing) row.StartPos = pos;
         if (f.Phase is SessionPhase.Racing or SessionPhase.Checkered or SessionPhase.CoolDown) row.FinishPos = pos;
         if (f.Phase == SessionPhase.Checkered) _lapsAtCheckered ??= f.LapCompleted;
-        if (!row.Finished && f.CarSurface[me] != TrackSurface.NotInWorld
+        var surface = f.CarSurface[me] != TrackSurface.NotInWorld ? f.CarSurface[me] : f.PlayerSurface ?? TrackSurface.NotInWorld;
+        if (!row.Finished && surface != TrackSurface.NotInWorld
             && (f.Phase == SessionPhase.CoolDown || _lapsAtCheckered is { } at && f.LapCompleted > at))
             row.Finished = true;
     }
 
     private void Lap(TelemetryFrame f, SessionRow row, bool driving, double dt)
     {
-        if (!driving || f.LapDistPct is not { } pct || f.SessionTime is not { } t || pct < 0)
+        if (!driving || f.LapDistPct is not { } raw || f.SessionTime is not { } t || raw < -0.01)
         {
             ResetLap();
             return;
         }
+        double pct = Math.Max(0, raw);
         if (f.Gear is { } gear and >= 1)
         {
             if (_lastGear >= 1 && gear != _lastGear) _shifts++;
@@ -308,7 +318,7 @@ internal sealed class SessionRecorder
             _lapStart = cross;
             _fuelStart = f.Fuel;
             _incStart = f.Incidents;
-            _pitThisLap = f.OnPitRoad;
+            _pitThisLap = _lapFromPits = f.OnPitRoad;
             _lapRun = _run;
         }
         if (_trace is not null && Tracing?.Invoke() != false)
@@ -349,7 +359,7 @@ internal sealed class SessionRecorder
         _prevPct = -1;
         _lapDt = _throttleDt = _brakeDt = _top = _peakG = 0;
         _shifts = 0;
-        _pitThisLap = _offThisLap = _refuelled = false;
+        _pitThisLap = _offThisLap = _refuelled = _lapFromPits = false;
         _sectorCrossings.Clear();
         _trace?.Clear();
         _x = _y = 0;

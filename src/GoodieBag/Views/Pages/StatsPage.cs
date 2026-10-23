@@ -316,6 +316,7 @@ internal sealed class StatsPage : UserControl, IPage, IScreenshotStates, IPageHi
             var list = store.Sessions(q.From, q.To);
             return (list, traces?.SessionsWithTraces(list.Select(s => s.Id)) ?? new HashSet<long>());
         });
+        await Motion.PageSettled(Dispatcher);
         if (version != _version || !_shown || _sessionId is not null) return;
 
         var page = new StackPanel();

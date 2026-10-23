@@ -593,6 +593,7 @@ internal sealed class HardwareService : IDisposable
     }
 
     private const int SlowUpdateMs = 250;
+    private const int SuspendedMs = 30_000;
     private const int SlowIntervalMs = 3000;
     private const int PromoteAfter = 5;
     private readonly HashSet<IHardware> _slow = new();
@@ -605,33 +606,31 @@ internal sealed class HardwareService : IDisposable
 
     private void UpdateSnapshotDevices()
     {
-        void One(IHardware? hw)
-        {
-            if (hw is null || _slow.Contains(hw)) return;
-            try { Update(hw); }
-            catch (Exception ex) { LogOnce("update " + hw.HardwareType, ex); }
-        }
-        One(_cpu);
-        One(_gpu);
-        foreach (var m in _memory) One(m);
+        if (_cpu is not null) UpdateTimed(_cpu);
+        if (_gpu is not null) UpdateTimed(_gpu);
+        foreach (var m in _memory) UpdateTimed(m);
     }
+
+    private void UpdateTimed(IHardware hw)
+    {
+        if (_slow.Contains(hw) || (_slowRead is { IsCompleted: false } && _slowReading.Contains(hw))) return;
+        long start = Stopwatch.GetTimestamp();
+        try { Update(hw); }
+        catch (Exception ex) { LogOnce("update " + hw.HardwareType, ex); }
+        double ms = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        if (IsSlowRead(ms) && !HasControls(hw))
+        {
+            _slow.Add(hw);
+            _slowState[hw] = (0, _slowState.GetValueOrDefault(hw).Demoted + 1);
+            LogOnce("slow " + hw.HardwareType, new TimeoutException($"{hw.Name} ({hw.HardwareType}) took {ms:0} ms to update; it's read in the background every {SlowIntervalMs / 1000} s until it's quick again."));
+        }
+    }
+
+    internal static bool IsSlowRead(double ms) => ms > SlowUpdateMs && ms < SuspendedMs;
 
     private void UpdateDevices(IComputer computer)
     {
-        foreach (var hw in computer.Hardware)
-        {
-            if (_slow.Contains(hw) || (_slowRead is { IsCompleted: false } && _slowReading.Contains(hw))) continue;
-            long start = Stopwatch.GetTimestamp();
-            try { Update(hw); }
-            catch (Exception ex) { LogOnce("update " + hw.HardwareType, ex); }
-            double ms = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-            if (ms > SlowUpdateMs && !HasControls(hw))
-            {
-                _slow.Add(hw);
-                _slowState[hw] = (0, _slowState.GetValueOrDefault(hw).Demoted + 1);
-                LogOnce("slow " + hw.HardwareType, new TimeoutException($"{hw.Name} ({hw.HardwareType}) took {ms:0} ms to update; it's read in the background every {SlowIntervalMs / 1000} s until it's quick again."));
-            }
-        }
+        foreach (var hw in computer.Hardware) UpdateTimed(hw);
         if (_slowRead is { IsCompletedSuccessfully: true } read)
         {
             _slowRead = null;
@@ -659,7 +658,7 @@ internal sealed class HardwareService : IDisposable
     {
         if (!_slow.Contains(hw)) return;
         var (fast, demoted) = _slowState.GetValueOrDefault(hw);
-        fast = ms <= SlowUpdateMs ? fast + 1 : 0;
+        fast = !IsSlowRead(ms) ? fast + 1 : 0;
         if (fast >= SlowReadsBeforePromotion(demoted))
         {
             _slow.Remove(hw);
@@ -780,9 +779,12 @@ internal sealed class HardwareService : IDisposable
     private void LogOnce(string stage, Exception ex)
     {
         lock (_logged)
-        if (_logged.Count < 50 && _logged.Add(stage + "|" + ex.GetType().Name + "|" + ex.Message))
+        if (_logged.Count < 50 && _logged.Add(LogKey(stage, ex)))
             App.LogError(new InvalidOperationException($"Hardware read ({stage}) failed; carrying on.", ex));
     }
+
+    internal static string LogKey(string stage, Exception ex) =>
+        stage + "|" + ex.GetType().Name + "|" + new string(ex.Message.Where(c => !char.IsDigit(c)).ToArray());
 
     private void InvalidateSensorCache()
     {

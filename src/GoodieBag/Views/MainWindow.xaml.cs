@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     internal FrameworkElement? PageOf(string key) => _pages.GetValueOrDefault(key);
     private long _lastNavigation;
     private string? _current;
+
+    public string? CurrentPage => _current;
     private bool _themeRebuild;
     private TaskCompletionSource<bool>? _modal;
 
@@ -93,6 +95,8 @@ public partial class MainWindow : Window
             if (_current is null) Navigate(_app.Config.Ui.StartPage);
             PerfProbe.Mark("navigated");
             if (_app.Config.Ui.SetupPending) ShowSetup(firstRun: true);
+            else if (_app.Updates.JustUpdated)
+                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => ChangelogDialog.Show(this, _app.Updates, _app.Updates.UpdatedFrom, justUpdated: true));
         };
     }
 
@@ -126,10 +130,10 @@ public partial class MainWindow : Window
         Show(page);
         ShowHomeButton(key != "plugins");
 
-        if (!_themeRebuild) Swipe();
-
         UpdatePageSensors();
         UpdatePageActive();
+        page.UpdateLayout();
+        if (!_themeRebuild) Swipe();
         RecordHistory();
     }
 
@@ -173,19 +177,54 @@ public partial class MainWindow : Window
 
     private static readonly BlurEffect SwipeBlur = new() { Radius = 0, RenderingBias = RenderingBias.Performance };
 
+    private EventHandler? _pendingSwipe;
+
     private void Swipe()
     {
         long now = Environment.TickCount64;
         bool quick = now - _lastNavigation < 300;
         _lastNavigation = now;
+        if (_pendingSwipe is not null)
+        {
+            CompositionTarget.Rendering -= _pendingSwipe;
+            _pendingSwipe = null;
+        }
         PageContent.BeginAnimation(OpacityProperty, null);
         PageMove.BeginAnimation(TranslateTransform.YProperty, null);
         SwipeBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         PageContent.Effect = null;
         PageContent.Opacity = 1;
         PageMove.Y = 0;
+        Motion.PageSettlesAt = 0;
         if (!Motion.Enabled || Showcase.ShowcaseRunner.Active)
             return;
+        bool effects = PcClass.Effects && !quick;
+        double fromY = quick ? -12 : -48, fromOpacity = quick ? 0.7 : 0.35;
+        PageMove.Y = fromY;
+        if (PcClass.Effects) PageContent.Opacity = fromOpacity;
+        if (effects)
+        {
+            SwipeBlur.Radius = 8;
+            PageContent.Effect = SwipeBlur;
+        }
+        if (!ScreenshotRunner.Active) (Motion.PageAnimatesFrom, Motion.PageSettlesAt) = (long.MaxValue / 2, now + 2000);
+        int frames = 0;
+        _pendingSwipe = (_, _) =>
+        {
+            if (++frames < 2) return;
+            CompositionTarget.Rendering -= _pendingSwipe;
+            _pendingSwipe = null;
+            StartSwipe(quick, effects);
+        };
+        CompositionTarget.Rendering += _pendingSwipe;
+    }
+
+    private void StartSwipe(bool quick, bool effects)
+    {
+        long now = Environment.TickCount64;
+        if (!ScreenshotRunner.Active) (Motion.PageAnimatesFrom, Motion.PageSettlesAt) = (now, now + (quick ? 130 : 460));
+        PageMove.Y = 0;
+        PageContent.Opacity = 1;
         if (quick)
         {
             var short_ = TimeSpan.FromMilliseconds(130);
@@ -196,8 +235,8 @@ public partial class MainWindow : Window
         var fade = TimeSpan.FromMilliseconds(240);
         if (PcClass.Effects) PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, fade) { EasingFunction = Motion.Ease, FillBehavior = FillBehavior.Stop });
         PageMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-48, 0, TimeSpan.FromMilliseconds(460)) { EasingFunction = PageDrop, FillBehavior = FillBehavior.Stop });
-        if (!PcClass.Effects) return;
-        PageContent.Effect = SwipeBlur;
+        if (!effects) return;
+        SwipeBlur.Radius = 0;
         var blur = new DoubleAnimation(8, 0, fade) { EasingFunction = Motion.Ease };
         blur.Completed += (_, _) =>
         {
@@ -833,6 +872,7 @@ public partial class MainWindow : Window
     {
         _modal?.TrySetResult(false);
         _modal = new TaskCompletionSource<bool>();
+        ClosePopupsOf(ModalContent);
         ModalContent.Content = content;
         ModalLayer.Visibility = Visibility.Visible;
         ModalLayer.BeginAnimation(OpacityProperty, null);
@@ -854,6 +894,7 @@ public partial class MainWindow : Window
     {
         var modal = _modal;
         _modal = null;
+        ClosePopupsOf(ModalContent);
         Motion.FadeTo(ModalLayer, 0, 140, () =>
         {
             if (_modal is null)

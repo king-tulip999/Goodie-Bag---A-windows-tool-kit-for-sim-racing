@@ -109,6 +109,45 @@ internal sealed class StatsStore : IDisposable
         foreach (var a in attach) AttachTraces(a.Id, a.Row, a.Offset);
     }
 
+    public void Replace(IReadOnlyList<(SessionRow Row, List<LapRow> Laps)> sessions, HashSet<long> replaced)
+    {
+        var attach = new List<(long Id, SessionRow Row, int? Offset)>();
+        _db.Transaction(() =>
+        {
+            foreach (var (row, laps) in sessions)
+            {
+                if (Match(row) is not { } existing)
+                {
+                    row.Id = InsertRow(row);
+                    InsertLaps(row.Id, laps, 0);
+                    LinkRatings(row);
+                    replaced.Add(row.Id);
+                    attach.Add((row.Id, row, 0));
+                }
+                else if (existing.Source == "live") attach.Add((existing.Id, row, null));
+                else if (replaced.Add(existing.Id))
+                {
+                    row.Id = existing.Id;
+                    UpdateRow(row);
+                    _db.Run("DELETE FROM laps WHERE session_id = ?1", existing.Id);
+                    InsertLaps(existing.Id, laps, 0);
+                    LinkRatings(row);
+                    attach.Add((existing.Id, row, 0));
+                }
+                else attach.Add((existing.Id, row, Merge(existing.Id, row, laps)));
+            }
+        });
+        foreach (var a in attach) AttachTraces(a.Id, a.Row, a.Offset);
+    }
+
+    public void RenumberTraces(IEnumerable<long> sessions)
+    {
+        if (Traces is not { } traces) return;
+        foreach (long id in sessions)
+            traces.Renumber(id, _db.Query("SELECT lap, time, clean FROM laps WHERE session_id = ?1", id)
+                .Select(r => (Convert.ToInt32(r[0]), Convert.ToDouble(r[1]), Convert.ToInt64(r[2]) != 0)).ToList());
+    }
+
     public bool FillMissing(SessionRow r)
     {
         if (Match(r) is not { } existing) return false;
@@ -119,10 +158,11 @@ internal sealed class StatsStore : IDisposable
             rain_max = COALESCE(rain_max, ?9), wetness_max = COALESCE(wetness_max, ?10),
             rubber = CASE WHEN rubber = '' THEN ?11 ELSE rubber END, sim_start = CASE WHEN sim_start = '' THEN ?12 ELSE sim_start END,
             track_id = COALESCE(track_id, ?13), track_name = CASE WHEN track_name = '' THEN ?14 ELSE track_name END,
-            tank_l = COALESCE(tank_l, ?15), tyre_wear = COALESCE(tyre_wear, ?16)
+            tank_l = COALESCE(tank_l, ?15), tyre_wear = COALESCE(tyre_wear, ?16),
+            start_pos = COALESCE(start_pos, ?17), finish_pos = COALESCE(finish_pos, ?18), finished = MAX(finished, ?19)
             WHERE id = ?1
             """, existing.Id, r.AirTemp, r.WindKph, r.WindDir, r.Humidity, r.Pressure, r.AirDensity, r.Skies, r.RainMax, r.WetnessMax,
-            r.Rubber, r.SimStart, r.TrackId, r.TrackName, r.TankL, TyreWear.Text(r.Tyres));
+            r.Rubber, r.SimStart, r.TrackId, r.TrackName, r.TankL, TyreWear.Text(r.Tyres), r.StartPos, r.FinishPos, r.Finished ? 1 : 0);
         return true;
     }
 

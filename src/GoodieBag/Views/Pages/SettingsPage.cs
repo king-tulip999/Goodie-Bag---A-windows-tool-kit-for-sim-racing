@@ -469,7 +469,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
                 $"Reduced: while the window is in the tray or minimized, sensors are read every {PerformanceSettings.ReducedHiddenMs / 1000} s at most.",
             });
         var backgroundRow = Ui.SettingRow("Background usage",
-            $"Reduced reads sensors at most every {PerformanceSettings.ReducedHiddenMs / 1000} s while the window is in the tray or minimized (pages already pause then). Fan control, the overlay, keybinds and mode triggers keep working as normal.",
+            $"Reduced reads sensors at most every {PerformanceSettings.ReducedHiddenMs / 1000} s while the window is in the tray or minimized (pages already pause then). Fan control, the overlays, keybinds and window profiles keep working as normal.",
             background);
         Ui.Anchor(backgroundRow, "settings.background");
         section.Children.Add(backgroundRow);
@@ -486,7 +486,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
     {
         if (_rateNote is null) return;
         int ms = _app.Config.Performance.IntervalMs;
-        _rateNote.Text = $"Every {PerformanceSettings.Describe(ms)}. How often temperatures, loads, clocks and fan speeds are read for every page, the Hardware Monitor (its Update rate is this same setting) and mode triggers. " +
+        _rateNote.Text = $"Every {PerformanceSettings.Describe(ms)}. How often temperatures, loads, clocks and fan speeds are read for every page and the Hardware Monitor (its Update rate is this same setting). " +
             $"Fan control still checks its curves and the failsafe at least every {PerformanceSettings.FanLoopMs / 1000} s, and the overlay uses its own rate while it's showing. Applies at once.";
     }
 
@@ -739,7 +739,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         void OnFrame(object? sender, EventArgs e)
         {
             CompositionTarget.Rendering -= OnFrame;
-            Dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Background);
+            Motion.AfterPageSettles(Dispatcher, action);
         }
         CompositionTarget.Rendering += OnFrame;
     }
@@ -920,9 +920,13 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         text.Children.Add(new TextBlock { Text = "A PC control center for sim rigs: window profiles that size and place your games, display profiles, hardware monitoring, the overlay, fan control and sim racing tools.", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
         about.Children.Add(text);
         var project = Ui.LabeledButton("I.ChevronRight", "Project page", () => Ui.OpenUrl(UpdateService.ProjectPage), "GhostButton");
-        project.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(project, 1);
-        about.Children.Add(project);
+        var changelog = Ui.LabeledButton("I.ChevronRight", "Changelog", () => ChangelogDialog.Show(_window, _app.Updates, null, justUpdated: false), "GhostButton");
+        changelog.Margin = new Thickness(0, 0, 8, 0);
+        var links = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        links.Children.Add(changelog);
+        links.Children.Add(project);
+        Grid.SetColumn(links, 1);
+        about.Children.Add(links);
         section.Children.Add(about);
         section.Children.Add(Ui.Divider());
         _updates = new StackPanel();

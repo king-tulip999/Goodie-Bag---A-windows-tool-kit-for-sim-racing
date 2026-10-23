@@ -19,12 +19,23 @@ internal static class GoldenRun
         try
         {
             Directory.CreateDirectory(current);
+            using var store = StatsStore.Open(":memory:");
+            var files = new List<(string Name, string Text)>();
             foreach (var file in Directory.EnumerateFiles(ibtFolder, "*.ibt").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
-                string name = Path.GetFileNameWithoutExtension(file) + ".txt";
                 string text;
-                try { text = Snapshot(SessionStatsService.ReadFile(file, traces: false, default) ?? new()); }
+                try
+                {
+                    var found = SessionStatsService.ReadFile(file, traces: false, default) ?? new();
+                    text = Snapshot(found);
+                    store.SaveFile(found, (Path.GetFileName(file), file));
+                }
                 catch (Exception ex) { text = "error " + ex.GetType().Name + ": " + ex.Message + "\n"; }
+                files.Add((Path.GetFileNameWithoutExtension(file) + ".txt", text));
+            }
+            files.Add(("_stats.txt", Stats(store)));
+            foreach (var (name, text) in files)
+            {
                 File.WriteAllText(Path.Combine(current, name), text);
                 string before = Path.Combine(approved, name);
                 if (!File.Exists(before)) report.Add($"new {name}");
@@ -43,6 +54,26 @@ internal static class GoldenRun
         }
         File.WriteAllLines(Path.Combine(output, "golden.txt"), report.Count == 0 ? new[] { "same as approved" } : report);
         app.Shutdown(report.Any(r => r.StartsWith("changed", StringComparison.Ordinal) || r.StartsWith("error", StringComparison.Ordinal)) ? 2 : 0);
+    }
+
+    internal static string Stats(StatsStore store)
+    {
+        long last = Convert.ToInt64(store.Db.Scalar("SELECT COALESCE(MAX(end_utc), 0) FROM sessions") ?? 0L);
+        var now = DateTimeOffset.FromUnixTimeSeconds(last).UtcDateTime.AddHours(1);
+        var q = new StatQuery(0, last + 86_400, Array.Empty<int>(), false, now);
+        var sb = new StringBuilder();
+        foreach (var def in StatRegistry.All)
+        {
+            string value;
+            try
+            {
+                var r = StatRegistry.Evaluate(store, def, q);
+                value = r.Value + (r.Detail is { Length: > 0 } d ? " · " + d : "");
+            }
+            catch (Exception ex) { value = "error " + ex.GetType().Name + ": " + ex.Message; }
+            sb.Append(I, $"{def.Id} ({def.Label}) = {value}\n");
+        }
+        return sb.ToString();
     }
 
     private static string FirstDifference(string a, string b)

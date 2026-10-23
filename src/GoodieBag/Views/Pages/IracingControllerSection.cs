@@ -76,13 +76,11 @@ internal sealed class IracingControllerSection : StackPanel
         bar.Margin = new Thickness(0, 0, 0, 12);
         Children.Add(bar);
 
-        var where = TextFit.TipWhenTrimmed(new TextBlock
-        {
-            Text = (_ws.Demo ? "Demo settings (nothing is read from or written to the PC) · " : _ws.Folder + " · ")
-                   + $"{Session.Settings.Count} settings in {string.Join(", ", Session.FileNames)}",
-            Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 0, 0, 10), TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        TextCase.SetVerbatim(where, !_ws.Demo);
+        var where = TextFit.TipWhenTrimmed(new TextBlock { Style = Ui.Res<Style>("Caption"), Margin = new Thickness(2, 0, 0, 10), TextTrimming = TextTrimming.CharacterEllipsis });
+        if (_ws.Demo) where.Inlines.Add(new System.Windows.Documents.Run("Demo settings (nothing is read from or written to the PC) · "));
+        else where.Inlines.Add(TextCase.Verbatim(new System.Windows.Documents.Run(_ws.Folder + " · ")));
+        where.Inlines.Add(new System.Windows.Documents.Run($"{Session.Settings.Count} settings in "));
+        where.Inlines.Add(TextCase.Verbatim(new System.Windows.Documents.Run(string.Join(", ", Session.FileNames))));
         Children.Add(where);
 
         _pending.Style = Ui.Res<Style>("Inset");

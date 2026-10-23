@@ -258,7 +258,9 @@ internal sealed class SessionStatsService : IDisposable
         try
         {
             if (Store is not { } store) return;
+            if (store.Empty) store.SetMeta(RereadKey, RereadVersion);
             ImportAll(store, folder, traces, done, cancel);
+            if (!cancel.IsCancellationRequested) Reread(store, folder, traces, retention, cancel);
             if (!cancel.IsCancellationRequested) FillMissing(store, folder, done, cancel);
             if (traces && !cancel.IsCancellationRequested) Backfill(store, folder, retention, done, cancel);
         }
@@ -324,9 +326,44 @@ internal sealed class SessionStatsService : IDisposable
         }
     }
 
+    private const string RereadKey = "recorder_reread", RereadVersion = "line-dip-pit-exit";
+
+    private void Reread(StatsStore store, string folder, bool traces, TraceRetention retention, CancellationToken cancel)
+    {
+        if (store.Meta(RereadKey) == RereadVersion) return;
+        var since = retention.KeepDays > 0 ? DateTime.UtcNow.AddDays(-retention.KeepDays) : DateTime.MinValue;
+        var todo = new DirectoryInfo(folder).EnumerateFiles("*.ibt")
+            .Where(f => store.Imported(f.Name))
+            .OrderBy(f => f.LastWriteTimeUtc).ToList();
+        var replaced = new HashSet<long>();
+        var hashes = new HashSet<string>(StringComparer.Ordinal);
+        if (todo.Count > 0) SetProgress((0, todo.Count));
+        for (int i = 0; i < todo.Count; i++)
+        {
+            try
+            {
+                if (hashes.Add(StatsStore.HashOf(todo[i].FullName)))
+                {
+                    if (Read(todo[i].FullName, traces && todo[i].LastWriteTimeUtc >= since, cancel) is not { } found) return;
+                    store.Replace(found, replaced);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) { }
+            catch (Exception ex) { App.LogError(new InvalidOperationException($"Couldn't read {todo[i].Name} again.", ex)); }
+            SetProgress((i + 1, todo.Count));
+            PostChanged();
+        }
+        try { store.RenumberTraces(replaced); }
+        catch (Exception ex) { App.LogError(ex); }
+        string now = DateTime.UtcNow.ToString("O");
+        foreach (var key in new[] { RereadKey, "conditions_backfill", "tyres_backfill", "positions_backfill" })
+            store.SetMeta(key, key == RereadKey ? RereadVersion : now);
+        PostChanged();
+    }
+
     private void FillMissing(StatsStore store, string folder, HashSet<string> done, CancellationToken cancel)
     {
-        if (store.Meta("conditions_backfill") is not null && store.Meta("tyres_backfill") is not null) return;
+        if (store.Meta("conditions_backfill") is not null && store.Meta("tyres_backfill") is not null && store.Meta("positions_backfill") is not null) return;
         var todo = new DirectoryInfo(folder).EnumerateFiles("*.ibt")
             .Where(f => !done.Contains(f.Name) && store.Imported(f.Name))
             .OrderByDescending(f => f.LastWriteTimeUtc).ToList();
@@ -345,6 +382,7 @@ internal sealed class SessionStatsService : IDisposable
         }
         store.SetMeta("conditions_backfill", DateTime.UtcNow.ToString("O"));
         store.SetMeta("tyres_backfill", DateTime.UtcNow.ToString("O"));
+        store.SetMeta("positions_backfill", DateTime.UtcNow.ToString("O"));
     }
 
     private const string MissingFromKey = "traces_missing_from", ChannelsKey = "traces_channels", ChannelsVersion = "yaw-uneven-halves";

@@ -185,6 +185,7 @@ internal sealed class WindowProfileService : IDisposable
 
     private static WindowApplyResult MoveAndCheck(IntPtr hwnd, WindowProfile p)
     {
+        Win32.Restore(hwnd);
         if (p.RemoveBorders) Win32.RemoveBorders(hwnd);
         var target = Target(hwnd, p);
         if (!Win32.MoveWindow(hwnd, target.X, target.Y, target.W, target.H, true))
@@ -218,6 +219,7 @@ internal sealed class WindowProfileService : IDisposable
                 {
                     await Task.Delay(i < 10 ? 1000 : 5000, cts.Token);
                     if (!Win32.IsWindow(hwnd) || Win32.Pid(hwnd) != pid) return;
+                    if (Win32.IsIconic(hwnd)) continue;
                     Win32.PerMonitor(() =>
                     {
                         if (Win32.Rect(hwnd) != Target(hwnd, p))
@@ -321,6 +323,8 @@ internal sealed class WindowProfileService : IDisposable
         [DllImport("user32.dll", SetLastError = true)] public static extern bool MoveWindow(IntPtr hwnd, int x, int y, int w, int h, bool repaint);
         [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hwnd, int cmd);
         [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
+        [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+        [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hwnd);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr hwnd, StringBuilder name, int max);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
         [DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
@@ -395,6 +399,12 @@ internal sealed class WindowProfileService : IDisposable
                 return true;
             }, IntPtr.Zero);
             return list;
+        }
+
+        public static void Restore(IntPtr hwnd)
+        {
+            const int SW_RESTORE = 9;
+            if (IsIconic(hwnd) || IsZoomed(hwnd)) ShowWindow(hwnd, SW_RESTORE);
         }
 
         public static void RemoveBorders(IntPtr hwnd)

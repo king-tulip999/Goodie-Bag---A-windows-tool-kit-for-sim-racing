@@ -66,9 +66,6 @@ internal sealed class UpdateService
 
     public void Start()
     {
-        if (Environment.GetCommandLineArgs().Contains("--updated", StringComparer.OrdinalIgnoreCase))
-            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
-                _app.Notify("Updated", "Goodie Bag installed the new version and restarted.", NoticeKind.Success)));
         if (Environment.GetCommandLineArgs().Contains("--update-failed", StringComparer.OrdinalIgnoreCase))
         {
             S.InstalledTag = null;
@@ -77,6 +74,7 @@ internal sealed class UpdateService
                 _app.Notify("Update didn't install", "The file couldn't be replaced (in use, or no permission), so this version kept running. You can download it from the release page instead.",
                     NoticeKind.Warning, important: true)));
         }
+        if (!_app.Demo) NoteSeenVersion(Environment.GetCommandLineArgs().Contains("--updated", StringComparer.OrdinalIgnoreCase));
         if (_app.Demo || Repository.Length == 0) return;
         ApplySchedule();
         if (S.Check == UpdateCheck.OnStart || Due)
@@ -85,6 +83,25 @@ internal sealed class UpdateService
             delay.Tick += (_, _) => { delay.Stop(); _ = CheckAsync(manual: false); };
             delay.Start();
         }
+    }
+
+    public bool JustUpdated { get; private set; }
+
+    public Version? UpdatedFrom { get; private set; }
+
+    private void NoteSeenVersion(bool updatedArg)
+    {
+        (JustUpdated, UpdatedFrom) = Seen(Installed, S.SeenVersion, updatedArg);
+        var tag = Tag(Installed);
+        if (S.SeenVersion == tag) return;
+        S.SeenVersion = tag;
+        _app.Save();
+    }
+
+    internal static (bool JustUpdated, Version? From) Seen(Version installed, string? seenVersion, bool updatedArg)
+    {
+        if (string.IsNullOrWhiteSpace(seenVersion) || !TryVersion(seenVersion, out var seen)) return (updatedArg, null);
+        return installed > seen ? (true, seen) : (false, null);
     }
 
     public void ApplySchedule()
@@ -104,8 +121,7 @@ internal sealed class UpdateService
         Set(UpdateState.Checking);
         try
         {
-            var json = await Http.GetStringAsync($"https://api.github.com/repos/{Repository}/releases?per_page=30");
-            Latest = Newest(json);
+            Latest = Newest(await Http.GetStringAsync(ReleasesApi));
             S.LastCheckUtc = DateTime.UtcNow;
             _app.Save();
             _retries = 0;
@@ -252,18 +268,31 @@ internal sealed class UpdateService
         return Parse(doc.RootElement);
     }
 
-    internal static ReleaseInfo? Newest(string json)
+    private static string ReleasesApi => $"https://api.github.com/repos/{Repository}/releases?per_page=30";
+
+    public async Task<List<ReleaseInfo>> ReleasesUpToInstalledAsync()
+    {
+        if (Repository.Length == 0) throw new InvalidOperationException("No release page is set up for this build.");
+        try { return Releases(await Http.GetStringAsync(ReleasesApi), Installed); }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) { throw new InvalidOperationException("The release page couldn't be found.", ex); }
+    }
+
+    internal static List<ReleaseInfo> Releases(string json, Version? upTo = null)
     {
         using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array) return Parse(doc.RootElement);
-        return doc.RootElement.EnumerateArray()
-            .Where(r => r.ValueKind == JsonValueKind.Object && !(r.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True))
-            .Select(Parse)
-            .OfType<ReleaseInfo>()
+        IEnumerable<ReleaseInfo?> found = doc.RootElement.ValueKind == JsonValueKind.Array
+            ? doc.RootElement.EnumerateArray()
+                .Where(r => r.ValueKind == JsonValueKind.Object && !(r.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True))
+                .Select(Parse)
+            : new[] { Parse(doc.RootElement) };
+        return found.OfType<ReleaseInfo>()
+            .Where(r => upTo is null || r.Version <= upTo)
             .OrderByDescending(r => r.Version)
             .ThenByDescending(r => r.Published)
-            .FirstOrDefault();
+            .ToList();
     }
+
+    internal static ReleaseInfo? Newest(string json) => Releases(json).FirstOrDefault();
 
     private static ReleaseInfo? Parse(JsonElement root)
     {

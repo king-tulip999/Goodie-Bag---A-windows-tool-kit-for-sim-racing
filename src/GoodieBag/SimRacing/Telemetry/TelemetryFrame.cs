@@ -63,6 +63,7 @@ internal sealed class TelemetryFrame
     public int CamCarIdx = -1;
     public bool OnPitRoad;
     public TrackSurface? PlayerSurface;
+    public int? PlayerPosition, PlayerClassPosition;
     public double? Speed, Rpm, Throttle, Brake, Clutch, Steering, SteeringMax;
     public int? Gear;
     public double? Fuel, FuelPct, FuelUsePerHour;
@@ -131,6 +132,7 @@ internal sealed class TelemetryFrame
         SessionLapsRemain = SessionLapsTotal = RaceLaps = null;
         IsOnTrack = IsInGarage = IsReplayPlaying = OnPitRoad = false;
         PlayerSurface = null;
+        PlayerPosition = PlayerClassPosition = null;
         Speed = Rpm = Throttle = Brake = Clutch = Steering = SteeringMax = null;
         Gear = null;
         Fuel = FuelPct = FuelUsePerHour = null;

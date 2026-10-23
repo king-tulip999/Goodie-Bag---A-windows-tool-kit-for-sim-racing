@@ -794,14 +794,23 @@ internal static class Ui
         var align = fe.HorizontalAlignment;
         var margin = fe.Margin;
         bool stacked = false;
+        string? measuredFor = null;
+        double natural = 0, longest = 0;
         void Fit()
         {
             if (grid.ActualWidth <= 0) return;
             fe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            string key = string.Join('\n', text.Children.OfType<TextBlock>().Select(t => t.Text));
+            if (key != measuredFor)
+            {
+                text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                natural = text.DesiredSize.Width - text.Margin.Right;
+                longest = LongestWord(heading) + 2;
+                measuredFor = key;
+            }
             bool titleOnly = text.Children.Count == 1;
             double room = grid.ActualWidth - fe.DesiredSize.Width - 18;
-            double needed = Math.Max(Math.Min(text.DesiredSize.Width - text.Margin.Right, titleOnly ? 100 : SettingTextMin), LongestWord(heading) + 2);
+            double needed = Math.Max(Math.Min(natural, titleOnly ? 100 : SettingTextMin), longest);
             bool stack = room < needed;
             if (stack == stacked) return;
             stacked = stack;

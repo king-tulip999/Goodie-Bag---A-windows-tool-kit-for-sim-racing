@@ -26,7 +26,7 @@ internal static class DisplayManager
         var paths = FromBase64<PathInfo>(snapshot.Paths);
         var modes = FromBase64<ModeInfo>(snapshot.Modes);
         if (paths.Length == 0)
-            throw new InvalidOperationException("This mode has no saved display layout.");
+            throw new InvalidOperationException("This display profile has no saved layout. Save it again from the Displays page.");
 
         RemapToCurrentHardware(snapshot, paths, modes);
 
@@ -209,7 +209,7 @@ internal static class DisplayManager
 
         var bytes = Convert.FromBase64String(data);
         if (bytes.Length % Marshal.SizeOf<T>() != 0)
-            throw new InvalidOperationException("Saved display data is corrupt. Re-save this mode.");
+            throw new InvalidOperationException("The saved display layout is damaged. Save the display profile again from the Displays page.");
         return MemoryMarshal.Cast<byte, T>(bytes).ToArray();
     }
 }

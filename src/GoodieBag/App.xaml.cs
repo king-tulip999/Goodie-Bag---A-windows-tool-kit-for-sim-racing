@@ -60,6 +60,7 @@ public partial class App : Application
         PerfProbe.Mark("onstartup");
         System.Windows.Media.Animation.Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(System.Windows.Media.Animation.Timeline), new FrameworkPropertyMetadata { DefaultValue = PcClass.FrameRate });
         Controls.ClickGuard.Install();
+        Views.MenuFollow.Install();
         Views.Motion.InstallPress();
         Views.Ui.InstallDropDownWheel();
         Views.Motion.InstallSwitches();
@@ -119,6 +120,7 @@ public partial class App : Application
         bool themed = themeAt >= 0 && themeAt + 1 < e.Args.Length;
         var asked = themed ? AppTheme.Named(e.Args[themeAt + 1]) : AppTheme.Light;
         if (demo && screenshotDir is null && themed) config.Ui.Theme = asked;
+        if (demo && int.TryParse(ArgValue(e.Args, "--ui-scale"), out int uiScale)) config.Ui.InterfaceScale = uiScale;
         if (showcaseDir is not null)
         {
             config.Ui.Animations = true;

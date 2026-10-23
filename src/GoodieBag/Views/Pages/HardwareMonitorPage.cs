@@ -62,7 +62,7 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
     private void BuildOverlay()
     {
         _overlay = new OverlayPage(_app, _window, embedded: true);
-        _overlaySection = Section("overlay", "Performance Overlay", "A small, click-through panel with FPS, temperatures and load on top of your game. Nothing is injected into the game, so it's safe with anti-cheat. Make several layouts and let each mode or game pick one.",
+        _overlaySection = Section("overlay", "Performance Overlay", "A small, click-through panel with FPS, temperatures and load on top of your game. Nothing is injected into the game, so it's safe with anti-cheat. Make several layouts and switch between them with a keybind.",
             "I.Overlay", ("ApricotSoft", "ApricotDeep"), _overlay, null);
         Ui.Anchor(_overlaySection, "monitor.overlay");
     }

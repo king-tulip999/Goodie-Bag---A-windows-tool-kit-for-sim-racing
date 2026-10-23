@@ -92,6 +92,8 @@ public sealed class UpdateSettings
     public string? NotifiedVersion { get; set; }
 
     public string? InstalledTag { get; set; }
+
+    public string SeenVersion { get; set; } = "";
 }
 
 public enum PanelSize { Small, Medium, Large }

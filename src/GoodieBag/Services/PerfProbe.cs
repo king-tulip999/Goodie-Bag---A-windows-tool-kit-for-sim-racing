@@ -12,6 +12,8 @@ internal static class PerfProbe
 
     public static string? File { get; set; }
 
+    private static string _stage = "startup";
+
     public static void Mark(string name) => Marks.Add((name, (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds));
 
     public static async void Run(MainWindow window, string file)
@@ -19,6 +21,7 @@ internal static class PerfProbe
         var lines = new List<string>();
         void Put(string name, double value) => lines.Add($"{name} {value:0.0}");
         var me = Process.GetCurrentProcess();
+        HitchWatch.Start(window.Dispatcher, 50, () => _stage + " / " + window.CurrentPage);
         try
         {
             window.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -52,6 +55,7 @@ internal static class PerfProbe
             ui.Animations = true;
             Controls.NavIcon.RefreshAll();
             window.Topography.Refresh();
+            HitchWatch.WatchFrames(true);
             foreach (var pass in new[] { "first", "again" })
                 foreach (var key in window.NavKeys.Where(k => k != "plugins").Append("plugins"))
                 {
@@ -63,6 +67,7 @@ internal static class PerfProbe
                     void OnFirstFrame(object? s, EventArgs e) { CompositionTarget.Rendering -= OnFirstFrame; firstFrame = clock.Elapsed.TotalMilliseconds; }
                     CompositionTarget.Rendering += OnFirstFrame;
                     lines.Add($"# navigate {key} {pass} {DateTime.Now:HH:mm:ss.fff}");
+                    _stage = $"open {pass} {key}";
                     window.Navigate(key);
                     await Rendered(window);
                     Put($"open_{pass}_{key}_first_frame_ms", firstFrame);
@@ -73,6 +78,7 @@ internal static class PerfProbe
             var original = Theme.ThemeManager.Current.Id;
             foreach (var theme in Theme.Themes.All.Where(t => t.Id != original).Append(Theme.ThemeManager.Current))
             {
+                _stage = "theme apply " + theme.Id;
                 var clock = Stopwatch.StartNew();
                 Theme.ThemeManager.Apply(theme.Id);
                 Put($"theme_{theme.Id}_apply_ms", clock.Elapsed.TotalMilliseconds);
@@ -89,6 +95,7 @@ internal static class PerfProbe
                 double firstFrame = 0;
                 void OnFirstFrame(object? s, EventArgs e) { CompositionTarget.Rendering -= OnFirstFrame; firstFrame = clock.Elapsed.TotalMilliseconds; }
                 CompositionTarget.Rendering += OnFirstFrame;
+                _stage = "theme switch " + theme.Id;
                 AppServices.Current!.SwitchThemeUnsaved(theme.Id);
                 Put($"theme_switch_{theme.Id}_ms", clock.Elapsed.TotalMilliseconds);
                 await Rendered(window);
@@ -96,6 +103,17 @@ internal static class PerfProbe
                 Put($"theme_switch_{theme.Id}_shown_ms", clock.Elapsed.TotalMilliseconds);
                 await Task.Delay(300);
             }
+            foreach (var key in window.NavKeys)
+            {
+                _stage = "idle";
+                window.Navigate(key);
+                await Rendered(window);
+                await Task.Delay(2500);
+                _stage = "idle watch";
+                await Task.Delay(8000);
+            }
+            _stage = "after";
+            HitchWatch.WatchFrames(false);
             if (Environment.GetCommandLineArgs().Contains("--soak", StringComparer.OrdinalIgnoreCase))
                 await Soak(window, lines);
             window.Navigate("monitor");
@@ -159,6 +177,10 @@ internal static class PerfProbe
             Put("private_mb", me.PrivateMemorySize64 / 1048576.0);
             Put("managed_heap_mb", GC.GetTotalMemory(false) / 1048576.0);
             Put("threads", me.Threads.Count);
+            Put("gc_pause_total_ms", GC.GetTotalPauseDuration().TotalMilliseconds);
+            Put("gc_gen0", GC.CollectionCount(0));
+            Put("gc_gen1", GC.CollectionCount(1));
+            Put("gc_gen2", GC.CollectionCount(2));
             Put("handles", me.HandleCount);
             var loaded = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name ?? "?").Order(StringComparer.Ordinal).ToList();
             Put("assemblies_loaded", loaded.Count);
@@ -170,6 +192,7 @@ internal static class PerfProbe
         }
         finally
         {
+            lines.AddRange(HitchWatch.Report(HitchWatch.Take()).Select(l => "# hitch " + l));
             lines.AddRange(PerfBudget.Check(lines, PerfBudget.Read()));
             System.IO.File.AppendAllLines(file, lines);
             Application.Current.Shutdown();

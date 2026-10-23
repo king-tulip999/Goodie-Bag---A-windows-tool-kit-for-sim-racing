@@ -186,12 +186,13 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         badge.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(badge);
 
-        var title = new WrapPanel { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        var title = new TrimRow { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
         title.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = p.Name, Style = Ui.Res<Style>("H3"), FontSize = 16, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }));
         if (running)
         {
             var chip = Ui.Chip("Running", "ActiveModeBg", "ActiveModeFg");
             chip.Margin = new Thickness(0, 2, 6, 2);
+            chip.VerticalAlignment = VerticalAlignment.Center;
             title.Children.Add(chip);
         }
         Grid.SetColumn(title, 1);
@@ -199,7 +200,7 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var apply = Ui.LabeledButton("I.Zap", "Apply", () => _ = _app.WindowProfiles.ApplyAsync(p), running ? "PrimaryButton" : "GhostButton");
-        apply.ToolTip = running ? "Move the window now" + Keys(p.Hotkey) : $"{p.ProcessName} isn't running; Apply waits a few seconds for its window";
+        apply.ToolTip = running ? "Move the window now" + Keys(p.Hotkey) : $"{p.ProcessName} isn't running";
         actions.Children.Add(apply);
         var edit = Ui.LabeledButton("I.Pencil", "Edit", () => _ = EditAsync(p, isNew: false), "GhostButton");
         edit.Margin = new Thickness(8, 0, 0, 0);
@@ -256,7 +257,7 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
     private string ApplyingOf(WindowProfile p) =>
         !p.Auto ? "By hand"
         : !S.AutoApply ? "By hand (automatic is off)"
-        : p.DelayMs > 0 ? $"When it starts · {p.DelayMs / 1000.0:0.#} s" : "When it starts";
+        : p.DelayMs > 0 ? $"When it starts · {p.DelayMs / 1000.0:0.##} s" : "When it starts";
 
     private static string Keys(string? hotkey) => hotkey is null ? "" : $" ({Hotkeys.Hotkey.Display(hotkey)})";
 
@@ -272,9 +273,14 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         badge.VerticalAlignment = VerticalAlignment.Center;
         head.Children.Add(badge);
         var text = new StackPanel { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
-        var title = new WrapPanel();
+        var title = new TrimRow();
         title.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = g.Name, Style = Ui.Res<Style>("H3"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }));
-        if (g.Hotkey is not null) title.Children.Add(Ui.Chip(Hotkeys.Hotkey.Display(g.Hotkey)));
+        if (g.Hotkey is not null)
+        {
+            var keys = Ui.Chip(Hotkeys.Hotkey.Display(g.Hotkey));
+            keys.VerticalAlignment = VerticalAlignment.Center;
+            title.Children.Add(keys);
+        }
         text.Children.Add(title);
         text.Children.Add(Ui.Text(members.Count == 0 ? "Empty: pick this group in a profile's editor" : $"Group · {RaceFormatCount(members.Count)}", "Caption"));
         Grid.SetColumn(text, 1);

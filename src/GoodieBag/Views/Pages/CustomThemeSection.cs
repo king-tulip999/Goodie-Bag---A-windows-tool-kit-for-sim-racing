@@ -203,7 +203,7 @@ internal sealed class CustomThemeSection : StackPanel
             ("Edges", "Outlines, lines and the tint of cards", () => c.Edges, v => c.Edges = v),
             ("Text", "Headings; body text is a touch softer", () => c.Text, v => c.Text = v),
             ("Accent", "Buttons, switches, the selected item, bars", () => c.Accent, v => c.Accent = v),
-            ("Highlight", "The active mode and keyboard focus", () => c.Highlight, v => c.Highlight = v),
+            ("Highlight", "Running programs and keyboard focus", () => c.Highlight, v => c.Highlight = v),
             ("Success", "All good, running", () => c.Success, v => c.Success = v),
             ("Warning", "Cautions", () => c.Warning, v => c.Warning = v),
             ("Error", "Problems and deleting", () => c.Error, v => c.Error = v),

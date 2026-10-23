@@ -9,6 +9,38 @@ namespace GoodieBag.Views;
 
 internal static class Motion
 {
+    public static long PageSettlesAt { get; set; }
+
+    public static long PageAnimatesFrom { get; set; }
+
+    public static Task PageSettled(System.Windows.Threading.Dispatcher dispatcher)
+    {
+        if (PageSettlesAt <= Environment.TickCount64) return Task.CompletedTask;
+        var done = new TaskCompletionSource();
+        WhenSettled(dispatcher, () => done.TrySetResult());
+        return done.Task;
+    }
+
+    public static void AfterPageSettles(System.Windows.Threading.Dispatcher dispatcher, Action work) =>
+        dispatcher.BeginInvoke(() => WhenSettled(dispatcher, work), System.Windows.Threading.DispatcherPriority.Background);
+
+    private static void WhenSettled(System.Windows.Threading.Dispatcher dispatcher, Action work)
+    {
+        long wait = PageSettlesAt - Environment.TickCount64;
+        if (wait <= 0)
+        {
+            work();
+            return;
+        }
+        var timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromMilliseconds(Math.Min(wait, 100)) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            WhenSettled(dispatcher, work);
+        };
+        timer.Start();
+    }
+
     public static readonly IEasingFunction Ease = new CubicEase { EasingMode = EasingMode.EaseOut };
 
     public static bool Enabled => AppServices.Current?.Animations ?? true;

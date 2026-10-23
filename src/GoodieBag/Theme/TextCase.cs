@@ -151,7 +151,7 @@ public static class TextCase
     {
         foreach (var inline in inlines.ToList())
         {
-            if (inline is Run run && !BindingOperations.IsDataBound(run, Run.TextProperty))
+            if (inline is Run run && !BindingOperations.IsDataBound(run, Run.TextProperty) && !GetVerbatim(run))
             {
                 string upper = mono ? Capitals(Plain(run.Text)) : Upper(run.Text);
                 if (upper != run.Text) run.Text = upper;

@@ -12,7 +12,7 @@ using GoodieBag.SimRacing;
 
 namespace GoodieBag.Views.Pages;
 
-internal sealed class SimRacingPage : UserControl, IPage, IScreenshotStates, ICancelEdit
+internal sealed class SimRacingPage : UserControl, IPage, IScreenshotStates, ICancelEdit, IRevealAnchor
 {
     internal static readonly string[] DefaultPanelOrder = { "setups", "hud", "fov", "iracing", "tradingpaints", "garage61" };
 
@@ -135,12 +135,24 @@ internal sealed class SimRacingPage : UserControl, IPage, IScreenshotStates, ICa
         {
             var panel = waiting[i];
             if (i == 0 || !_building) BuildPanel(panel);
-            else Dispatcher.BeginInvoke(() => BuildPanel(panel), System.Windows.Threading.DispatcherPriority.Background);
+            else Motion.AfterPageSettles(Dispatcher, () => BuildPanel(panel));
         }
+    }
+
+    public bool Reveal(string anchor)
+    {
+        bool built = false;
+        foreach (var panel in Ordered().Where(p => !S.IsPanelHidden(p.Id) && p.Section.Deferred))
+        {
+            BuildPanel(panel);
+            built = true;
+        }
+        return built;
     }
 
     private void BuildPanel(PagePanel panel)
     {
+        if (HitchWatch.On) HitchWatch.Note = panel.Id;
         if (!S.IsPanelHidden(panel.Id) && panel.Section.BuildDeferred() && _shown) panel.Shown?.Invoke();
     }
 

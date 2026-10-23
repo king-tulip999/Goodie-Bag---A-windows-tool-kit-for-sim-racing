@@ -81,6 +81,51 @@ internal sealed class TraceStore : IDisposable
         return result;
     }
 
+    public void Renumber(long session, IReadOnlyList<(int Lap, double Time, bool Clean)> stored)
+    {
+        var have = _db.Query("SELECT lap, lap_time FROM traces WHERE session_id = ?1", session)
+            .Select(r => (Convert.ToInt32(r[0]), Convert.ToDouble(r[1]))).ToList();
+        if (have.Count == 0) return;
+        var moves = Renumbered(have, stored);
+        _db.Transaction(() =>
+        {
+            _db.Run("UPDATE traces SET lap = -1 - lap WHERE session_id = ?1", session);
+            foreach (var (from, to) in moves)
+                _db.Run("UPDATE traces SET lap = ?3, clean = ?4 WHERE session_id = ?1 AND lap = ?2", session, -1 - from, to.Lap, to.Clean);
+            _db.Run("DELETE FROM traces WHERE session_id = ?1 AND lap < 0", session);
+        });
+    }
+
+    internal static List<(int From, (int Lap, double Time, bool Clean) To)> Renumbered(IReadOnlyList<(int Lap, double Time)> traces,
+        IReadOnlyList<(int Lap, double Time, bool Clean)> stored)
+    {
+        var result = new List<(int, (int, double, bool))>();
+        var taken = new HashSet<int>();
+        var left = new List<(int Lap, double Time)>();
+        foreach (var t in traces)
+        {
+            int at = -1;
+            for (int i = 0; i < stored.Count; i++)
+                if (stored[i].Lap == t.Lap && Math.Abs(stored[i].Time - t.Time) <= 0.05) { at = i; break; }
+            if (at >= 0) { taken.Add(at); result.Add((t.Lap, stored[at])); }
+            else left.Add(t);
+        }
+        foreach (var t in left)
+        {
+            int at = -1;
+            double nearest = 0.05;
+            for (int i = 0; i < stored.Count; i++)
+            {
+                double off = Math.Abs(stored[i].Time - t.Time);
+                if (off <= nearest && !taken.Contains(i)) { nearest = off; at = i; }
+            }
+            if (at < 0) continue;
+            taken.Add(at);
+            result.Add((t.Lap, stored[at]));
+        }
+        return result;
+    }
+
     public void DeleteSession(long session) => _db.Run("DELETE FROM traces WHERE session_id = ?1", session);
 
     public bool Has(long session) => _db.Scalar("SELECT 1 FROM traces WHERE session_id = ?1 LIMIT 1", session) is not null;

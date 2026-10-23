@@ -45,7 +45,8 @@ internal sealed class TrayService : IDisposable
         _menu.ShowImageMargin = false;
         _menu.ShowCheckMargin = true;
         _menu.ShowItemToolTips = true;
-        ThemeManager.Changed += RefreshIcon;
+        _iconKey = IconKey(ThemeManager.Current.Id);
+        ThemeManager.Changed += QueueRefreshIcon;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
     }
 
@@ -60,15 +61,39 @@ internal sealed class TrayService : IDisposable
     }
 
     private void OnDisplayChanged(object? sender, EventArgs e) =>
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(new Action(RefreshIcon));
+        QueueRefreshIcon();
+
+    private string? _iconKey;
+    private bool _refreshQueued;
+
+    private void QueueRefreshIcon()
+    {
+        if (_refreshQueued) return;
+        _refreshQueued = true;
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _refreshQueued = false;
+            RefreshIcon();
+        }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    }
 
     private void RefreshIcon()
     {
         if (_disposed) return;
+        string key = IconKey(ThemeManager.Current.Id);
+        if (key == _iconKey) return;
+        _iconKey = key;
         var old = _image;
         _image = LoadIcon();
         Safe(() => _icon.Icon = _image);
         old.Dispose();
+    }
+
+    internal static string IconKey(Config.AppTheme theme)
+    {
+        var spec = Themes.For(theme);
+        var p = ThemeManager.Resolve(spec);
+        return $"{p.GetValueOrDefault("LogoBg")}|{p.GetValueOrDefault("LogoFg")}|{p.GetValueOrDefault("LogoEdge")}|{spec.Glow}|{spec.Radius}|{SystemInformation.SmallIconSize.Width}";
     }
 
     public void ShowBalloon(string title, string text, NoticeKind kind)
@@ -226,7 +251,7 @@ internal sealed class TrayService : IDisposable
 
     public void Dispose()
     {
-        ThemeManager.Changed -= RefreshIcon;
+        ThemeManager.Changed -= QueueRefreshIcon;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         _disposed = true;
         Safe(() => _icon.Visible = false);

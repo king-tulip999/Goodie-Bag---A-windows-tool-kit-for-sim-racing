@@ -57,6 +57,8 @@ internal static class MonkeyRunner
         Log($"seed {seed}, {minutes} min");
         var app = AppServices.Current!;
         StartWatchdog(folder);
+        HitchWatch.Start(window.Dispatcher, 150, () => $"step {_step} on {window.CurrentPage}");
+        HitchWatch.WatchFrames(true);
         try
         {
             window.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -71,8 +73,10 @@ internal static class MonkeyRunner
             while (DateTime.UtcNow < end)
             {
                 _step++;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 try { await StepAsync(window, app, rnd); }
                 catch (Exception ex) { RecordError(ex); }
+                if (clock.Elapsed.TotalMilliseconds >= 300) Log($"  slow: {clock.Elapsed.TotalMilliseconds:0} ms");
                 await Task.Delay(rnd.Next(20, 160));
                 if (_step % 30 == 0) await CheckAsync(window, app, baseline);
             }
@@ -84,6 +88,7 @@ internal static class MonkeyRunner
         }
         finally
         {
+            File.WriteAllLines(Path.Combine(folder, "hitches.txt"), HitchWatch.Report(HitchWatch.Take()));
             lock (Errors)
                 File.WriteAllText(Path.Combine(folder, "errors.txt"), Errors.Count == 0 ? "none\n" : string.Join("\n\n", Errors));
             Log($"done after {_step} steps");
@@ -211,6 +216,7 @@ internal static class MonkeyRunner
             TextBox tb => "text box " + tb.Tag,
             _ => FirstText(e) ?? "",
         };
+        if (text.Length == 0 && e.ToolTip is string tip) text = "tip: " + tip;
         if (text.Length > 50) text = text[..50];
         return $"{e.GetType().Name}{(e.Name.Length > 0 ? "#" + e.Name : "")} “{text}”";
     }
@@ -313,6 +319,27 @@ internal static class MonkeyRunner
     private static int TickHandlers(AppServices app) =>
         typeof(AppServices).GetField("Tick", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(app) is Delegate d ? d.GetInvocationList().Length : 0;
 
+    private static List<(Popup Popup, FrameworkElement Target)> Orphans()
+    {
+        var found = new List<(Popup, FrameworkElement)>();
+        foreach (PresentationSource source in PresentationSource.CurrentSources)
+            if (source.RootVisual is FrameworkElement { IsVisible: true } root && root.GetType().Name == "PopupRoot"
+                && root.Parent is Popup { IsOpen: true, PlacementTarget: FrameworkElement target } popup && (!target.IsVisible || PresentationSource.FromVisual(target) is null))
+                found.Add((popup, target));
+        return found;
+    }
+
+    private static async Task Frames(int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var frame = new TaskCompletionSource();
+            void OnFrame(object? s, EventArgs e) { CompositionTarget.Rendering -= OnFrame; frame.TrySetResult(); }
+            CompositionTarget.Rendering += OnFrame;
+            await frame.Task;
+        }
+    }
+
     private static async Task CheckAsync(MainWindow window, AppServices app, int baseline)
     {
         var copy = ConfigStore.Clone(app.Config);
@@ -321,10 +348,13 @@ internal static class MonkeyRunner
         if (once != twice) Problem("config: Normalize twice differs from once");
         foreach (var d in ConfigReferences.Dangling(app.Config)) Problem("config: dangling " + d);
 
-        foreach (PresentationSource source in PresentationSource.CurrentSources)
-            if (source.RootVisual is FrameworkElement { IsVisible: true } root && root.GetType().Name == "PopupRoot"
-                && root.Parent is Popup { PlacementTarget: FrameworkElement target } popup && (!target.IsVisible || PresentationSource.FromVisual(target) is null))
+        if (Orphans().Count > 0)
+        {
+            await Frames(2);
+            await Settle();
+            foreach (var (popup, target) in Orphans())
                 Problem($"a popup stayed open after its target went away: {(popup.Child is FrameworkElement child ? Describe(child) : "?")} on {Describe(target)}");
+        }
 
         while (window.WindowState == WindowState.Minimized || !window.IsVisible) { window.WindowState = WindowState.Normal; window.Show(); await Settle(); }
         Key(window, System.Windows.Input.Key.Escape);
@@ -333,6 +363,9 @@ internal static class MonkeyRunner
         await Settle();
         int now = TickHandlers(app);
         if (now > baseline) Problem($"tick handlers on the home page grew from {baseline} to {now}");
+        await Task.Delay(700);
+        if (window.PageMove.Y != 0 && !window.PageMove.HasAnimatedProperties)
+            Problem($"the page stayed {window.PageMove.Y:0} px off its place after the page animation");
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();

@@ -272,21 +272,6 @@
         </Style.Triggers>
     </Style>
 
-    <!-- the one active mode, always a filled tile next to the outlined inactive ones (Soft: the gold 128 tile; Vanilla:
-         the accent with a white label; OLED Neon: an aqua tint and edge) -->
-    <Style x:Key="ActiveModeButton" TargetType="Button" BasedOn="{StaticResource Btn}">
-        <Setter Property="Background" Value="{DynamicResource ActiveModeBg}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource ActiveModeEdge}" />
-        <Setter Property="Foreground" Value="{DynamicResource ActiveModeFg}" />
-        <!-- no ActiveGlow Effect here: an Effect renders the label without ClearType (grainy text) -->
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource ActiveModeHover}" />
-                <Setter Property="Foreground" Value="{DynamicResource ActiveModeFg}" />
-            </Trigger>
-        </Style.Triggers>
-    </Style>
-
     <!-- soft: a flat chip-like tile in the well colour (quick actions, choices); hover tints it towards the accent.
          The solid accent is kept for the one primary action on a card. -->
     <Style x:Key="SoftButton" TargetType="Button" BasedOn="{StaticResource Btn}">
@@ -527,11 +512,11 @@
                     <c:Tile x:Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="3,0,0,0" CornerRadius="{DynamicResource R.Control}" c:Tile.Chamfer="True"
                             Padding="4,0,7,0" RenderTransformOrigin="0.5,0.5">
                         <c:Tile.RenderTransform><ScaleTransform /></c:Tile.RenderTransform>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <c:Icon Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Width="16" Height="16" Margin="5,0,5,0" StrokeThickness="1.9"
+                        <DockPanel VerticalAlignment="Center">
+                            <c:Icon DockPanel.Dock="Left" Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Width="16" Height="16" Margin="5,0,5,0" StrokeThickness="1.9"
                                     Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}" />
-                            <ContentPresenter Margin="9,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <ContentPresenter Margin="9,0,0,0" VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </DockPanel>
                     </c:Tile>
                     <ControlTemplate.Triggers>
                         <MultiTrigger>

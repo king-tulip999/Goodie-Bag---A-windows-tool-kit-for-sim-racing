@@ -4,7 +4,7 @@ internal sealed class FrameDecoder
 {
     private IReadOnlyDictionary<string, IrsdkVar> _vars = new Dictionary<string, IrsdkVar>();
     private IrsdkVar? _sessionNum, _sessionState, _sessionFlags, _sessionTime, _sessionTimeRemain, _sessionTimeTotal, _lapsRemain, _lapsRemainEx, _lapsTotal, _raceLaps;
-    private IrsdkVar? _isOnTrack, _inGarage, _replay, _playerIdx, _camIdx, _onPitRoad, _surface;
+    private IrsdkVar? _isOnTrack, _inGarage, _replay, _playerIdx, _camIdx, _onPitRoad, _surface, _playerPos, _playerClassPos;
     private IrsdkVar? _speed, _rpm, _gear, _throttle, _brake, _clutch, _steer, _steerMax;
     private IrsdkVar? _fuel, _fuelPct, _fuelPerHour, _lap, _lapCompleted, _lapPct, _lapDist, _lapCur, _lapLast, _lapBest;
     private IrsdkVar? _dBest, _dBestOk, _dSession, _dSessionOk, _dOptimal, _dOptimalOk;
@@ -29,6 +29,7 @@ internal sealed class FrameDecoder
         _lapsRemain = V("SessionLapsRemain"); _lapsRemainEx = V("SessionLapsRemainEx"); _lapsTotal = V("SessionLapsTotal"); _raceLaps = V("RaceLaps");
         _isOnTrack = V("IsOnTrack"); _inGarage = V("IsInGarage"); _replay = V("IsReplayPlaying");
         _playerIdx = V("PlayerCarIdx"); _camIdx = V("CamCarIdx"); _onPitRoad = V("OnPitRoad"); _surface = V("PlayerTrackSurface");
+        _playerPos = V("PlayerCarPosition"); _playerClassPos = V("PlayerCarClassPosition");
         _speed = V("Speed"); _rpm = V("RPM"); _gear = V("Gear"); _throttle = V("Throttle"); _brake = V("Brake"); _clutch = V("Clutch");
         _steer = V("SteeringWheelAngle"); _steerMax = V("SteeringWheelAngleMax");
         _fuel = V("FuelLevel"); _fuelPct = V("FuelLevelPct"); _fuelPerHour = V("FuelUsePerHour");
@@ -94,6 +95,8 @@ internal sealed class FrameDecoder
         f.PlayerCarIdx = I(_playerIdx) ?? f.Session.PlayerCarIdx;
         f.CamCarIdx = I(_camIdx) ?? -1;
         f.OnPitRoad = B(_onPitRoad);
+        f.PlayerPosition = I(_playerPos);
+        f.PlayerClassPosition = I(_playerClassPos);
         f.PlayerSurface = I(_surface) is { } surf && Enum.IsDefined((TrackSurface)surf) ? (TrackSurface)surf : null;
 
         f.Speed = D(_speed); f.Rpm = D(_rpm); f.Gear = I(_gear);
