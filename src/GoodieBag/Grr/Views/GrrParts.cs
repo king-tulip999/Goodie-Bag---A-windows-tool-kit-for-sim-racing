@@ -164,11 +164,9 @@ internal static class GrrParts
 
     public enum TimelineMark { Done, Next, Later }
 
-    public static Button Compact(string icon, string label, Action click, string style = "Btn")
+    public static Button Compact(string icon, string label, Action click, string style = "GhostButton")
     {
         var b = Ui.LabeledButton(icon, label, click, style);
-        b.Padding = new Thickness(9, 4, 10, 4);
-        b.FontSize = 12;
         b.Margin = new Thickness(0, 0, 6, 6);
         b.VerticalAlignment = VerticalAlignment.Center;
         return b;
@@ -184,7 +182,7 @@ internal static class GrrParts
     public static Button RefreshButton(AppServices app)
     {
         var icon = new Icon { Data = Ui.Res<Geometry>("I.Refresh"), Width = 15, Height = 15, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform() };
-        var b = new Button { Style = Ui.Res<Style>("Btn"), Content = icon, Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Center };
+        var b = new Button { Style = Ui.Res<Style>("IconButton"), Content = icon, Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Center };
         System.Windows.Automation.AutomationProperties.SetName(b, "Refresh league data");
         ToolTipService.SetShowOnDisabled(b, true);
         b.Click += (_, _) => _ = app.Grr.RefreshNowAsync();

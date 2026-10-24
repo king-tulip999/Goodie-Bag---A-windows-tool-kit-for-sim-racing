@@ -439,9 +439,16 @@ internal static class Ui
     public static readonly DependencyProperty DialogBaseWidthProperty =
         DependencyProperty.RegisterAttached("DialogBaseWidth", typeof(double), typeof(Ui), new PropertyMetadata(double.NaN));
 
+    private static void NameFor(UIElement control, string label)
+    {
+        if (label.Length > 0 && string.IsNullOrEmpty(System.Windows.Automation.AutomationProperties.GetName(control)))
+            System.Windows.Automation.AutomationProperties.SetName(control, label);
+    }
+
     public static Grid FieldRow(string label, UIElement control, double labelWidth = 150, string? hint = null)
     {
         var grid = new Grid { Margin = new Thickness(0, 5, 0, 5) };
+        NameFor(control, label);
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -493,6 +500,7 @@ internal static class Ui
         panel.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
         var x = new Button { Style = Res<Style>("QuietButton"), Padding = new Thickness(2), Margin = new Thickness(6, -2, -4, -2), ToolTip = "Remove",
             Content = new Icon { Data = Res<Geometry>("I.X"), Width = 11, Height = 11 } };
+        System.Windows.Automation.AutomationProperties.SetName(x, "Remove " + text);
         x.Click += (_, _) => remove();
         panel.Children.Add(x);
         return new Tile { Style = Res<Style>("Chip"), Child = panel };
@@ -618,6 +626,7 @@ internal static class Ui
     public static Button IconButton(string icon, string tooltip, Action click, string style = "IconButton")
     {
         var b = new Button { Style = Res<Style>(style), ToolTip = tooltip, Content = new Icon { Data = Res<Geometry>(icon), Width = 16, Height = 16 } };
+        System.Windows.Automation.AutomationProperties.SetName(b, tooltip);
         b.Click += (_, _) => click();
         return b;
     }
@@ -835,6 +844,7 @@ internal static class Ui
     public static Grid SettingRow(string title, string? description, UIElement control, SettingDefault? fallback = null, string? more = null)
     {
         var grid = new SettingRowGrid { Margin = new Thickness(0, 10, 0, 10) };
+        NameFor(control, title);
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

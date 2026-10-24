@@ -616,7 +616,8 @@ internal static class ScreenshotRunner
         using (var dc = visual.RenderOpen())
         {
             dc.DrawRectangle((Brush)window.FindResource("Bg"), null, new Rect(0, 0, width, height));
-            dc.DrawRectangle(new VisualBrush(root), null, new Rect(0, 0, width, height));
+            var box = root.LayoutTransform.TransformBounds(new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+            dc.DrawRectangle(new VisualBrush(root) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = box }, null, new Rect(0, 0, width, height));
             foreach (PresentationSource source in PresentationSource.CurrentSources)
             {
                 if (source.RootVisual is not FrameworkElement popup || popup.GetType().Name != "PopupRoot" || !popup.IsVisible || popup.ActualWidth <= 0)

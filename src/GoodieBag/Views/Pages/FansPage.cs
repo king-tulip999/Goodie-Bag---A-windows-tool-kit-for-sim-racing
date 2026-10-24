@@ -448,7 +448,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         var left = new Grid { VerticalAlignment = VerticalAlignment.Center };
         left.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         left.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-        left.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 160 });
+        left.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 160, MaxWidth = 320 });
         left.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(84) });
         left.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         var spinner = hw.IsPump

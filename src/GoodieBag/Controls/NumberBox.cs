@@ -108,6 +108,7 @@ internal sealed class NumberBox : Grid
             Content = new Icon { Data = (Geometry)Application.Current.FindResource(icon), Width = 14, Height = 14 },
         };
         button.SetResourceReference(StyleProperty, "SoftButton");
+        System.Windows.Automation.AutomationProperties.SetName(button, tooltip);
         ClickGuard.SetAllowRepeat(button, true);
         button.Click += (_, _) => Nudge(direction, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1);
         return button;

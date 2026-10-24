@@ -19,7 +19,7 @@
     <ApplicationIcon>Assets\GoodieBag.ico</ApplicationIcon>
     <AssemblyName>GoodieBag</AssemblyName>
     <RootNamespace>GoodieBag</RootNamespace>
-    <Version>1.7.0</Version>
+    <Version>1.8.0</Version>
     <Title>Goodie Bag</Title>
     <AssemblyTitle>Goodie Bag</AssemblyTitle>
     <Product>Goodie Bag</Product>

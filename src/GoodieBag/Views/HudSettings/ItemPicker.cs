@@ -141,6 +141,7 @@ internal sealed class ItemPicker : StackPanel
         row.Children.Add(new TextBlock { Text = choice.Label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
         if (hidden) row.Children.Add(new TextBlock { Text = "doesn't fit", FontStyle = FontStyles.Italic, Opacity = 0.85, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
         var x = new Button { Style = Ui.Res<Style>("QuietButton"), Padding = new Thickness(4), ToolTip = "Take out", Focusable = false, Content = new Icon { Data = Ui.Res<Geometry>("I.X"), Width = 10, Height = 10 } };
+        System.Windows.Automation.AutomationProperties.SetName(x, "Take out " + choice.Label);
         x.Click += (_, _) => { _model.Remove(lane, id); Save(); };
         row.Children.Add(x);
         var chip = new Tile

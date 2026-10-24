@@ -211,6 +211,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
                 _ => ("Waiting for iRacing", "SlateSoft", "SlateDeep"),
             };
         var chip = Ui.Chip(text, soft, deep);
+        chip.Margin = new Thickness(0);
         chip.VerticalAlignment = VerticalAlignment.Center;
         if (_statusChip.Parent is Panel parent)
         {

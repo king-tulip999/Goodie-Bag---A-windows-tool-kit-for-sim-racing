@@ -49,11 +49,14 @@ internal sealed class DisplayProfilesView : Tile
         var profiles = _app.Config.Displays.Profiles;
         if (profiles.Count == 0)
         {
-            _grid.Children.Add(new TextBlock
+            var empty = new StackPanel { Margin = new Thickness(6, 10, 6, 6), HorizontalAlignment = HorizontalAlignment.Center };
+            empty.Children.Add(new TextBlock { Text = "No display profiles yet", Style = Ui.Res<Style>("H3"), HorizontalAlignment = HorizontalAlignment.Center });
+            empty.Children.Add(new TextBlock
             {
-                Text = "No profiles yet. Set your monitors up the way you like (here or in Windows), then Save current setup. Do that for each setup: desk, triples, TV…",
-                Style = Ui.Res<Style>("Muted"), Margin = new Thickness(6, 8, 6, 4),
+                Text = "Set your monitors up the way you like (here or in Windows), then Save current setup. One for each setup: desk, triples, TV…",
+                Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxWidth = 560, Margin = new Thickness(0, 4, 0, 0),
             });
+            _grid.Children.Add(empty);
             return;
         }
         var active = _app.DisplayProfiles.Active;
@@ -67,16 +70,21 @@ internal sealed class DisplayProfilesView : Tile
         var top = new Grid();
         top.ColumnDefinitions.Add(new ColumnDefinition());
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var nameRow = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
-        nameRow.Children.Add(new TextBlock { Text = profile.Name, ToolTip = profile.Name, Style = Ui.Res<Style>("H3"), TextTrimming = TextTrimming.CharacterEllipsis });
+        top.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        top.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var name = TextFit.TipWhenTrimmed(new TextBlock { Text = profile.Name, Style = Ui.Res<Style>("H3"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+        top.Children.Add(name);
         var tags = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         if (isActive)
             tags.Children.Add(Ui.Chip("Active", "SageSoft", "SageDeep"));
         if (profile.Hotkey is { } hk)
             tags.Children.Add(Ui.Chip(GoodieBag.Hotkeys.Hotkey.Display(hk)));
         if (tags.Children.Count > 0)
-            nameRow.Children.Add(tags);
-        top.Children.Add(nameRow);
+        {
+            Grid.SetRow(tags, 1);
+            Grid.SetColumnSpan(tags, 2);
+            top.Children.Add(tags);
+        }
         var apply = isActive
             ? Ui.LabeledButton("I.Check", "Applied", () => _ = _app.DisplayProfiles.ApplyAsync(profile), "GhostButton")
             : Ui.LabeledButton("I.Zap", "Apply", () => _ = _app.DisplayProfiles.ApplyAsync(profile), "PrimaryButton");
@@ -277,15 +285,16 @@ internal sealed class DisplayProfileEditor
 
     private IEnumerable<(string Key, string Name)> WallpaperMonitors()
     {
+        List<Display.MonitorInfo> monitors;
+        try { monitors = _app.Displays.GetMonitors(); }
+        catch { monitors = new(); }
         var layout = _profile.Layout ?? _current;
-        if (layout is not null)
-        {
-            var listed = _app.Displays.Describe(layout).Where(m => m.Key.Length > 0).Select(m => (m.Key, m.Name)).ToList();
-            if (listed.Count > 0)
-                return listed;
-        }
-        try { return _app.Displays.GetMonitors().Where(m => m.Active).Select(m => (m.Key, m.Name)).ToList(); }
-        catch { return Array.Empty<(string, string)>(); }
+        var listed = layout is null ? new() : _app.Displays.Describe(layout).Where(m => m.Key.Length > 0).Select(m => (m.Key, m.Name)).ToList();
+        if (listed.Count == 0)
+            listed = monitors.Where(m => m.Active).Select(m => (m.Key, m.Name)).ToList();
+        var numbers = monitors.GroupBy(m => m.Key, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Number, StringComparer.OrdinalIgnoreCase);
+        var shared = listed.GroupBy(m => m.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return listed.Select(m => shared.Contains(m.Name) && numbers.TryGetValue(m.Key, out int n) && n > 0 ? (m.Key, $"{m.Name} ({n})") : m).ToList();
     }
 
     private bool Validate()

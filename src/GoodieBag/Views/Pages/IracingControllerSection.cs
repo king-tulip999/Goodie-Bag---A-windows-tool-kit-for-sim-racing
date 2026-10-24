@@ -505,6 +505,8 @@ internal sealed class IracingControllerSection : StackPanel
                 {
                     var u = Ui.Chip(unsaved.ToString(CultureInfo.InvariantCulture), "AccentSoft", "AccentText");
                     u.Padding = new Thickness(5, 0, 5, 0);
+                    u.Margin = new Thickness(0);
+                    u.VerticalAlignment = VerticalAlignment.Center;
                     u.ToolTip = RaceFormat.Count(unsaved, "unsaved change");
                     counts.Children.Add(u);
                 }

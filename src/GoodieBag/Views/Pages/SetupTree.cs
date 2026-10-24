@@ -88,6 +88,7 @@ internal sealed class SetupTree : Grid
                 Content = new Icon { Data = Ui.Res<Geometry>(open ? "I.ChevronDown" : "I.ChevronRight"), Width = 13, Height = 13 },
                 ToolTip = open ? "Close folder" : "Open folder",
             };
+            System.Windows.Automation.AutomationProperties.SetName(arrow, open ? "Close folder" : "Open folder");
             ClickGuard.SetAllowRepeat(arrow, true);
             arrow.Click += (_, _) => Toggled?.Invoke(node);
             Grid.SetColumn(arrow, 1);

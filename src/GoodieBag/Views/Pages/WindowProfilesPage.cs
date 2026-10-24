@@ -257,6 +257,7 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         if (g.Hotkey is not null)
         {
             var keys = Ui.Chip(Hotkeys.Hotkey.Display(g.Hotkey));
+            keys.Margin = new Thickness(0);
             keys.VerticalAlignment = VerticalAlignment.Center;
             title.Children.Add(keys);
         }

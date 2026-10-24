@@ -202,7 +202,7 @@ internal sealed class GrrDashboardSection : StackPanel
     private FrameworkElement NoLeague()
     {
         var body = new StackPanel();
-        body.Children.Add(Note("Pick the GRR series you race in. Their tabs above unlock, with their next race, standings, results and schedule."));
+        body.Children.Add(Note("Pick the GRR series you race in. Each one gets its own section in the sidebar with its next race, standings, results and schedule."));
         var pick = GrrParts.Compact("I.Plus", "Choose leagues", () => _ = GrrParts.EditAsync(_app, _window), "PrimaryButton");
         pick.HorizontalAlignment = HorizontalAlignment.Left;
         pick.Margin = new Thickness(0, 12, 0, 0);
@@ -305,7 +305,7 @@ internal sealed class GrrDashboardSection : StackPanel
 
     private Button Toggle(string label, Action flip)
     {
-        var b = new Button { Content = label, Style = Ui.Res<Style>("Btn"), Padding = new Thickness(10, 4, 10, 4), FontSize = 12, Margin = new Thickness(0, 0, 6, 6) };
+        var b = new Button { Content = label, Style = Ui.Res<Style>("GhostButton"), Margin = new Thickness(0, 0, 6, 6) };
         b.Click += (_, _) => { flip(); _shape = ""; Build(); };
         return b;
     }
