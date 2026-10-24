@@ -2,7 +2,7 @@
 
 **Download: [latest release](https://github.com/king-tulip999/Goodie-Bag---A-windows-tool-kit-for-sim-racing/releases)** (it's just one `GoodieBag.exe`, nothing to install)
 
-I got sick of switching monitors, audio, fan curves and overlays by hand every time I went from my desk to my sim rig, so I spent the last year building one app that does it all. It sits in the tray, sets the PC up for whatever I'm doing, and has grown into the toolkit I use every time I race in iRacing. Now you get the chance to use it too!
+I got sick of switching monitors, audio, fan curves and overlays by hand every time I went from my desk to my sim rig, so I spent the last year building one app that does it all. It sits in the tray, sets the PC up for whatever I'm doing, and has grown into the toolkit I use every time I race in iRacing: overlays, setups, fuel, and a full history of my sessions with telemetry and replays. Now you get the chance to use it too!
 
 ## What's in it
 
