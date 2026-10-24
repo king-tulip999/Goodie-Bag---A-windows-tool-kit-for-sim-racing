@@ -44,7 +44,7 @@ internal sealed class WindowProfileEditor
         _process.Text = profile.ProcessName;
         _process.TextChanged += (_, _) =>
         {
-            if (!_nameTouched) _name.Text = Path.GetFileNameWithoutExtension(_process.Text.Trim());
+            if (!_nameTouched) _name.Text = WindowPresets.FriendlyName(_process.Text);
         };
         TextCase.Verbatim(_process);
 
@@ -264,7 +264,7 @@ internal sealed class WindowProfileEditor
         p.DelayMs = (int)Math.Round(_delay.Value * 1000);
         p.Hotkey = _hotkey.Hotkey;
         p.GroupId = _groupId;
-        if (p.Name.Length == 0) p.Name = Path.GetFileNameWithoutExtension(p.ProcessName);
+        if (p.Name.Length == 0) p.Name = WindowPresets.FriendlyName(p.ProcessName);
         return p;
     }
 

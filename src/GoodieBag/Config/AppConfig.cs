@@ -266,10 +266,6 @@ public sealed class UiSettings
     public List<string> MonitorHiddenSections { get; set; } = new();
 
     public int MonitorSectionsVersion { get; set; }
-
-    public List<PanelSlot> SensorsLayout { get; set; } = new();
-
-    public List<string> HiddenSensorDevices { get; set; } = new();
 }
 
 public sealed class FanSettings

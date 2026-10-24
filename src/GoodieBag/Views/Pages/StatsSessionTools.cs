@@ -38,7 +38,7 @@ internal static class StatsSessionTools
             table.Children.Add(rule);
             Cell(table, row, 0, new TextBlock { Text = $"S{line.Index + 1}", Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold });
             var best = Number(line.Best.ToString("0.000", CultureInfo.CurrentCulture));
-            best.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
+            best.SetResourceReference(TextBlock.ForegroundProperty, "TimingBest");
             Cell(table, row, 1, best, true);
             Cell(table, row, 2, Number(line.BestLap.ToString(CultureInfo.CurrentCulture), "Caption"), true);
             Cell(table, row, 3, Number(line.Average.ToString("0.000", CultureInfo.CurrentCulture)), true);
@@ -46,7 +46,7 @@ internal static class StatsSessionTools
             var lost = Number(LapReplayView.Signed(line.Lost, "0.000"));
             if (focus) lost.SetResourceReference(TextBlock.ForegroundProperty, coralDeep);
             Cell(table, row, 5, lost, true);
-            var bar = new Border { Height = 6, Width = 120 * line.Lost / maxLost, HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 2 };
+            var bar = new Border { Height = 6, Width = 64 * line.Lost / maxLost, HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 2 };
             bar.SetResourceReference(Border.BackgroundProperty, focus ? coralDeep : "LineStrong");
             Cell(table, row, 6, bar);
         }
@@ -110,7 +110,7 @@ internal static class StatsSessionTools
                 big.ToolTip = "Tread left at its most worn point";
                 stack.Children.Add(big);
                 var zones = new UniformGrid { Columns = 3, Margin = new Thickness(0, 8, 0, 0) };
-                string[] names = { "Left", "Middle", "Right" };
+                string[] names = { "Left", "Mid", "Right" };
                 for (int z = 0; z < 3; z++)
                 {
                     double left = r.Left(c, z);
@@ -120,6 +120,9 @@ internal static class StatsSessionTools
                     track.SetResourceReference(Border.BackgroundProperty, soft);
                     track.SizeChanged += (_, e) => fill.Width = e.NewSize.Width * Math.Clamp(left, 0, 1);
                     var cell = new StackPanel { ToolTip = $"{names[z]}: {left * 100:0.0}% left", Margin = new Thickness(0, 0, z < 2 ? 10 : 0, 0) };
+                    var zone = new TextBlock { Text = names[z], Style = Ui.Res<Style>("Caption"), FontSize = 10 };
+                    zone.SetResourceReference(TextBlock.ForegroundProperty, "TextFaint");
+                    cell.Children.Add(zone);
                     cell.Children.Add(Number($"{left * 100:0.0}", "Caption"));
                     cell.Children.Add(track);
                     zones.Children.Add(cell);
@@ -134,6 +137,9 @@ internal static class StatsSessionTools
                 ((FrameworkElement)grid.Children[i]).Margin = new Thickness(0, 0, i % 2 == 0 ? 8 : 0, i < 2 ? 8 : 0);
             body.Children.Add(grid);
         }
+        var legend = new TextBlock { Text = "Green = 90% or more left, amber = 75% or more, red = less", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+        legend.SetResourceReference(TextBlock.ForegroundProperty, "TextFaint");
+        body.Children.Add(legend);
         return body;
     }
 
@@ -146,7 +152,7 @@ internal static class StatsSessionTools
 
     private static void Cell(Grid table, int row, int col, FrameworkElement element, bool right = false)
     {
-        element.Margin = new Thickness(col == 0 ? 8 : 20, 7, 0, 7);
+        element.Margin = new Thickness(col == 0 ? 8 : 16, 7, 0, 7);
         element.VerticalAlignment = VerticalAlignment.Center;
         if (right) element.HorizontalAlignment = HorizontalAlignment.Right;
         Grid.SetRow(element, row);

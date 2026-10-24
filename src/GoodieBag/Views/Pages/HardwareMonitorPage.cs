@@ -5,7 +5,7 @@ using GoodieBag.Services;
 
 namespace GoodieBag.Views.Pages;
 
-internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotStates, ICancelEdit, IRevealAnchor, ISectionedPage, IPageHistory
+internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotStates, IRevealAnchor, ISectionedPage, IPageHistory
 {
     private const string PageKey = "monitor";
 
@@ -14,12 +14,11 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
     private readonly StackPanel _body = new() { Margin = new Thickness(28, 0, 28, 28) };
     private readonly ScrollViewer _scroll;
     private readonly PerformanceSection _performance;
-    private readonly SensorsSection _sensors;
     private OverlayPage? _overlay;
     private readonly SectionView _view;
     private bool _shown;
 
-    internal static readonly string[] DefaultSections = { "overlay", "performance", "sensors" };
+    internal static readonly string[] DefaultSections = { "overlay", "performance" };
 
     public event Action? SectionsChanged;
 
@@ -38,14 +37,11 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         _body.Children.Add(_view.Content);
 
         _performance = new PerformanceSection(app, () => window.GoTo("settings", "settings.performance"));
-        _sensors = new SensorsSection(app);
-        _view.Add(Def("overlay", "A small, click-through panel with FPS, temperatures and load on top of your game. Nothing is injected into the game, so it's safe with anti-cheat. Make several layouts and switch between them with a keybind.",
+        _view.Add(Def("overlay", "",
             () => _overlay = new OverlayPage(_app, _window, embedded: true), "monitor.overlay",
             () => _overlay?.OnShown(), () => _overlay?.OnHidden()));
         _view.Add(Def("performance", "CPU, graphics card, memory, storage, network, motherboard, fans and frame rate, with the last two minutes on graphs.",
             () => _performance, "monitor.performance", _performance.OnShown, _performance.OnHidden, _performance.Tools));
-        _view.Add(Def("sensors", "Every reading with min and max, one card per device. Arrange moves the devices up and down.",
-            () => _sensors, null, _sensors.OnShown, _sensors.OnHidden, _sensors.Tools));
         Layout(animate: false);
     }
 
@@ -55,7 +51,6 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
     {
         new("overlay", "Performance Overlay", "I.Overlay", ("ApricotSoft", "ApricotDeep")),
         new("performance", "Performance", "I.Activity", ("SageSoft", "SageDeep")),
-        new("sensors", "Sensors", "I.Cpu", ("SlateSoft", "SlateDeep")),
     };
 
     private static List<string> OrderedFor(AppServices app)
@@ -176,8 +171,6 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         Layout(animate: true);
     }
 
-    internal FrameworkElement? Sensors => _view.Host("sensors");
-
     public void OnShown()
     {
         _shown = true;
@@ -201,8 +194,6 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         if (!OverlayAvailable) { _view.Reset("overlay"); _overlay = null; }
         Layout(animate: true);
     }
-
-    public bool CancelEdit() => _sensors.CancelEdit();
 
     private static Dictionary<FrameworkElement, double> Heights(DependencyObject root)
     {
@@ -240,9 +231,6 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
                 _scroll.ScrollToVerticalOffset(_scroll.VerticalOffset + _scroll.ViewportHeight - 60);
                 return Task.CompletedTask;
             });
-        yield return ("sensors", () => { Only("sensors"); return Task.CompletedTask; });
-        foreach (var state in _sensors.ScreenshotStates())
-            yield return state;
         if (OverlayAvailable)
         {
             yield return ("overlay", () => { Only("overlay"); return Task.CompletedTask; });
@@ -251,19 +239,20 @@ internal sealed class HardwareMonitorPage : UserControl, IPage, IScreenshotState
         }
         yield return ("sections-reordered", () =>
         {
-            MoveSections(Visible().AsEnumerable().Reverse().ToList());
-            if (Sections[0].Id != "sensors") throw new InvalidOperationException("Moving the sections didn't change their order.");
+            var reversed = Visible().AsEnumerable().Reverse().ToList();
+            MoveSections(reversed);
+            if (reversed.Count > 1 && Sections[0].Id != reversed[0]) throw new InvalidOperationException("Moving the sections didn't change their order.");
             return Task.CompletedTask;
         });
         yield return ("sections-default-order", () => { MoveSections(DefaultSections); return Task.CompletedTask; });
-        yield return ("sensors-hidden", () =>
+        yield return ("performance-hidden", () =>
         {
-            SetSectionHidden("sensors", true);
-            if (Sections.Any(s => s.Id == "sensors") || _view.Current == "sensors") throw new InvalidOperationException("A section that's off is still in the sidebar.");
+            SetSectionHidden("performance", true);
+            if (Sections.Any(s => s.Id == "performance") || _view.Current == "performance") throw new InvalidOperationException("A section that's off is still in the sidebar.");
             _scroll.ScrollToHome();
             return Task.CompletedTask;
         });
-        yield return ("sensors-shown", () => { SetSectionHidden("sensors", false); return Task.CompletedTask; });
+        yield return ("performance-shown", () => { SetSectionHidden("performance", false); return Task.CompletedTask; });
         yield return ("reentered", async () =>
         {
             Only("performance");

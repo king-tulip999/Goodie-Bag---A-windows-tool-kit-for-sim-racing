@@ -23,30 +23,48 @@ internal static class StatsSessionView
         var page = new StackPanel();
 
         var head = new StackPanel();
+        var local = s.StartUtc.ToLocalTime();
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        titles.Children.Add(new TextBlock { Text = s.Car, Style = Ui.Res<Style>("H2"), TextWrapping = TextWrapping.Wrap });
-        titles.Children.Add(new TextBlock { Text = s.Place, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        var titleRow = new WrapPanel();
+        titleRow.Children.Add(new TextBlock { Text = s.Car, Style = Ui.Res<Style>("H2"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) });
+        var typeMark = StatsSessions.TypeMark(s.Type);
+        typeMark.VerticalAlignment = VerticalAlignment.Center;
+        titleRow.Children.Add(typeMark);
+        titles.Children.Add(titleRow);
+        titles.Children.Add(new TextBlock { Text = $"{s.Place} · {Dates.Weekday(local)} {Dates.ShortTime(local)}", Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
         head.Children.Add(CarPictures.Beside(titles, s.Car, 64, 18, slot: false));
-        var facts = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var facts = new WrapPanel { Margin = new Thickness(0, 16, 0, 0) };
+        WrapPanel? group = null;
+        void Group(string title)
+        {
+            group = new WrapPanel();
+            var block = new StackPanel { Children = { new TextBlock { Text = title, Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 0, 0, 6) }, group } };
+            var frame = new Border { BorderThickness = new Thickness(facts.Children.Count > 0 ? 1 : 0, 0, 0, 0), Padding = new Thickness(facts.Children.Count > 0 ? 20 : 0, 0, 8, 0), Margin = new Thickness(0, 0, 12, 10), Child = block };
+            frame.SetResourceReference(Border.BorderBrushProperty, "Line");
+            facts.Children.Add(frame);
+        }
         FrameworkElement Fact(string label, string value, string? brush = null)
         {
-            var cell = new StackPanel { Margin = new Thickness(0, 0, 28, 8) };
+            var cell = new StackPanel { Margin = new Thickness(0, 0, 26, 0) };
             var v = new TextBlock { Text = value, Style = Ui.Res<Style>("BigValue"), FontSize = 20 };
             v.SetResourceReference(TextBlock.ForegroundProperty, brush ?? "Heading");
             cell.Children.Add(v);
             cell.Children.Add(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption") });
-            facts.Children.Add(cell);
+            group!.Children.Add(cell);
             return cell;
         }
         var laps = d.Laps;
         var cleanLaps = laps.Where(l => l.Clean).ToList();
         int sectors = laps.Max(l => (int?)(l.Sectors?.Count ?? 0)) ?? 0;
         var bestSector = Enumerable.Range(0, sectors).Select(k => laps.Where(l => l.Clean && l.Sectors?.Count == sectors).Select(l => (double?)l.Sectors![k]).Min()).ToArray();
-        var local = s.StartUtc.ToLocalTime();
-        Fact(StatsSessions.TypeName(s.Type), Dates.DateTime(local));
-        if (d.Conditions is { SimStart.Length: > 0 } cond && SimTime(cond.SimStart) is { } simTime) Fact("In-sim", simTime);
-        Fact("Laps", laps.Count == 0 ? s.Laps.ToString(CultureInfo.CurrentCulture)
-            : $"{laps.Count} ({cleanLaps.Count} clean, {100.0 * cleanLaps.Count / laps.Count:0}%)");
+        if (s.Type == "Race" && (s.FinishPos is not null || s.IrDelta is not null || s.SrDelta is not null))
+        {
+            Group("Result");
+            if (s.FinishPos is { } fin) Fact(s.StartPos is { } st ? $"Finish (started P{st})" : "Finish", "P" + fin);
+            if (s.IrDelta is { } ir) Fact("iRating", StatFormat.Value(StatKind.Signed, ir, false), ir > 0 ? StatsUi.Hue("Sage").Deep : ir < 0 ? StatsUi.Hue("Coral").Deep : null);
+            if (s.SrDelta is { } sr) Fact("Safety rating", StatFormat.Value(StatKind.Rating, sr, false));
+        }
+        Group("Pace");
         Fact("Fastest clean lap", s.Best is { } best ? StatFormat.LapTime(best) : "–", "AccentText");
         if (sectors > 0 && bestSector.All(b => b is not null))
         {
@@ -56,15 +74,12 @@ internal static class StatsSessionView
             optimal.ToolTip = "Your best clean sectors of the session put together";
         }
         if (cleanLaps.Count > 0) Fact("Average clean lap", StatFormat.LapTime(cleanLaps.Average(l => l.Time)));
+        Group("Running");
+        Fact("Laps", laps.Count == 0 ? s.Laps.ToString(CultureInfo.CurrentCulture)
+            : $"{laps.Count} ({cleanLaps.Count} clean, {100.0 * cleanLaps.Count / laps.Count:0}%)");
+        Fact("Driving", StatFormat.Duration(s.DriveS));
         if (cleanLaps.Where(l => l.FuelUsed is not null).Select(l => l.FuelUsed!.Value).ToList() is { Count: > 0 } burned)
             Fact("Fuel per clean lap", StatFormat.Value(StatKind.Fuel, burned.Average(), imperial));
-        Fact("Driving", StatFormat.Duration(s.DriveS));
-        if (s.Type == "Race")
-        {
-            if (s.FinishPos is { } fin) Fact(s.StartPos is { } st ? $"Finish (started P{st})" : "Finish", "P" + fin);
-            if (s.IrDelta is { } ir) Fact("iRating", StatFormat.Value(StatKind.Signed, ir, false), ir > 0 ? StatsUi.Hue("Sage").Deep : ir < 0 ? StatsUi.Hue("Coral").Deep : null);
-            if (s.SrDelta is { } sr) Fact("Safety rating", StatFormat.Value(StatKind.Rating, sr, false));
-        }
         if (s.Incidents is { } inc) Fact("Incidents", inc + "x");
         head.Children.Add(facts);
         if (ConditionsStrip(s, d.Conditions, imperial) is { } strip) head.Children.Add(strip);
@@ -76,7 +91,7 @@ internal static class StatsSessionView
             return page;
         }
 
-        var chartCard = Card(StatsSections.Chart("Lap times", "Every lap in order; hollow = not clean (an incident, the pit lane or off track)", new LapTimeChart(laps) { Height = 220 }));
+        var chartCard = Card(StatsSections.Chart("Lap times", "Every lap in order; hollow = not clean (an incident, the pit lane or off track), arrow = slower than the scale shows", new LapTimeChart(laps) { Height = 220 }));
 
         double? sessionBest = cleanLaps.Select(l => (double?)l.Time).Min();
         var bestSoFar = new double?[sectors];
@@ -105,7 +120,7 @@ internal static class StatsSessionView
             if (!hasTyres) return left;
             var g = new Grid();
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 380 });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 260 });
             left.VerticalAlignment = VerticalAlignment.Top;
             g.Children.Add(left);
             if (right is not null)
@@ -150,16 +165,20 @@ internal static class StatsSessionView
                 int run = inRun[0].Run ?? 1;
                 var parts = new List<string> { $"Run {run}", $"{inRun.Count} lap{(inRun.Count == 1 ? "" : "s")}" };
                 if (inRun.Where(l => l.Clean).ToList() is { Count: > 0 } clean) parts.Add($"average clean {StatFormat.LapTime(clean.Average(l => l.Time))}");
-                var header = new DockPanel { Margin = new Thickness(10, 7, 10, 7) };
+                var header = new WrapPanel { Margin = new Thickness(10, 7, 10, 7) };
+                header.Children.Add(new TextBlock { Text = string.Join(" · ", parts), Style = Ui.Res<Style>("H3"), VerticalAlignment = VerticalAlignment.Center });
                 var setup = inRun.Select(l => l.Setup).LastOrDefault(x => x is not null);
                 if (setup is not null)
                 {
-                    var file = new TextBlock { Text = setup, Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0), ToolTip = "The setup loaded" };
+                    var file = new TextBlock { Text = setup, Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
                     TextCase.Verbatim(file);
-                    DockPanel.SetDock(file, Dock.Right);
-                    header.Children.Add(file);
+                    var setupRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "The setup loaded" };
+                    var glyph = new Icon { Data = Ui.Res<Geometry>("I.Sliders"), Width = 13, Height = 13, VerticalAlignment = VerticalAlignment.Center };
+                    glyph.SetResourceReference(Control.ForegroundProperty, "TextMuted");
+                    setupRow.Children.Add(glyph);
+                    setupRow.Children.Add(file);
+                    header.Children.Add(setupRow);
                 }
-                header.Children.Add(new TextBlock { Text = string.Join(" · ", parts), Style = Ui.Res<Style>("H3"), VerticalAlignment = VerticalAlignment.Center });
                 var runBand = new Tile { Child = header, CornerRadius = ThemeManager.Round(4) };
                 runBand.SetResourceReference(Border.BackgroundProperty, "SurfaceAlt");
                 runBand.Margin = new Thickness(0, gi == 0 ? 6 : 14, 0, 2);
@@ -212,7 +231,7 @@ internal static class StatsSessionView
                     {
                         if (bestSector[k] is { } bk && Math.Abs(sv - bk) < 0.0005)
                         {
-                            text.SetResourceReference(TextBlock.ForegroundProperty, "AccentText");
+                            text.SetResourceReference(TextBlock.ForegroundProperty, "TimingBest");
                             text.FontWeight = FontWeights.SemiBold;
                             text.ToolTip = "Best sector of the session";
                         }
@@ -253,23 +272,88 @@ internal static class StatsSessionView
             why.TextWrapping = TextWrapping.Wrap;
             var note = new Tile { Child = Ui.IconText("I.Info", why, "TextMuted"), CornerRadius = ThemeManager.Round(4), Padding = new Thickness(12, 9, 12, 9), Margin = new Thickness(0, 0, 0, 8) };
             note.SetResourceReference(Border.BackgroundProperty, "SurfaceAlt");
-            lapsBody = new StackPanel { Children = { note, tableScroll } };
+            lapsBody = new StackPanel { Children = { new NoWidth { Child = note }, tableScroll } };
+        }
+        if (sectors > 0)
+        {
+            var legend = Ui.Text("Sector times: purple = best of the session, green = faster than every clean lap before it", "Caption");
+            legend.TextWrapping = TextWrapping.Wrap;
+            legend.Margin = new Thickness(8, 10, 0, 0);
+            legend.SetResourceReference(TextBlock.ForegroundProperty, "TextFaint");
+            lapsBody = new StackPanel { Children = { lapsBody, new NoWidth { Child = legend } } };
         }
         var lapsCard = StatsSections.Section("Laps", "I.Flag", d.Traced.Count > 0 ? $"{d.Traced.Count} with a trace" : "No lap traces", analyzeButton, lapsBody);
-        lapsCard.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
         page.Children.Add(chartCard);
-        page.Children.Add(lapsCard);
         if (StatsSessionTools.Sectors(laps) is { } sectorCard)
         {
-            sectorCard.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
-            page.Children.Add(sectorCard);
+            sectorCard.VerticalAlignment = VerticalAlignment.Top;
+            page.Children.Add(new BesidePanel { Gap = Ui.PanelSpacing, SecondMin = 420, Margin = new Thickness(0, 0, 0, Ui.PanelSpacing), Children = { lapsCard, sectorCard } });
+        }
+        else
+        {
+            lapsCard.Margin = new Thickness(0, 0, 0, Ui.PanelSpacing);
+            page.Children.Add(lapsCard);
         }
         return page;
     }
 
+    private sealed class NoWidth : Decorator
+    {
+        protected override Size MeasureOverride(Size constraint)
+        {
+            if (Child is null) return default;
+            Child.Measure(constraint);
+            return new Size(0, Child.DesiredSize.Height);
+        }
+    }
+
+    private sealed class BesidePanel : Panel
+    {
+        public double Gap { get; init; } = 24;
+        public double SecondMin { get; init; } = 400;
+        private bool _side;
+        private double _firstWidth;
+
+        protected override Size MeasureOverride(Size available)
+        {
+            var (first, second) = (InternalChildren[0], InternalChildren[1]);
+            double width = double.IsInfinity(available.Width) ? 4000 : available.Width;
+            first.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double want = first.DesiredSize.Width;
+            second.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            _side = want + Gap + Math.Max(SecondMin, second.DesiredSize.Width) <= width;
+            if (_side)
+            {
+                _firstWidth = want;
+                first.Measure(new Size(want, double.PositiveInfinity));
+                second.Measure(new Size(width - want - Gap, double.PositiveInfinity));
+                return new Size(width, Math.Max(first.DesiredSize.Height, second.DesiredSize.Height));
+            }
+            first.Measure(new Size(width, double.PositiveInfinity));
+            second.Measure(new Size(width, double.PositiveInfinity));
+            return new Size(width, first.DesiredSize.Height + Gap + second.DesiredSize.Height);
+        }
+
+        protected override Size ArrangeOverride(Size final)
+        {
+            var (first, second) = (InternalChildren[0], InternalChildren[1]);
+            if (_side)
+            {
+                first.Arrange(new Rect(0, 0, _firstWidth, first.DesiredSize.Height));
+                second.Arrange(new Rect(_firstWidth + Gap, 0, Math.Max(0, final.Width - _firstWidth - Gap), second.DesiredSize.Height));
+            }
+            else
+            {
+                first.Arrange(new Rect(0, 0, final.Width, first.DesiredSize.Height));
+                second.Arrange(new Rect(0, first.DesiredSize.Height + Gap, final.Width, second.DesiredSize.Height));
+            }
+            return final;
+        }
+    }
+
     private static string? SimTime(string text) =>
         DateTime.TryParseExact(text, "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
-            ? Dates.DateTime(t) : null;
+            ? Dates.ShortTime(t) : null;
 
     private static readonly string[] SkyNames = { "Clear", "Partly cloudy", "Mostly cloudy", "Overcast" };
 
@@ -297,6 +381,7 @@ internal static class StatsSessionView
         string type = s.Weather.Split(" · ")[0];
         if (c?.Skies is { } sky) Add(sky == 0 ? "I.Sun" : "I.Cloud", type.Length > 0 ? $"Skies · {type}" : "Skies", SkyNames[sky], "Skies when you first drove · weather type");
         else if (s.Weather.Length > 0) Add("I.Cloud", "Weather", s.Weather, "Weather");
+        if (c is { SimStart.Length: > 0 } && SimTime(c.SimStart) is { } simTime) Add("I.Clock", "In-sim time", simTime, "The date and time of day in the sim when the session started");
         if (c is not null)
         {
             if (c.TrackTempMin is { } lo && c.TrackTempMax is { } hi)
@@ -352,7 +437,9 @@ internal static class StatsSessionView
             (_lo, _hi, _step) = StatsCharts.LapScale(times[0], Math.Min(times[^1], median * 1.04));
         }
 
-        private double X(int i) => Left + (ActualWidth - Left - Right) * (_laps.Count == 1 ? 0.5 : (double)i / (_laps.Count - 1));
+        private const double Inset = 14;
+
+        private double X(int i) => Left + Inset + (ActualWidth - Left - Right - 2 * Inset) * (_laps.Count == 1 ? 0.5 : (double)i / (_laps.Count - 1));
 
         protected override int HitAt(Point p)
         {
@@ -374,6 +461,24 @@ internal static class StatsSessionView
             if (ActualWidth <= Left + Right || ActualHeight <= Top + Bottom) return;
             dc.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
             var y = LapAxis(dc, _lo, _hi, _step);
+            double bottom = ActualHeight - Bottom;
+            var runPen = new Pen(Ui.Res<Brush>("LineStrong"), 1) { DashStyle = new DashStyle(new[] { 3.0, 3.0 }, 0) };
+            runPen.Freeze();
+            var band = Ui.Res<Brush>("Hover");
+            int runStart = 0;
+            for (int i = 1; i <= _laps.Count; i++)
+            {
+                if (i < _laps.Count && (_laps[i].Run ?? 1) == (_laps[runStart].Run ?? 1)) continue;
+                if (runStart > 0 || i < _laps.Count)
+                {
+                    double from = runStart == 0 ? Left : (X(runStart - 1) + X(runStart)) / 2, to = i == _laps.Count ? ActualWidth - Right : (X(i - 1) + X(i)) / 2;
+                    if ((_laps[runStart].Run ?? 1) % 2 == 0) dc.DrawRectangle(band, null, new Rect(from, Top, Math.Max(0, to - from), bottom - Top));
+                    if (runStart > 0) dc.DrawLine(runPen, new Point(Math.Round(from) + 0.5, Top), new Point(Math.Round(from) + 0.5, bottom));
+                    var name = Text($"Run {_laps[runStart].Run ?? 1}", bold: true, size: 10.5);
+                    dc.DrawText(name, new Point(from + 6, bottom - name.Height - 3));
+                }
+                runStart = i;
+            }
             var accent = Ui.Res<Brush>("AccentText");
             var line = new Pen(Ui.Res<Brush>("Accent"), 1.5) { LineJoin = PenLineJoin.Round };
             var hollow = new Pen(Ui.Res<Brush>("TextMuted"), 1.5);
@@ -398,6 +503,20 @@ internal static class StatsSessionView
                 double r = i == Hover ? 5 : 3.5;
                 if (_laps[i].Clean) dc.DrawEllipse(accent, null, p, r, r);
                 else dc.DrawEllipse(Ui.Res<Brush>("Surface"), hollow, p, r, r);
+                if (_laps[i].Time > _hi)
+                {
+                    var up = new StreamGeometry();
+                    using (var g = up.Open())
+                    {
+                        g.BeginFigure(new Point(p.X, p.Y + 7), true, true);
+                        g.LineTo(new Point(p.X - 4, p.Y + 13), true, false);
+                        g.LineTo(new Point(p.X + 4, p.Y + 13), true, false);
+                    }
+                    up.Freeze();
+                    dc.DrawGeometry(Ui.Res<Brush>("TextMuted"), null, up);
+                    var actual = Text(StatFormat.LapTime(_laps[i].Time), size: 10.5);
+                    dc.DrawText(actual, new Point(Math.Min(p.X + 8, ActualWidth - actual.Width), p.Y + 6));
+                }
                 if (i % step == 0 || i == _laps.Count - 1)
                 {
                     var label = Text(_laps[i].Lap.ToString(CultureInfo.CurrentCulture));

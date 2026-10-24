@@ -24,7 +24,7 @@ internal sealed class OverlayPlugin : Plugin
         new("Performance Overlay", "FPS and sensors drawn over your game (Hardware Monitor → Performance Overlay).", "Performance Overlay", "monitor", "monitor.overlay", "osd fps hud"),
         new("Show overlay", "Turn the overlay on or off (the switch on its preview; also its keybind and the tray).", "Performance Overlay", "monitor", "overlay.visible", "toggle on off show hide osd hud"),
         new("Overlay keybind", "Show / hide the overlay from anywhere.", "Performance Overlay", "monitor", "overlay.hotkey", "hotkey shortcut toggle"),
-        new("Reset FPS statistics keybind", "Start the overlay FPS average and 1% low over from anywhere.", "Performance Overlay", "monitor", "overlay.fpshotkey", "hotkey shortcut fps reset"),
+        new("Reset FPS statistics keybind", "Start the overlay FPS average, 1% low and average temperatures over from anywhere.", "Performance Overlay", "monitor", "overlay.fpshotkey", "hotkey shortcut fps reset"),
         new("Overlay update rate", "How often overlay values refresh.", "Performance Overlay", "monitor", "overlay.rate", "refresh interval"),
         new("Overlay layouts", "Different overlay setups, switched with a keybind.", "Performance Overlay", "monitor", "overlay.layouts", "profile configuration"),
         new("Overlay metrics", "Switch FPS, 1% low, temps, clocks, power, network… on or off; drag them in the preview to reorder", "Performance Overlay", "monitor", "overlay.metrics", "fps frametime cpu gpu ram vram ping order arrange drag"),

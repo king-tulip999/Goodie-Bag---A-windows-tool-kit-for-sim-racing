@@ -27,15 +27,14 @@ internal static class GrrParts
 
     public static string Points(double p) => p.ToString(p % 1 == 0 ? "#,0" : "#,0.#");
 
-    public static string Series(GrrRace race, GrrLeagueData? data)
+    public static string Series(GrrRace race, GrrLeagueData? data, bool league = true)
     {
-        var text = GrrLeagues.Name(race.League);
+        var parts = new List<string>();
+        if (league) parts.Add(GrrLeagues.Name(race.League));
         if (race.Round is { } round)
-        {
-            text += " · " + round;
-            if (data?.Schedule is { Count: > 1 } s) text += $" of {s.Count}";
-        }
-        return text;
+            parts.Add(data?.Schedule is { Count: > 1 } s ? $"{round} of {s.Count}" : round);
+        if (!league && data?.Season is { } season) parts.Add(season);
+        return string.Join(" · ", parts);
     }
 
     public static GrrRound? RoundOf(GrrRace race, GrrLeagueData? data) => data?.Schedule?.FirstOrDefault(r => r.Start == race.Start);
@@ -67,7 +66,7 @@ internal static class GrrParts
         return tag;
     }
 
-    public static Grid Hero(GrrRace race, GrrLeagueData? data, DateTime now, out TextBlock clock, double clockSize = 34)
+    public static Grid Hero(GrrRace race, GrrLeagueData? data, DateTime now, out TextBlock clock, double clockSize = 34, bool league = true)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -80,7 +79,7 @@ internal static class GrrParts
         bool live = race.Start <= now;
         var top = new DockPanel { LastChildFill = true };
         top.Children.Add(Tag(live ? "Racing now" : "Up next", live));
-        top.Children.Add(Eyebrow(Series(race, data), "TextMuted"));
+        top.Children.Add(Eyebrow(Series(race, data, league), "TextMuted"));
         ((FrameworkElement)top.Children[1]).VerticalAlignment = VerticalAlignment.Center;
         body.Children.Add(top);
 

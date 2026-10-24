@@ -20,6 +20,8 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
     private readonly StackPanel _banners = new();
     private readonly CheckBox _master;
     private readonly Tile _presetBar = new();
+    private readonly ContentControl _fanTools = new() { Focusable = false };
+    private Tile? _curvesCard;
     private readonly PanelGrid _fanGrid;
     private readonly ContentControl _fanMessage = new() { Focusable = false };
     private readonly StackPanel _hiddenPanel = new();
@@ -142,13 +144,20 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         _body.Children.Add(header);
 
         var masterRow = Ui.SettingRow("Fan control",
-            "On: the fans below follow the active preset. Off: every fan is left to the BIOS / graphics driver.", _master);
-        var masterBox = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 16), Padding = new Thickness(20, 6, 20, 6), Child = new SettingsFlow { Children = { masterRow } } };
+            "On: the fans below follow the active preset. Off: every fan is left to the BIOS / graphics driver.", _master,
+            more: "Turning fan control off, turning the Fan Control plugin off, or quitting Goodie Bag always hands every fan back to the BIOS / GPU driver.");
+        var emergencyRow = Ui.SettingRow("Emergency temperature",
+            "At this temperature every controlled fan runs at 100% until it's 5 °C cooler.",
+            Ui.SliderWithValue(70, 105, _app.Config.Fans.EmergencyTempC, "{0:0} °C", v => { _app.Config.Fans.EmergencyTempC = (int)v; _app.FanSettingsChanged(); }, 160),
+            more: "Watches the CPU, the GPU and every curve's sensor.");
+        Ui.Anchor(emergencyRow, "fans.failsafe");
+        var masterBox = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 16), Padding = new Thickness(20, 6, 20, 6), Child = new SettingsFlow { Children = { masterRow, emergencyRow } } };
         Ui.Anchor(masterBox, "fans.master");
         _body.Children.Add(masterBox);
 
         _body.Children.Add(_banners);
         _body.Children.Add(_presetBar);
+        _body.Children.Add(_fanTools);
         _body.Children.Add(_fanMessage);
         _body.Children.Add(_fanGrid);
         Ui.Anchor(_presetBar, "fans.presets");
@@ -175,23 +184,16 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         curves.Children.Add(left);
         Grid.SetColumn(_curveEditorHost, 2);
         curves.Children.Add(_curveEditorHost);
-        var curvesCard = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 8, 0, 0), Child = curves };
-        Ui.Anchor(curvesCard, "fans.curves");
-        _body.Children.Add(curvesCard);
+        _curvesCard = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 8, 0, 0), Child = curves };
+        Ui.Anchor(_curvesCard, "fans.curves");
+        _body.Children.Add(_curvesCard);
+    }
 
-        var safety = new SettingsFlow();
-        safety.Children.Add(Ui.Text("Safety", "H2"));
-        safety.Children.Add(Ui.SettingRow("Emergency temperature",
-            "If the CPU, GPU or any curve's sensor reaches this, every controlled fan runs at 100% until it's 5 °C cooler.",
-            Ui.SliderWithValue(70, 105, _app.Config.Fans.EmergencyTempC, "{0:0} °C", v => { _app.Config.Fans.EmergencyTempC = (int)v; _app.FanSettingsChanged(); }, 160)));
-        safety.Children.Add(new TextBlock
-        {
-            Text = "Turning fan control off, turning the Fan Control plugin off, or quitting Goodie Bag always hands every fan back to the BIOS / GPU driver.",
-            Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 4, 0, 0),
-        });
-        var safetyCard = new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 16, 0, 0), Child = safety };
-        Ui.Anchor(safetyCard, "fans.failsafe");
-        _body.Children.Add(safetyCard);
+    private void EditCurve(string name)
+    {
+        _selectedCurve = name;
+        BuildCurves();
+        _curvesCard?.BringIntoView();
     }
 
     private void BuildBanners()
@@ -236,16 +238,12 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         if (signature == _presetSignature)
             return;
         _presetSignature = signature;
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-        label.Children.Add(Ui.Text("Preset", "H3"));
-        label.Children.Add(Ui.Text("Which curve or speed each fan uses", "Caption"));
-        grid.Children.Add(label);
+        var row = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        var label = Ui.Text("Preset", "H3");
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.Margin = new Thickness(0, 0, 16, 0);
+        Ui.AddInfo(label, "Which curve or speed each fan uses. Switch presets here, from the tray or with a keybind.");
+        row.Children.Add(label);
 
         int active = Math.Max(0, Fans.Presets.FindIndex(p => p.Name == Fans.ActivePreset));
         var seg = Ui.Segmented(Fans.Presets.Select(p => p.Name).ToList(), active, i =>
@@ -255,60 +253,43 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             Tick();
         }, "Preset");
         seg.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(seg, 1);
-        grid.Children.Add(seg);
+        seg.Margin = new Thickness(0, 0, 12, 0);
+        row.Children.Add(seg);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var arrange = Ui.LabeledButton("I.Move", _fanGrid.Editing ? "Done" : "Arrange fans", () => SetRearranging(!_fanGrid.Editing),
-            _fanGrid.Editing ? "PrimaryButton" : "GhostButton");
-        arrange.ToolTip = "Drag fans up or down to reorder them";
-        arrange.Margin = new Thickness(0, 0, 8, 0);
-        var gridTools = _fanGrid.TakeEditTools();
-        gridTools.Margin = new Thickness(0, 0, 8, 0);
-        buttons.Children.Add(gridTools);
-        buttons.Children.Add(arrange);
-        var calibrateAll = Ui.LabeledButton("I.Target", "Calibrate all fans", () => _ = CalibrateAllAsync(), "GhostButton");
-        calibrateAll.ToolTip = "Measures every fan that reports its speed, one after another";
-        calibrateAll.Margin = new Thickness(0, 0, 8, 0);
-        buttons.Children.Add(calibrateAll);
-        var resetAll = Ui.LabeledButton("I.Undo", "Reset all fans", () => _ = ResetAllFansAsync(), "GhostButton");
-        resetAll.ToolTip = "Every fan back to its default name, limits and Auto in every preset (calibration is kept)";
-        resetAll.Margin = new Thickness(0, 0, 20, 0);
-        buttons.Children.Add(resetAll);
+        var presetTools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var newPreset = Ui.LabeledButton("I.Plus", "New preset", () => _ = NewPresetAsync(), "PrimaryButton");
         newPreset.Margin = new Thickness(0, 0, 2, 0);
-        buttons.Children.Add(newPreset);
-        buttons.Children.Add(Ui.IconButton("I.Pencil", "Rename preset", () => _ = RenamePresetAsync()));
+        presetTools.Children.Add(newPreset);
+        presetTools.Children.Add(Ui.IconButton("I.Pencil", "Rename preset", () => _ = RenamePresetAsync()));
         var del = Ui.IconButton("I.Trash", "Delete preset", () => _ = DeletePresetAsync());
         del.IsEnabled = Fans.Presets.Count > 1;
-        buttons.Children.Add(del);
-        Grid.SetColumn(buttons, 2);
-        grid.Children.Add(buttons);
-
-        double natural = 0;
-        grid.SizeChanged += (_, e) =>
-        {
-            if (!e.WidthChanged) return;
-            if (natural == 0)
-            {
-                var free = new Size(double.PositiveInfinity, double.PositiveInfinity);
-                label.Measure(free);
-                seg.Measure(free);
-                buttons.Measure(free);
-                natural = label.DesiredSize.Width + seg.DesiredSize.Width + buttons.DesiredSize.Width + 16;
-            }
-            bool stacked = e.NewSize.Width < natural;
-            Grid.SetRow(buttons, stacked ? 1 : 0);
-            Grid.SetColumn(buttons, stacked ? 0 : 2);
-            Grid.SetColumnSpan(buttons, stacked ? 3 : 1);
-            buttons.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
-            buttons.Margin = new Thickness(0, stacked ? 12 : 0, 0, 0);
-        };
+        presetTools.Children.Add(del);
+        row.Children.Add(presetTools);
 
         _presetBar.Style = Ui.Res<Style>("Card");
         _presetBar.Padding = new Thickness(18, 12, 12, 12);
         _presetBar.Margin = new Thickness(0, 0, 0, 16);
-        _presetBar.Child = grid;
+        _presetBar.Child = row;
+
+        var tools = new StackPanel { Orientation = Orientation.Horizontal };
+        var gridTools = _fanGrid.TakeEditTools();
+        gridTools.Margin = new Thickness(0, 0, 8, 0);
+        tools.Children.Add(gridTools);
+        var arrange = Ui.LabeledButton("I.Move", _fanGrid.Editing ? "Done" : "Arrange", () => SetRearranging(!_fanGrid.Editing),
+            _fanGrid.Editing ? "PrimaryButton" : "GhostButton");
+        arrange.ToolTip = "Drag fans up or down to reorder them";
+        tools.Children.Add(arrange);
+        var calibrateAll = Ui.LabeledButton("I.Target", "Calibrate all", () => _ = CalibrateAllAsync(), "GhostButton");
+        calibrateAll.ToolTip = "Measures every fan that reports its speed, one after another";
+        calibrateAll.Margin = new Thickness(8, 0, 0, 0);
+        tools.Children.Add(calibrateAll);
+        var resetAll = Ui.LabeledButton("I.Undo", "Reset all", () => _ = ResetAllFansAsync(), "GhostButton");
+        resetAll.ToolTip = "Every fan back to its default name, limits and Auto in every preset (calibration is kept)";
+        resetAll.Margin = new Thickness(8, 0, 0, 0);
+        tools.Children.Add(resetAll);
+        var header = Ui.SectionHeader("Fans", null, tools);
+        header.Margin = new Thickness(0, 4, 0, 10);
+        _fanTools.Content = header;
     }
 
     private async Task NewPresetAsync()
@@ -378,6 +359,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             BuildBanners();
             BuildFanCards(visible);
             BuildHidden(catalog.Fans.Where(f => Fans.HardwareFor(f.ControlId).Hidden).ToList());
+            BuildCurveEditor();
         }
 
         foreach (var fan in visible)
@@ -460,7 +442,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         names.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = fan.Controllable ? Short(fan.Hardware) : "Read only", Style = Ui.Res<Style>("Caption"), FontSize = 13.5, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap }));
         Grid.SetColumn(names, 1);
         left.Children.Add(names);
-        var bar = new Meter { Tiered = !hw.IsPump, Fill = Ui.Res<Brush>("Slate"), Height = 12, VerticalAlignment = VerticalAlignment.Center };
+        var bar = new Meter { Fill = Ui.Res<Brush>("LineStrong"), Height = 12, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(bar, 2);
         left.Children.Add(bar);
         var output = new TextBlock { Text = "–", Style = Ui.Res<Style>("BigValue"), FontSize = 26, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -502,6 +484,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
                             entry.CurveName = name;
                             _app.FanSettingsChanged();
                             ShowCurve();
+                            BuildCurveEditor();
                         }
                     };
                     modeHost.Content = combo;
@@ -527,7 +510,14 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
                 var graphCell = new Grid();
                 graphCell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MaxWidth = 760 });
                 graphCell.Children.Add(preview.Graph);
-                expandHost.Content = new StackPanel { Margin = new Thickness(70, 0, 0, 4), Children = { line, graphCell, preview.Status } };
+                var edit = Ui.LabeledButton("I.Pencil", $"Edit “{name}”", () => EditCurve(name), "GhostButton");
+                edit.ToolTip = "Open this curve in the curve editor below";
+                edit.Margin = new Thickness(16, 0, 0, 0);
+                preview.Status.VerticalAlignment = VerticalAlignment.Center;
+                preview.Status.Margin = new Thickness(0);
+                preview.Status.MaxWidth = 560;
+                var statusRow = new WrapPanel { Margin = new Thickness(0, 8, 0, 0), Children = { preview.Status, edit } };
+                expandHost.Content = new StackPanel { Margin = new Thickness(70, 0, 0, 4), Children = { line, graphCell, statusRow } };
                 if (parts is not null) parts.Curve = preview;
                 UpdateCurvePreview(fan.ControlId, preview, _app.Hardware.Catalog);
             }
@@ -536,6 +526,7 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
                 entry.Mode = (FanMode)i;
                 _app.FanSettingsChanged();
                 BuildMode();
+                BuildCurveEditor();
             }, "Mode", new[]
             {
                 "Auto: the BIOS or graphics driver controls this fan, as if Goodie Bag weren't here",
@@ -564,13 +555,25 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             BuildMode();
         }
 
-        foreach (var (icon, tip, run) in new (string, string, Action)[]
+        var more = Ui.IconButton("I.More", "Rename, reset or hide this fan", () => { });
+        more.Margin = new Thickness(4, 0, 0, 0);
+        more.Click += (_, _) =>
         {
-            ("I.Pencil", "Rename", () => _ = RenameFanAsync(fan)),
-            ("I.Undo", "Reset this fan to default (name, mode in every preset, limits; calibration is kept)", () => _ = ResetFanAsync(fan)),
-            ("I.EyeOff", "Hide this fan", () => SetHidden(fan.ControlId, true)),
-        })
-            right.Children.Add(Ui.IconButton(icon, tip, run));
+            var menu = new ContextMenu { PlacementTarget = more, Placement = PlacementMode.Bottom };
+            foreach (var (header, tip, run) in new (string, string, Action)[]
+            {
+                ("Rename…", "A name of your own for this fan", () => _ = RenameFanAsync(fan)),
+                ("Reset to default…", "Name, mode in every preset and limits back to default; calibration is kept", () => _ = ResetFanAsync(fan)),
+                ("Hide", "Move it to Hidden fans", () => SetHidden(fan.ControlId, true)),
+            })
+            {
+                var item = new MenuItem { Header = header, ToolTip = tip };
+                item.Click += (_, _) => run();
+                menu.Items.Add(item);
+            }
+            menu.IsOpen = true;
+        };
+        right.Children.Add(more);
         if (chevron is not null) right.Children.Add(chevron);
 
         right.HorizontalAlignment = HorizontalAlignment.Right;
@@ -911,6 +914,13 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             "Always the same speed, whatever the temperatures",
             "Combines several curves: the highest, lowest, average, sum or difference of what they ask for",
         }));
+        var usedBy = UsedBy(curve);
+        var used = new TextBlock
+        {
+            Text = usedBy.Count == 0 ? $"Not used by any fan in “{Fans.ActivePreset}”" : $"Used by {string.Join(", ", usedBy)} in “{Fans.ActivePreset}”",
+            Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0), TextWrapping = TextWrapping.Wrap,
+        };
+        top.Children.Add(used);
         stack.Children.Add(top);
 
         if (curve.Type == FanCurveType.Graph)
@@ -940,12 +950,12 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
             stack.Children.Add(editor);
             _liveEditor = editor;
 
-            var tune = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-            tune.Children.Add(Labeled("Ignore changes smaller than", Ui.SliderWithValue(0, 10, curve.HysteresisC, "{0:0} °C", v => { curve.HysteresisC = (int)v; _app.FanSettingsChanged(); }, 120)));
-            tune.Children.Add(Labeled("Speed up by at most", Ui.SliderWithValue(0, 50, curve.StepUpPerSecond, "{0:0}%/s", v => { curve.StepUpPerSecond = (int)v; _app.FanSettingsChanged(); }, 120)));
-            tune.Children.Add(Labeled("Slow down by at most", Ui.SliderWithValue(0, 50, curve.StepDownPerSecond, "{0:0}%/s", v => { curve.StepDownPerSecond = (int)v; _app.FanSettingsChanged(); }, 120)));
+            stack.Children.Add(new TextBlock { Text = "Drag points to move them · double-click to add one · right-click to remove", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 6, 0, 0) });
+            var tune = new SettingsFlow { Margin = new Thickness(0, 6, 0, 0) };
+            tune.Children.Add(Ui.SettingRow("Ignore changes under", null, Ui.SliderWithValue(0, 10, curve.HysteresisC, "{0:0} °C", v => { curve.HysteresisC = (int)v; _app.FanSettingsChanged(); }, 160)));
+            tune.Children.Add(Ui.SettingRow("Speed up by at most", null, Ui.SliderWithValue(0, 50, curve.StepUpPerSecond, "{0:0}%/s", v => { curve.StepUpPerSecond = (int)v; _app.FanSettingsChanged(); }, 160), more: "0%/s = at once"));
+            tune.Children.Add(Ui.SettingRow("Slow down by at most", null, Ui.SliderWithValue(0, 50, curve.StepDownPerSecond, "{0:0}%/s", v => { curve.StepDownPerSecond = (int)v; _app.FanSettingsChanged(); }, 160), more: "0%/s = at once"));
             stack.Children.Add(tune);
-            stack.Children.Add(new TextBlock { Text = "Drag points to move them · double-click to add one · right-click to remove · 0%/s means instant", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 4, 0, 0) });
         }
         else if (curve.Type == FanCurveType.Flat)
         {
@@ -1008,6 +1018,23 @@ internal sealed class FansPage : UserControl, IPage, IScreenshotStates, ICancelE
         "The ticked curves added up (at most 100%).",
         "The first ticked curve minus the others (at least 0%). Untick and tick again to change the order.",
     };
+
+    private List<string> UsedBy(FanCurve curve)
+    {
+        var names = new List<string>();
+        var preset = Fans.Active;
+        var fans = _app.Hardware.Catalog?.Fans;
+        if (preset is null || fans is null) return names;
+        foreach (var fan in fans)
+        {
+            if (Fans.HardwareFor(fan.ControlId).Hidden) continue;
+            var entry = preset.EntryFor(fan.ControlId);
+            if (entry is not { Mode: FanMode.Curve, CurveName: { } used }) continue;
+            if (Fans.Curves.FirstOrDefault(c => c.Name == used) is { } own && Uses(own, curve.Name, new HashSet<string>()))
+                names.Add(_app.FanName(fan));
+        }
+        return names;
+    }
 
     private bool Uses(FanCurve curve, string name, HashSet<string> seen)
     {

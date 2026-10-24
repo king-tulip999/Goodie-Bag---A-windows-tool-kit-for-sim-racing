@@ -111,7 +111,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         ToolTipService.SetShowOnDisabled(_editLayout, true);
         SyncEditLayout();
         _arrange.Children.Add(_editLayout);
-        var arrange = Ui.LabeledButton("I.Move", "Arrange on screen", () => { Host?.BeginEdit(); RefreshArrange(); }, "PrimaryButton");
+        var arrange = Ui.LabeledButton("I.Move", "Arrange on screen", () => { Host?.BeginEdit(); RefreshArrange(); });
         arrange.IsEnabled = !_app.Demo && h is not null;
         arrange.ToolTip = _app.Demo ? "Not with demo data (no widgets are put on screen)"
             : "Drag widgets to move them, drag a corner or edge to resize (Alt = no snapping). The bar at the top of the screen has Undo, Snap and Done.";
@@ -124,6 +124,8 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         if (_editLayout is not { } b) return;
         bool on = !_app.Demo && Host?.OnScreen == true;
         if (b.IsEnabled != on) b.IsEnabled = on;
+        var shown = on ? Visibility.Visible : Visibility.Collapsed;
+        if (b.Visibility != shown) b.Visibility = shown;
         string key = S.QuickEditHotkey is { Length: > 0 } k ? $" ({Hotkey.Display(k)})" : "";
         b.ToolTip = _app.Demo ? "Not with demo data (no widgets are put on screen)"
             : on ? $"Opens the overlay editor over the game: the widgets on screen, their settings, undo, snap{key}"
@@ -222,9 +224,9 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         _statusChip = chip;
         string layout = ShownLayout;
         string why = h?.MatchedRule is { } rule ? $" (rule: {rule.Describe()})" : "";
-        _status.Text = _app.Demo ? $"Layout {layout} · demo data: previews only"
-            : !S.Enabled ? $"Layout {layout} · overlay off: nothing shows until it's switched on"
-            : $"Layout {layout}{why} · {(h?.OnScreen == true ? "on screen" : ShowWhenText())}" + (h?.Editing == true ? " · arranging" : "");
+        _status.Text = _app.Demo ? $"Layout: {layout} · demo data: previews only"
+            : !S.Enabled ? $"Layout: {layout}"
+            : $"Layout: {layout}{why} · {(h?.OnScreen == true ? "on screen" : ShowWhenText())}" + (h?.Editing == true ? " · arranging" : "");
         _status.Visibility = _status.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -239,6 +241,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
     {
         _tick = null;
         _rules = null;
+        _ruleCount = null;
         _alertGroups = null;
         _widgets = null;
         _layoutPick = null;
@@ -330,7 +333,6 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         reset.Margin = new Thickness(6, 0, 0, 0);
         row.Children.Add(reset);
         layouts.Children.Add(row);
-        root.Children.Add(Foldable("layout", "Layout", null, null, layouts, foldable: false));
 
         var rules = new StackPanel();
         var addRule = Ui.LabeledButton("I.Plus", "Add rule", () =>
@@ -339,6 +341,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             Changed();
             _rules?.Fill();
             _rulesEmpty!.Visibility = S.Rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            RefreshRuleCount();
         }, "SoftButton");
         _rules = new ArrangeList(
             () => S.Rules.Select(r => (r.Id, r.Describe(), (Func<FrameworkElement>)(() => RuleRow(r)))).ToList(),
@@ -350,21 +353,41 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
                 RefreshStatus();
             },
             "Arrange", "Drag the rules into order: when two fit a session equally, the higher one wins");
-        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         _rules.Button.Margin = new Thickness(0, 0, 8, 0);
         actions.Children.Add(_rules.Button);
         actions.Children.Add(addRule);
-        rules.Children.Add(Ui.SettingRow("Use these rules", null, Ui.Switch(S.AutoSwitch, on => { S.AutoSwitch = on; Changed(); RefreshStatus(); _rules?.View.SetValue(IsEnabledProperty, on); })));
+        _ruleCount = new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var useRules = Ui.Switch(S.AutoSwitch, on =>
+        {
+            S.AutoSwitch = on;
+            Changed();
+            RefreshStatus();
+            rules.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            RefreshRuleCount();
+        });
+        var switchRow = new StackPanel { Orientation = Orientation.Horizontal, Children = { _ruleCount, useRules } };
         _rules.Fill();
-        _rules.View.IsEnabled = S.AutoSwitch;
+        _rulesEmpty = Caption("No rules yet: the layout picked above always shows.", 0);
+        _rulesEmpty.VerticalAlignment = VerticalAlignment.Center;
+        _rulesEmpty.Visibility = S.Rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var ruleBar = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(actions, Dock.Right);
+        ruleBar.Children.Add(actions);
+        ruleBar.Children.Add(_rulesEmpty);
+        rules.Children.Add(ruleBar);
         _rules.View.Margin = new Thickness(0, 8, 0, 0);
         rules.Children.Add(_rules.View);
-        _rulesEmpty = Caption("No rules: the layout picked above always shows.");
-        _rulesEmpty.Visibility = S.Rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        rules.Children.Add(_rulesEmpty);
-        root.Children.Add(_rulesCard = Foldable("rules", "Switch layouts automatically",
-            "The most specific matching rule wins, then the higher one; with none, the layout above shows.",
-            actions, rules));
+        rules.Visibility = S.AutoSwitch ? Visibility.Visible : Visibility.Collapsed;
+        rules.Margin = new Thickness(0, 4, 0, 0);
+        RefreshRuleCount();
+        var divider = new Border { Height = 1, Margin = new Thickness(0, 14, 0, 6) };
+        divider.SetResourceReference(Border.BackgroundProperty, "Line");
+        layouts.Children.Add(divider);
+        layouts.Children.Add(Ui.SettingRow("Switch layouts automatically", null, switchRow, null,
+            "Rules pick a layout by session, class, car and track. The most specific matching rule wins, then the higher one; with none, the layout picked above shows."));
+        layouts.Children.Add(rules);
+        root.Children.Add(_rulesCard = Foldable("layout", "Layout", null, null, layouts, foldable: false));
 
         _widgets = new RaceHudWidgets(_app, this, inPage: true);
         root.Children.Add(_widgets.Root);
@@ -440,6 +463,14 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
 
     private ArrangeList? _rules;
     private TextBlock? _rulesEmpty;
+    private TextBlock? _ruleCount;
+
+    private void RefreshRuleCount()
+    {
+        if (_ruleCount is null) return;
+        _ruleCount.Text = S.Rules.Count == 0 ? "No rules" : RaceFormat.Count(S.Rules.Count, "rule");
+        _ruleCount.Visibility = S.AutoSwitch ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     private FrameworkElement RuleRow(HudLayoutRule rule)
     {
@@ -483,6 +514,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             RefreshStatus();
             _rules?.Fill();
             if (_rulesEmpty is not null) _rulesEmpty.Visibility = S.Rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            RefreshRuleCount();
         }, "QuietIconButton");
         remove.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(remove, 1);
@@ -611,13 +643,20 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             new Choice(nameof(HudShowWhen.Connected), "Whenever a session is loaded"),
             new Choice(nameof(HudShowWhen.Always), "Always"),
         }, S.ShowWhen.ToString(), c => { S.ShowWhen = Enum.Parse<HudShowWhen>(c.Id!); changed(); statusChanged?.Invoke(); }, 240);
+        var stdLook = new HudAppearance();
+        Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); changed(); rebuild(); }, shown);
         root.Children.Add(Group("Overlay", null,
             Ui.SettingRow("Show the widgets", null, when),
             Ui.SettingRow("Click-through", "Clicks go to the game. Off: click a driver in the Relative or Standings to highlight them in both (the window never takes the keyboard).",
-                Ui.Switch(!S.Interactive, on => { S.Interactive = !on; changed(); }))));
-        root.Children.Add(new KeybindTree(app, e => e.Id.StartsWith("hud.", StringComparison.Ordinal), skip: 1) { Margin = new Thickness(0, 0, 0, 12) });
-        var stdLook = new HudAppearance();
-        Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); changed(); rebuild(); }, shown);
+                Ui.Switch(!S.Interactive, on => { S.Interactive = !on; changed(); })),
+            Ui.SettingRow("Units", null, Ui.Segmented(new[] { "Metric", "Imperial" }, (int)S.Units, i => { S.Units = (HudUnits)i; changed(); }, "hudunits"),
+                D(() => S.Units == HudUnits.Metric, () => S.Units = HudUnits.Metric, "Metric"))));
+        var keys = new KeybindTree(app, e => e.Id.StartsWith("hud.", StringComparison.Ordinal), skip: 2, label: ShortKeybindLabel, flat: true) { Style = null, Padding = new Thickness(0), Margin = new Thickness(-6, 6, 0, 0) };
+        root.Children.Add(new Tile
+        {
+            Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 12),
+            Child = new StackPanel { Children = { Ui.Text("Keybinds", "H3"), keys } },
+        });
         root.Children.Add(Group("Look", "The overlay keeps its own colors whatever the app's theme; flags keep their real colors.",
             Ui.SettingRow("Colors", null, colors),
             custom,
@@ -626,9 +665,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             Ui.SettingRow("Corners", null, Ui.SliderWithValue(0, 16, a.Corner, "{0:0} px", v => { a.Corner = (int)v; changed(); }),
                 D(() => a.Corner == stdLook.Corner, () => a.Corner = stdLook.Corner, stdLook.Corner + " px")),
             Ui.SettingRow("Outline", null, Ui.Switch(a.Outline, on => { a.Outline = on; changed(); }),
-                D(() => a.Outline == stdLook.Outline, () => a.Outline = stdLook.Outline, stdLook.Outline ? "On" : "Off")),
-            Ui.SettingRow("Units", null, Ui.Segmented(new[] { "Metric", "Imperial" }, (int)S.Units, i => { S.Units = (HudUnits)i; changed(); }, "hudunits"),
-                D(() => S.Units == HudUnits.Metric, () => S.Units = HudUnits.Metric, "Metric"))));
+                D(() => a.Outline == stdLook.Outline, () => a.Outline = stdLook.Outline, stdLook.Outline ? "On" : "Off"))));
         var grid = Ui.SliderWithValue(2, 64, S.GridSize, "{0:0} px", v =>
         {
             S.GridSize = (int)v;
@@ -640,6 +677,13 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             Ui.SettingRow("Grid", app.Demo ? "The grid is shown over your screens while you adjust it (not with demo data)." : "Shown over your screens while you adjust it.", grid)));
 
         return root;
+    }
+
+    internal static string ShortKeybindLabel(string label)
+    {
+        string text = label.Replace("the iRacing Overlay", "", StringComparison.Ordinal).Replace("iRacing Overlay", "", StringComparison.Ordinal);
+        text = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return text.Length == 0 ? label : char.ToUpperInvariant(text[0]) + text[1..];
     }
 
     private static void FillCustomColours(StackPanel into, RaceHudSettings S, Action changed, Action rebuild)
@@ -722,12 +766,14 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         };
         _alertFoldChanged = CountOpen;
         CountOpen();
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 10) };
+        var about = GoodieBag.Views.HudSettings.HelpTip.For("Alerts show in the Alerts widget. One isn't raised again within its cooldown; sticky ones stay until the condition clears.", "Alerts");
+        about.VerticalAlignment = VerticalAlignment.Center;
+        about.Margin = new Thickness(0, 0, 12, 0);
+        buttons.Children.Add(about);
         buttons.Children.Add(foldAll);
         buttons.Children.Add(_alertGroups.Button);
-        var head = Ui.SectionHeader("Alerts", "Shown in the Alerts widget. Not raised again within its cooldown; sticky ones stay until the condition clears.", buttons);
-        head.Margin = new Thickness(0, 0, 0, 10);
-        root.Children.Add(head);
+        root.Children.Add(buttons);
         _alertGroups.Fill();
         root.Children.Add(_alertGroups.View);
         return root;
@@ -740,12 +786,28 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         var count = new TextBlock { Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
         void Count() => count.Text = $"{defs.Count(d => RaceState.ChoiceFor(S, d).Enabled)} of {defs.Count} on";
         Count();
-        var rows = new StackPanel { Margin = new Thickness(10, 0, 14, 10), Visibility = folded ? Visibility.Collapsed : Visibility.Visible };
-        for (int i = 0; i < defs.Count; i++)
+        var rows = new UniformGrid { Columns = 1, Margin = new Thickness(10, 0, 14, 10), Visibility = folded ? Visibility.Collapsed : Visibility.Visible };
+        var cells = defs.Select(d => new Border { Child = AlertRow(d, Count), Padding = new Thickness(0, 2, 0, 2) }).ToList();
+        foreach (var cell in cells)
         {
-            if (i > 0) rows.Children.Add(new Border { Height = 1, Margin = new Thickness(0, 2, 0, 2), Background = Ui.Res<Brush>("Line") });
-            rows.Children.Add(AlertRow(defs[i], Count));
+            cell.SetResourceReference(Border.BorderBrushProperty, "Line");
+            rows.Children.Add(cell);
         }
+        void Lay(int columns)
+        {
+            rows.Columns = columns;
+            for (int i = 0; i < cells.Count; i++)
+            {
+                cells[i].BorderThickness = new Thickness(0, i >= columns ? 1 : 0, 0, 0);
+                cells[i].Margin = columns == 1 ? new Thickness(0) : i % 2 == 0 ? new Thickness(0, 0, 12, 0) : new Thickness(12, 0, 0, 0);
+            }
+        }
+        Lay(1);
+        rows.SizeChanged += (_, e) =>
+        {
+            int columns = e.NewSize.Width >= AlertTwoColumnsFrom ? 2 : 1;
+            if (columns != rows.Columns) Lay(columns);
+        };
         var chevron = new Icon { Data = Ui.Res<Geometry>(folded ? "I.ChevronRight" : "I.ChevronDown"), Width = 15, Height = 15, Foreground = Ui.Res<Brush>("TextMuted"), VerticalAlignment = VerticalAlignment.Center };
         var header = new DockPanel { LastChildFill = true };
         header.Children.Add(chevron);
@@ -774,7 +836,7 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(0), Child = stack };
     }
 
-    private const double ThresholdColumn = 210, SwitchColumn = 56;
+    private const double ThresholdColumn = 210, SwitchColumn = 56, AlertTwoColumnsFrom = 1000;
 
     private FrameworkElement AlertRow(AlertDef def, Action changed)
     {
@@ -787,7 +849,17 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
         var title = new TextBlock { Text = def.Title, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
         text.Children.Add(title);
-        text.Children.Add(new TextBlock { Text = def.Description, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        if (def.Description.Length > 0)
+            text.Children.Add(new TextBlock { Text = def.Description, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        bool waiting = def.Id == "stint.limit" && S.Fuel.MaxStintMinutes <= 0;
+        if (waiting)
+        {
+            var note = new TextBlock { Text = "Can't go off until Longest stint is set.", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            note.SetResourceReference(TextBlock.ForegroundProperty, "WarnDeep");
+            var go = new Button { Style = Ui.Res<Style>("GhostButton"), Content = "Fuel tab ›", MinHeight = 0, Height = 26, Padding = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+            go.Click += (_, _) => SelectTab(FuelTabIndex);
+            text.Children.Add(new WrapPanel { Margin = new Thickness(0, 4, 0, 0), Children = { note, go } });
+        }
         grid.Children.Add(text);
         NumberBox? box = null;
         if (def.Threshold is not null)
@@ -817,8 +889,9 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         grid.Children.Add(on);
         void Apply(bool enabled)
         {
-            text.Opacity = enabled ? 1 : 0.55;
-            if (box is not null) box.IsEnabled = enabled;
+            title.Opacity = enabled && !waiting ? 1 : 0.55;
+            foreach (var line in text.Children.OfType<FrameworkElement>().Skip(1).Where(e => e is not WrapPanel)) line.Opacity = title.Opacity;
+            if (box is not null) box.IsEnabled = enabled && !waiting;
         }
         Apply(choice.Enabled);
         return grid;
@@ -837,9 +910,14 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
         var std = new HudFuelSettings();
         Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); Changed(); Build(); }, shown);
         root.Children.Add(Group("Fuel & strategy", null,
+            Ui.SubHeader("Measuring", first: true),
             Ui.SettingRow("Laps measured", "Recent clean green-flag laps used for fuel per lap.", Box(fuel.Window, "laps", 1, 30, 1, 0, v => fuel.Window = (int)v),
                 D(() => fuel.Window == std.Window, () => fuel.Window = std.Window, RaceFormat.Count(std.Window, "lap")),
                 "Fuel per lap comes from this many recent clean laps under green; newer laps count more and a lap far from the rest is left out."),
+            Ui.SettingRow("Extra consumption", "For a pace that uses more than your clean laps.", Box(fuel.ExtraPercent, "%", 0, 25, 0.5, 1, v => fuel.ExtraPercent = v),
+                D(() => fuel.ExtraPercent == std.ExtraPercent, () => fuel.ExtraPercent = std.ExtraPercent, "0%"),
+                "This share of the expected fuel to the flag is added, for a pace or style that uses more than your clean laps did."),
+            Ui.SubHeader("Extra fuel"),
             Ui.SettingRow("Safety reserve", "Extra fuel for lap-to-lap variation.",
                 Ui.Segmented(new[] { "Aggressive", "Balanced", "Conservative" }, (int)fuel.Safety, i => { fuel.Safety = (FuelSafety)i; Changed(); RefreshFormulas(); }, "fuelsafety"),
                 D(() => fuel.Safety == std.Safety, () => fuel.Safety = std.Safety, std.Safety.ToString()),
@@ -847,103 +925,136 @@ internal sealed class RaceHudSection : StackPanel, IScreenshotStates, ICancelEdi
             Ui.SettingRow("Margin at the flag", "Your own fuel on top of the reserve.", Box(fuel.MarginLaps, "laps", 0, 10, 0.1, 1, v => fuel.MarginLaps = v),
                 D(() => fuel.MarginLaps == std.MarginLaps, () => fuel.MarginLaps = std.MarginLaps, $"{std.MarginLaps:0.0} laps")),
             Ui.SettingRow("Fixed reserve", "Kept on top of everything else.", Box(fuel.ReserveLiters, "L", 0, 50, 0.1, 1, v => fuel.ReserveLiters = v),
-                D(() => fuel.ReserveLiters == std.ReserveLiters, () => fuel.ReserveLiters = std.ReserveLiters, "0 L"),
-                "Liters kept on top of everything else (added to your margin)."),
-            Ui.SettingRow("Extra consumption", "For a pace that uses more than your clean laps.", Box(fuel.ExtraPercent, "%", 0, 25, 0.5, 1, v => fuel.ExtraPercent = v),
-                D(() => fuel.ExtraPercent == std.ExtraPercent, () => fuel.ExtraPercent = std.ExtraPercent, "0%"),
-                "This share of the expected fuel to the flag is added, for a pace or style that uses more than your clean laps did."),
+                D(() => fuel.ReserveLiters == std.ReserveLiters, () => fuel.ReserveLiters = std.ReserveLiters, "0 L")),
             Ui.SettingRow("Extra distance", "A long pit lane, the lap after the flag.", Box(fuel.ExtraKm, "km", 0, 50, 0.1, 1, v => fuel.ExtraKm = v),
                 D(() => fuel.ExtraKm == std.ExtraKm, () => fuel.ExtraKm = std.ExtraKm, "0 km"),
                 "Distance on top of the race (a long pit lane, the lap after the flag), turned into laps of this track."),
+            Ui.SubHeader("Stops"),
             Ui.SettingRow("A pit stop costs", "Lane plus standing time.", Box(fuel.PitLaneLossSeconds, "s", 0, 300, 1, 0, v => fuel.PitLaneLossSeconds = v),
                 D(() => fuel.PitLaneLossSeconds == std.PitLaneLossSeconds, () => fuel.PitLaneLossSeconds = std.PitLaneLossSeconds, $"{std.PitLaneLossSeconds:0} s"),
                 "Lane plus standing time, used for strategy notes."),
             Ui.SettingRow("Longest stint", "0 = no limit.", Box(fuel.MaxStintMinutes, "min", 0, 600, 5, 0, v => fuel.MaxStintMinutes = v),
                 D(() => fuel.MaxStintMinutes == std.MaxStintMinutes, () => fuel.MaxStintMinutes = std.MaxStintMinutes, "no limit"),
-                "The Stint time alert warns before it (0 = no limit).")));
+                "The Stint time alert warns before it.")));
 
-        _formulas = new StackPanel();
+        _formulas = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         _formulaNote = Caption("", 0);
-        var card = Group("How the numbers are worked out", "The fuel widget's sums, with the numbers from the session running now (or the simulated one). Every figure to the flag is an estimate.", _formulaNote, _formulas);
+        _formulaCaution = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap };
+        _formulaCautionLine = Ui.IconText("I.Alert", _formulaCaution, "WarnDeep");
+        _formulaCautionLine.Margin = new Thickness(0, 6, 0, 0);
+        var card = Group("How the numbers are worked out", "The fuel widget's sums, with the numbers from the session running now (or the simulated one). Every figure to the flag is an estimate.",
+            new StackPanel { Children = { _formulaNote, _formulaCautionLine, _formulas } });
         Ui.Anchor(card, "simracing.hud.fuelformulas");
         root.Children.Add(card);
+        _formulaRows.Clear();
         RefreshFormulas();
         _tick = RefreshFormulas;
         return root;
     }
 
     private StackPanel? _formulas;
-    private TextBlock? _formulaNote;
+    private TextBlock? _formulaNote, _formulaCaution;
+    private FrameworkElement? _formulaCautionLine;
+    private readonly List<(TextBlock Now, TextBlock Formula)> _formulaRows = new();
 
     private void RefreshFormulas()
     {
-        if (_formulas is null || _formulaNote is null) return;
+        if (_formulas is null || _formulaNote is null || _formulaCaution is null || _formulaCautionLine is null) return;
         var race = Preview.Race;
         var f = race.Frame;
         var u = S.Units;
+        var fuel = S.Fuel;
         var plan = race.Fuel;
         string F(double? litres) => litres is { } l ? RaceFormat.Fuel(l, u) : "–";
         string L(double? laps) => laps is { } l ? $"{l:0.0} laps" : "–";
         var est = race.FuelData.Estimate;
         double? togo = race.LapsToGo(f);
+        double? rate = est.HasEstimate ? est.MeanLitersPerLap : null;
+        double? km = f.Session.TrackLengthKm is > 0 and var k ? k : null;
         double floor = GoodieBag.SimRacing.FuelEngine.FuelStrategyCalculator.MinimumReserveFraction(new GoodieBag.SimRacing.FuelEngine.FuelStrategyRequest
         {
-            CurrentFuelLiters = 0, LapsRemaining = 0, Consumption = est, SafetyMode = FuelPlanner.Mode(S.Fuel.Safety),
+            CurrentFuelLiters = 0, LapsRemaining = 0, Consumption = est, SafetyMode = FuelPlanner.Mode(fuel.Safety),
         });
         string Spread() => est.StandardDeviationLitersPerLap is { } sd ? $"± {RaceFormat.Fuel(sd, u)} a lap" : "needs 2 clean laps";
-        var rows = new (string Name, string Formula, string Now)[]
+        string Extra(double? litres) => litres is { } l ? (l > 0 ? "+" + F(l) : "none") : "–";
+        var sections = new (string Title, (string Name, string Formula, string Now)[] Rows)[]
         {
-            ("Fuel per lap (measured)", $"From your last {S.Fuel.Window} clean laps under green (no pit road, refuel, full-course caution, formation lap or incident): newer laps count more, and from 5 laps one far from the rest is left out.",
-                est.HasEstimate ? $"{RaceFormat.Fuel(est.MeanLitersPerLap, u)} · {est.UsedLapCount} lap{(est.UsedLapCount == 1 ? "" : "s")} · {GoodieBag.SimRacing.Hud.Widgets.FuelWidget.Confidence(est.Reliability)}" : race.FuelData.EnergyUnits ? "kWh car: not supported" : "measuring…"),
-            ("Lap to lap", "How much the clean laps differ (weighted spread); it sets the safety reserve.", est.HasEstimate ? Spread() : "–"),
-            ("Laps of fuel", "Fuel in the tank ÷ fuel per lap.", plan is { } p1 ? $"{F(f.Fuel)} ÷ {F(p1.PerLap)} = {L(p1.LapsOfFuel)}" : "–"),
-            ("Laps to go", "Lap races: total laps − laps done − the part of this lap already driven (− laps the leader is ahead). Timed races (a forecast until iRacing shows the white flag): the leader takes the flag at their first crossing once the clock has run out; you finish at your first crossing after that, at your recent pace.",
-                togo is { } tg ? L(tg) + (plan?.LapsToGoForecast == true ? " (forecast)" : "") : "–"),
-            ("Rest of this lap", "From the fuel your clean laps used on each tenth of the lap (once 3 clean laps cover what's left of this one); until then this lap's share × fuel per lap.",
-                plan?.CurrentLap is { } cl ? $"{F(cl)} ({(plan.CurrentLapFromProfile ? "lap profile" : "share of a lap")})" : "–"),
-            ("Expected to the flag", "Rest of this lap + whole laps after it × fuel per lap.", F(plan?.Expected)),
-            ("Safety reserve", $"{S.Fuel.Safety}: covers the lap-to-lap spread over the laps to go, the average's own uncertainty, and at least {floor:P1} of the expected fuel for drift over a stint (a model, not a guarantee).",
-                plan is null ? "–" : plan.StatisticalReserve > 0 ? F(plan.StatisticalReserve) : "none yet (needs 2 clean laps)"),
-            ("Your margin", $"{S.Fuel.MarginLaps:0.#} laps × fuel per lap" + (S.Fuel.ExtraKm > 0 ? $" + {S.Fuel.ExtraKm:0.#} km as laps" : "") + (S.Fuel.ReserveLiters > 0 ? $" + {RaceFormat.Fuel(S.Fuel.ReserveLiters, u)}" : "") + (S.Fuel.ExtraPercent > 0 ? $" + {S.Fuel.ExtraPercent:0.#}% of the fuel to the flag" : "") + ".", plan is null ? "–" : F(plan.Margin)),
-            ("Fuel to the flag", "Expected + safety reserve + your margin.", F(plan?.ToFinish)),
-            ("Left at the flag", "Fuel in the tank − expected to the flag (no reserve taken off; below zero = you run out first).", plan?.AtFlag is { } at ? (at >= 0 ? F(at) : $"short by {F(-at)}") : "–"),
-            ("Surplus / short", "Fuel in the tank − fuel to the flag (below zero = you need to stop).", plan?.Surplus is { } s ? (s >= 0 ? $"+{F(s)} to spare" : $"short by {F(-s)}") : "–"),
-            ("Stops", "Shortfall ÷ usable tank, rounded up.", plan?.Stops is { } st ? $"{st}" + (race.Tank is { } tank ? $" (tank {F(tank)})" : "") : "–"),
-            ("Add at the next stop", $"The shortfall rounded up to {FuelMath.AddStep:0.0} L, at most a full tank (you arrive close to empty).", F(plan?.AddAtNextStop)),
-            ("Pit window", "Opens when the stops still to come can cover the rest: laps to go − (stops × tank − reserve and margin) ÷ fuel per lap. Closes when the fuel runs out (laps of fuel).",
-                plan?.WindowOpensIn is { } o ? (o <= 0 ? $"open now · closes in {L(plan.WindowClosesIn)}" : $"opens in {L(o)} · closes in {L(plan.WindowClosesIn)}") : plan?.Stops == 0 ? "no stop needed" : "–"),
+            ("Measured", new[]
+            {
+                ("Fuel per lap", $"From your last {fuel.Window} clean laps under green (no pit road, refuel, full-course caution, formation lap or incident): newer laps count more, and from 5 laps one far from the rest is left out.",
+                    est.HasEstimate ? $"{RaceFormat.Fuel(est.MeanLitersPerLap, u)} · {RaceFormat.Count(est.UsedLapCount, "lap")} · {GoodieBag.SimRacing.Hud.Widgets.FuelWidget.Confidence(est.Reliability)}" : race.FuelData.EnergyUnits ? "kWh car: not supported" : "measuring…"),
+                ("Lap to lap", "How much the clean laps differ (weighted spread); it sets the safety reserve.", est.HasEstimate ? Spread() : "–"),
+                ("Laps of fuel", "Fuel in the tank ÷ fuel per lap.", plan is { } p1 ? $"{F(f.Fuel)} ÷ {F(p1.PerLap)} = {L(p1.LapsOfFuel)}" : "–"),
+                ("Laps to go", "Lap races: total laps − laps done − the part of this lap already driven (− laps the leader is ahead). Timed races (a forecast until iRacing shows the white flag): the leader takes the flag at their first crossing once the clock has run out; you finish at your first crossing after that, at your recent pace.",
+                    togo is { } tg ? L(tg) + (plan?.LapsToGoForecast == true ? " (forecast)" : "") : "–"),
+                ("Rest of this lap", "From the fuel your clean laps used on each tenth of the lap (once 3 clean laps cover what's left of this one); until then this lap's share × fuel per lap.",
+                    plan?.CurrentLap is { } cl ? $"{F(cl)} ({(plan.CurrentLapFromProfile ? "lap profile" : "share of a lap")})" : "–"),
+            }),
+            ("To the flag", new[]
+            {
+                ("Expected", "Rest of this lap + whole laps after it × fuel per lap.", F(plan?.Expected)),
+                ("Safety reserve", $"{fuel.Safety}: covers the lap-to-lap spread over the laps to go, the average's own uncertainty, and at least {floor:P1} of the expected fuel for drift over a stint (a model, not a guarantee).",
+                    plan is null ? "–" : plan.StatisticalReserve > 0 ? F(plan.StatisticalReserve) : "none yet (needs 2 clean laps)"),
+                ("Margin at the flag", $"{fuel.MarginLaps:0.#} laps × fuel per lap.", Extra(rate * fuel.MarginLaps)),
+                ("Fixed reserve", "As set above.", Extra(fuel.ReserveLiters)),
+                ("Extra consumption", $"{fuel.ExtraPercent:0.#}% × fuel per lap × laps to go.", Extra(rate * (togo ?? 0) * fuel.ExtraPercent / 100)),
+                ("Extra distance", $"{fuel.ExtraKm:0.#} km ÷ the track's length × fuel per lap.", km is null && fuel.ExtraKm > 0 ? "track length unknown" : Extra(rate * (km is { } length ? fuel.ExtraKm / length : 0))),
+                ("Fuel to the flag", "Expected + safety reserve + the four extras above.", F(plan?.ToFinish)),
+            }),
+            ("Plan", new[]
+            {
+                ("Spare after reserve", "Fuel in the tank − fuel to the flag (below zero = you need to stop).", plan?.Surplus is { } s ? (s >= 0 ? $"+{F(s)} to spare" : $"short by {F(-s)}") : "–"),
+                ("Left at the flag", "Fuel in the tank − expected to the flag, before any reserve or extra (below zero = you run out first).", plan?.AtFlag is { } at ? (at >= 0 ? F(at) : $"short by {F(-at)}") : "–"),
+                ("Stops", "Shortfall ÷ usable tank, rounded up.", plan?.Stops is { } st ? $"{st}" + (race.Tank is { } tank ? $" (tank {F(tank)})" : "") : "–"),
+                ("Add at the next stop", $"The shortfall rounded up to {FuelMath.AddStep:0.0} L, at most a full tank (you arrive close to empty).", F(plan?.AddAtNextStop)),
+                ("Pit window", "Opens when the stops still to come can cover the rest: laps to go − (stops × tank − reserve and extras) ÷ fuel per lap. Closes when the fuel runs out (laps of fuel).",
+                    plan?.WindowOpensIn is { } o ? (o <= 0 ? $"open now · closes in {L(plan.WindowClosesIn)}" : $"opens in {L(o)} · closes in {L(plan.WindowClosesIn)}") : plan?.Stops == 0 ? "no stop needed" : "–"),
+            }),
         };
-        string source = f.Status != SimStatus.Connected ? "Waiting for a session." : f.Simulated ? "Numbers from the simulated session (no iRacing running)." : "Live from iRacing.";
-        string? caution = race.FuelData.EnergyUnits ? "This car reports energy (kWh), not fuel: the fuel calculator doesn't run for it." : plan?.Warning ?? FuelPlanner.Warning(est);
-        _formulaNote.Text = caution is null ? source : $"{source} {caution}";
-        _formulaNote.Foreground = Ui.Res<Brush>(caution is null || f.Status != SimStatus.Connected ? "TextMuted" : "WarnDeep");
-        if (_formulas.Children.Count != rows.Length * 2 - 1)
+        _formulaNote.Text = f.Status != SimStatus.Connected ? "Waiting for a session." : f.Simulated ? "Numbers from the simulated session (no iRacing running)." : "Live from iRacing.";
+        string? caution = f.Status != SimStatus.Connected ? null : race.FuelData.EnergyUnits ? "This car reports energy (kWh), not fuel: the fuel calculator doesn't run for it." : plan?.Warning ?? FuelPlanner.Warning(est);
+        _formulaCaution.Text = caution ?? "";
+        _formulaCautionLine.Visibility = caution is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_formulaRows.Count != sections.Sum(x => x.Rows.Length))
         {
             _formulas.Children.Clear();
-            for (int i = 0; i < rows.Length; i++)
+            _formulaRows.Clear();
+            foreach (var (title, rows) in sections)
             {
-                if (i > 0) _formulas.Children.Add(new Border { Height = 1, Margin = new Thickness(0, 6, 0, 6), Background = Ui.Res<Brush>("Line") });
-                var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition());
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-                grid.Children.Add(new TextBlock { Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) });
-                var formula = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 16, 0) };
-                Grid.SetColumn(formula, 1);
-                grid.Children.Add(formula);
-                var now = new TextBlock { Style = Ui.Res<Style>("Body"), FontFamily = Ui.Res<FontFamily>("MonoFont"), TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Right, TextAlignment = TextAlignment.Right };
-                Grid.SetColumn(now, 2);
-                grid.Children.Add(now);
-                _formulas.Children.Add(grid);
+                _formulas.Children.Add(Ui.SubHeader(title, first: _formulas.Children.Count == 0));
+                bool result = title == "Plan";
+                for (int i = 0; i < rows.Length; i++)
+                {
+                    if (i > 0) _formulas.Children.Add(new Border { Height = 1, Margin = new Thickness(0, 6, 0, 6), Background = Ui.Res<Brush>("Line") });
+                    var grid = new Grid();
+                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+                    grid.ColumnDefinitions.Add(new ColumnDefinition());
+                    grid.Children.Add(new TextBlock { Text = rows[i].Name, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) });
+                    var now = new TextBlock { Style = Ui.Res<Style>("Body"), FontFamily = Ui.Res<FontFamily>("MonoFont"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 16, 0) };
+                    if (result)
+                    {
+                        now.FontWeight = FontWeights.SemiBold;
+                        now.SetResourceReference(TextBlock.ForegroundProperty, "Heading");
+                    }
+                    Grid.SetColumn(now, 1);
+                    grid.Children.Add(now);
+                    var formula = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 0) };
+                    Grid.SetColumn(formula, 2);
+                    grid.Children.Add(formula);
+                    _formulas.Children.Add(grid);
+                    _formulaRows.Add((now, formula));
+                }
             }
         }
-        for (int i = 0; i < rows.Length; i++)
-        {
-            var g = (Grid)_formulas.Children[i * 2];
-            ((TextBlock)g.Children[0]).Text = rows[i].Name;
-            ((TextBlock)g.Children[1]).Text = rows[i].Formula;
-            ((TextBlock)g.Children[2]).Text = rows[i].Now;
-        }
+        int n = 0;
+        foreach (var (_, rows) in sections)
+            foreach (var row in rows)
+            {
+                var (now, formula) = _formulaRows[n++];
+                TextCase.Set(now, row.Now);
+                TextCase.Set(formula, row.Formula);
+            }
     }
 
     public IEnumerable<(string Name, Func<Task> Enter)> ScreenshotStates()

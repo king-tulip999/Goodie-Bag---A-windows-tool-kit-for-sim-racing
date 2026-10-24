@@ -13,7 +13,7 @@ internal sealed class DisplayProfilesView : Tile
 {
     private readonly AppServices _app;
     private readonly MainWindow _window;
-    private readonly MasonryPanel _grid = new() { MinColumnWidth = 440, MaxColumns = 3, Gap = 12, CenterFew = true, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly MasonryPanel _grid = new() { MinColumnWidth = 440, MaxColumns = 3, Gap = 12, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Func<bool> _hasPending;
 
     public DisplayProfilesView(AppServices app, MainWindow window, Func<bool> hasPending)
@@ -30,14 +30,12 @@ internal sealed class DisplayProfilesView : Tile
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var title = Ui.Text("Saved profiles", "H2");
         title.VerticalAlignment = VerticalAlignment.Center;
+        Ui.AddInfo(title, "Saved setups like “Desk” and “Sim rig”: which displays are on, arrangement, resolution, refresh rate, main display, HDR, taskbar, wallpapers and audio devices. Give each a keybind to switch between them.");
         head.Children.Add(title);
         var save = Ui.LabeledButton("I.Save", "Save current setup", SaveCurrentAsync, "PrimaryButton");
         Grid.SetColumn(save, 1);
         head.Children.Add(save);
         stack.Children.Add(head);
-        var caption = Ui.Text("Saved setups like “Desk” and “Sim rig”: which displays are on, arrangement, resolution, refresh rate, main display, HDR, taskbar, wallpapers and audio devices. Give each a keybind to switch between them.", "Caption");
-        caption.Margin = new Thickness(0, 6, 0, 0);
-        stack.Children.Add(caption);
         stack.Children.Add(_grid);
         Child = stack;
         Ui.Anchor(this, "displays.profiles");
@@ -86,10 +84,10 @@ internal sealed class DisplayProfilesView : Tile
             top.Children.Add(tags);
         }
         var apply = isActive
-            ? Ui.LabeledButton("I.Check", "Applied", () => _ = _app.DisplayProfiles.ApplyAsync(profile), "GhostButton")
+            ? Ui.IconButton("I.Refresh", "Apply again", () => _ = _app.DisplayProfiles.ApplyAsync(profile))
             : Ui.LabeledButton("I.Zap", "Apply", () => _ = _app.DisplayProfiles.ApplyAsync(profile), "PrimaryButton");
         apply.VerticalAlignment = VerticalAlignment.Top;
-        apply.ToolTip = isActive ? "Apply again" : "Apply this profile";
+        if (!isActive) apply.ToolTip = "Apply this profile";
         Grid.SetColumn(apply, 1);
         top.Children.Add(apply);
         stack.Children.Add(top);
@@ -118,11 +116,7 @@ internal sealed class DisplayProfilesView : Tile
         {
             var changes = _app.DisplayProfiles.Preview(profile);
             if (changes.Count > 0)
-            {
-                stack.Children.Add(new TextBlock { Text = "Applying it will", Style = Ui.Res<Style>("Eyebrow"), Margin = new Thickness(0, 8, 0, 4) });
-                foreach (var change in changes)
-                    stack.Children.Add(Ui.ChangeLine(change.Text, change.Area));
-            }
+                stack.Children.Add(ChangesFold(changes.Select(c => (FrameworkElement)Ui.ChangeLine(c.Text, c.Area)).ToList()));
         }
 
         var actions = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -143,6 +137,28 @@ internal sealed class DisplayProfilesView : Tile
             Style = Ui.Res<Style>("Inset"), Padding = new Thickness(14, 12, 14, 6), Child = stack,
             BorderBrush = Ui.Res<Brush>(isActive ? "Sage" : "Line"),
         };
+    }
+
+    private static StackPanel ChangesFold(List<FrameworkElement> lines)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var list = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(4, 4, 0, 0) };
+        foreach (var line in lines) list.Children.Add(line);
+        var chevron = new Icon { Data = Ui.Res<Geometry>("I.ChevronRight"), Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
+        var label = new StackPanel { Orientation = Orientation.Horizontal };
+        label.Children.Add(chevron);
+        label.Children.Add(new TextBlock { Text = lines.Count == 1 ? "What applying it changes (1)" : $"What applying it changes ({lines.Count})", Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        var toggle = new Button { Style = Ui.Res<Style>("QuietButton"), Content = label, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(6, 4, 8, 4) };
+        ClickGuard.SetAllowRepeat(toggle, true);
+        toggle.Click += (_, _) =>
+        {
+            bool open = list.Visibility != Visibility.Visible;
+            list.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            chevron.Data = Ui.Res<Geometry>(open ? "I.ChevronDown" : "I.ChevronRight");
+        };
+        panel.Children.Add(toggle);
+        panel.Children.Add(list);
+        return panel;
     }
 
     private async void SaveCurrentAsync()

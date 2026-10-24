@@ -43,7 +43,7 @@ internal sealed class SectionView
     private readonly Grid _content = new();
     private readonly NavIcon _icon = new() { Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, IsActive = true };
     private readonly TextBlock _title = TextFit.TipWhenTrimmed(new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-    private readonly TextBlock _subtitle = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly TextBlock _subtitle = new() { TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
     private readonly ContentControl _tools = new() { Focusable = false, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _right = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _heading = new();
@@ -138,7 +138,8 @@ internal sealed class SectionView
         _title.Text = def.Title;
         _title.SetResourceReference(TextBlock.ForegroundProperty, def.Colors.Deep);
         _subtitle.Text = def.Subtitle;
-        _subtitle.Visibility = def.Subtitle.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _subtitle.Visibility = next is null && def.Subtitle.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _icon.ToolTip = def.Subtitle.Length > 0 ? def.Subtitle : null;
         _tools.Content = def.Tools;
         _tools.Visibility = def.Tools is null ? Visibility.Collapsed : Visibility.Visible;
         if (next is null) return;

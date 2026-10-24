@@ -28,7 +28,7 @@ internal static class StatsSessions
     {
         var tools = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         void Tool(FrameworkElement element) { element.Margin = new Thickness(8, 2, 0, 2); element.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(element); }
-        Tool(Ui.Segmented(new[] { "All", "Practice", "Qualify", "Race" }, filter.Type, i => { filter.Type = i; filter.Shown = 10; changed(); }, "statsSessionType"));
+        Tool(Ui.Segmented(new[] { "All", "Practice", "Qualifying", "Race" }, filter.Type, i => { filter.Type = i; filter.Shown = 10; changed(); }, "statsSessionType"));
         Tool(Pick("All cars", sessions.Select(s => s.Car), filter.Car, v => { filter.Car = v; filter.Shown = 10; changed(); }));
         Tool(Pick("All tracks", sessions.Select(s => s.Place), filter.Track, v => { filter.Track = v; filter.Shown = 10; changed(); }));
         Tool(settings);
@@ -39,20 +39,32 @@ internal static class StatsSessions
         else
         {
             var table = new Grid();
-            foreach (var w in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1.2, GridUnitType.Star), new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto })
-                table.ColumnDefinitions.Add(new ColumnDefinition { Width = w, MinWidth = w.IsStar ? 80 : 0 });
+            foreach (var w in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto })
+                table.ColumnDefinitions.Add(new ColumnDefinition { Width = w, MinWidth = w.IsStar ? 120 : 0 });
             table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            string[] heads = { "Date", "Session", "Car", "Track", "Laps", "Best lap", "Inc", "Result", "" };
+            string[] heads = { "Time", "Session", "Car and track", "Laps", "Best lap", "Inc", "Result", "" };
             for (int c = 0; c < heads.Length; c++)
             {
-                Cell(table, 0, c, new TextBlock { Text = heads[c], Style = Ui.Res<Style>("Eyebrow") }, c is >= 4 and <= 7);
+                Cell(table, 0, c, new TextBlock { Text = heads[c], Style = Ui.Res<Style>("Eyebrow") }, c is >= 3 and <= 6);
                 if (c > 0 && heads[c].Length > 0) ColumnBar(table, 0, c, 16);
             }
             int row = 0;
-            bool timesOnly = false;
             var now = DateTime.UtcNow;
+            DateTime? day = null;
             foreach (var s in list.Take(filter.Shown))
             {
+                var local = s.StartUtc.ToLocalTime();
+                if (day != local.Date)
+                {
+                    day = local.Date;
+                    row++;
+                    table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    var dayText = new TextBlock { Text = Dates.Weekday(local) + " " + Dates.Short(local), Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(8, row == 1 ? 6 : 16, 0, 4) };
+                    dayText.SetResourceReference(TextBlock.ForegroundProperty, "Heading");
+                    Grid.SetRow(dayText, row);
+                    Grid.SetColumnSpan(dayText, heads.Length);
+                    table.Children.Add(dayText);
+                }
                 row++;
                 table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 var hit = new Border { Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = "Open this session" };
@@ -68,39 +80,25 @@ internal static class StatsSessions
                 Grid.SetColumnSpan(rule, heads.Length);
                 table.Children.Add(hit);
                 table.Children.Add(rule);
-                var local = s.StartUtc.ToLocalTime();
-                Cell(table, row, 0, Caption(Dates.ShortTime(local)));
-                Cell(table, row, 1, Caption(TypeName(s.Type)));
-                Cell(table, row, 2, CarPictures.Beside(Body(s.Car), s.Car, 22, 8));
-                Cell(table, row, 3, Body(s.Place, "TextMuted"));
-                Cell(table, row, 4, Caption(s.Laps.ToString(CultureInfo.CurrentCulture)), true);
-                Cell(table, row, 5, Time(s.Best), true);
-                Cell(table, row, 6, Caption(s.Incidents is { } inc ? inc + "x" : "–"), true);
-                Cell(table, row, 7, Caption(s.Type == "Race" && s.FinishPos is { } p ? "P" + p : "–"), true);
-                if (traced.Contains(s.Id))
+                Cell(table, row, 0, Caption(Dates.Time(local)));
+                Cell(table, row, 1, TypeMark(s.Type));
+                var names = new StackPanel { Children = { Body(s.Car), Body(s.Place, "TextMuted", 12) } };
+                Cell(table, row, 2, CarPictures.Beside(names, s.Car, 26, 10));
+                Cell(table, row, 3, Caption(s.Laps.ToString(CultureInfo.CurrentCulture)), true);
+                Cell(table, row, 4, Time(s.Best), true);
+                Cell(table, row, 5, Caption(s.Incidents is { } inc ? inc + "x" : "–"), true);
+                Cell(table, row, 6, Caption(Result(s)), true);
+                bool hasTrace = traced.Contains(s.Id);
+                var mark = new Icon
                 {
-                    var mark = new Icon { Data = Ui.Res<Geometry>("I.Activity"), Width = 14, Height = 14, ToolTip = "Lap traces kept: lap analysis available" };
-                    mark.SetResourceReference(Control.ForegroundProperty, "AccentText");
-                    Cell(table, row, 8, mark);
-                }
-                else
-                {
-                    timesOnly = true;
-                    var label = Caption("Times only");
-                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextFaint");
-                    label.ToolTip = NoTraceReason(s, traceSettings, now);
-                    Cell(table, row, 8, label);
-                }
+                    Data = Ui.Res<Geometry>("I.Activity"), Width = 14, Height = 14,
+                    ToolTip = hasTrace ? "Lap traces kept: lap analysis available" : "Times only: no lap analysis. " + NoTraceReason(s, traceSettings, now),
+                };
+                mark.SetResourceReference(Control.ForegroundProperty, hasTrace ? "AccentText" : "TextFaint");
+                if (!hasTrace) mark.Opacity = 0.55;
+                Cell(table, row, 7, mark);
             }
             body.Children.Add(table);
-            if (timesOnly)
-            {
-                var why = Ui.Text("Times only = no lap traces, so no lap analysis: usually a session from before Goodie Bag kept them. Hover it for why. Its lap times and stats still count.", "Caption");
-                why.TextWrapping = TextWrapping.Wrap;
-                var note = Ui.IconText("I.Info", why, "TextMuted");
-                note.Margin = new Thickness(8, 12, 0, 0);
-                body.Children.Add(note);
-            }
             if (list.Count > filter.Shown)
             {
                 var more = Ui.LabeledButton("I.ChevronDown", $"Show more ({list.Count - filter.Shown} left)", () => { filter.Shown += 20; changed(); });
@@ -125,6 +123,24 @@ internal static class StatsSessions
 
     internal static string TypeName(string type) => type switch { "Qualify" => "Qualifying", "" => "Other", _ => type };
 
+    internal static string TypeBrush(string type) => type switch { "Practice" => "Slate", "Qualify" => "Gold", "Race" => "Accent", _ => "LineStrong" };
+
+    internal static FrameworkElement TypeMark(string type)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var swatch = new Border { Width = 8, Height = 8, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+        swatch.SetResourceReference(Border.BackgroundProperty, TypeBrush(type));
+        row.Children.Add(swatch);
+        row.Children.Add(new TextBlock { Text = TypeName(type), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center });
+        return row;
+    }
+
+    private static string Result(SessionSummary s)
+    {
+        if (s.Type != "Race" || s.FinishPos is not { } finish) return "–";
+        return s.StartPos is { } start ? $"P{start} → P{finish}" : "P" + finish;
+    }
+
     private static ComboBox Pick(string all, IEnumerable<string> values, string? selected, Action<string?> changed)
     {
         var combo = new SearchCombo { MinWidth = 170, MaxWidth = 280 };
@@ -139,7 +155,7 @@ internal static class StatsSessions
 
     private static void Cell(Grid table, int row, int col, FrameworkElement element, bool right = false)
     {
-        element.Margin = new Thickness(col == 0 ? 8 : 16, 8, col == 8 ? 8 : 0, 8);
+        element.Margin = new Thickness(col == 0 ? 8 : 16, 7, col == 7 ? 8 : 0, 7);
         element.VerticalAlignment = VerticalAlignment.Center;
         element.IsHitTestVisible = element.ToolTip is not null;
         if (right) element.HorizontalAlignment = HorizontalAlignment.Right;
@@ -160,9 +176,9 @@ internal static class StatsSessions
 
     private static TextBlock Caption(string text) => new() { Text = text, Style = Ui.Res<Style>("Caption") };
 
-    private static TextBlock Body(string text, string? brush = null)
+    private static TextBlock Body(string text, string? brush = null, double size = 13)
     {
-        var t = TextFit.TipWhenTrimmed(new TextBlock { Text = text, Style = Ui.Res<Style>("Body"), FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
+        var t = TextFit.TipWhenTrimmed(new TextBlock { Text = text, Style = Ui.Res<Style>("Body"), FontSize = size, TextTrimming = TextTrimming.CharacterEllipsis });
         if (brush is not null) t.SetResourceReference(TextBlock.ForegroundProperty, brush);
         return t;
     }

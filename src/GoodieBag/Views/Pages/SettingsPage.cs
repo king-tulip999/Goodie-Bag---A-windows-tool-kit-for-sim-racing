@@ -316,7 +316,6 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
     private static readonly Dictionary<string, string> PartNotes = new()
     {
         ["performance"] = "CPU, graphics card, memory, storage, network and frame rate with graphs.",
-        ["sensors"] = "Every sensor reading with min and max, one card per device.",
         ["setups"] = "Your car setups by car: find, rename, move, import and share.",
         ["hud"] = "In-game widgets from iRacing's live telemetry; off stops reading it.",
         ["fov"] = "The correct field of view for your seat and screens.",

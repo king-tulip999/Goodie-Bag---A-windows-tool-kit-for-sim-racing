@@ -15,16 +15,19 @@ internal static class FuelCalculator
     public static Tile Card(string carDir, string carName, FuelCalcSettings settings, Action save)
     {
         var car = settings.For(carDir);
-        var results = new Grid();
-        for (int c = 0; c < 4; c++) results.ColumnDefinitions.Add(new ColumnDefinition());
-        results.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        results.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var headline = new TextBlock { Style = Ui.Res<Style>("BigValue"), FontSize = 28, TextWrapping = TextWrapping.Wrap };
+        var subline = new TextBlock { Style = Ui.Res<Style>("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+        var facts = new Grid { Margin = new Thickness(0, 14, 0, 0) };
+        facts.ColumnDefinitions.Add(new ColumnDefinition());
+        facts.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var warning = new TextBlock { Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
         var lengthHost = new ContentControl();
-        var fuelHost = new ContentControl();
-        var lapBox = new TextBox { Text = StatFormat.LapTime(car.LapTime), Width = 120, VerticalContentAlignment = VerticalAlignment.Center };
+        var perLapHost = new ContentControl();
+        var tankHost = new ContentControl();
+        var lapBox = new TextBox { Text = StatFormat.LapTime(car.LapTime), Width = 120, VerticalContentAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left };
         lapBox.ToolTip = "m:ss.000 (1.19.5 or 1.19 read as 1:19.5 / 1:19)";
         var lossBox = new NumberBox(settings.PitLoss, "s", 70) { Minimum = 0, Maximum = 600, Step = 1 };
+        FrameworkElement lossRow = null!;
         NumberBox perLapBox = null!, tankBox = null!;
 
         double Unit() => settings.Gallons ? GallonsPerLitre : 1;
@@ -35,27 +38,43 @@ internal static class FuelCalculator
             var plan = settings.ByLaps
                 ? StintCalculator.Plan(settings.Laps, car.PerLap, car.Tank, settings.ExtraLap, settings.FormationLap)
                 : StintCalculator.TimedPlan(settings.Minutes, car.LapTime, car.PerLap, car.Tank, settings.ExtraLap, settings.FormationLap, settings.PitLoss);
-            results.Children.Clear();
+            if (lossRow is not null) lossRow.Visibility = settings.ByLaps ? Visibility.Collapsed : Visibility.Visible;
+            facts.Children.Clear();
+            facts.RowDefinitions.Clear();
             string Fuel(double litres) => StatFormat.Value(StatKind.Fuel, litres, imperial);
-            void Put(int row, int col, FrameworkElement e)
+            void Fact(string label, string value)
             {
-                e.Margin = new Thickness(0, row == 0 ? 0 : 14, 16, 0);
-                Grid.SetRow(e, row);
-                Grid.SetColumn(e, col);
-                results.Children.Add(e);
+                int row = facts.RowDefinitions.Count;
+                facts.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var l = new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), Margin = new Thickness(0, 4, 16, 4), VerticalAlignment = VerticalAlignment.Center };
+                var v = new TextBlock { Text = value, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Right };
+                Grid.SetRow(l, row);
+                Grid.SetRow(v, row);
+                Grid.SetColumn(v, 1);
+                facts.Children.Add(l);
+                facts.Children.Add(v);
             }
             var culture = CultureInfo.CurrentCulture;
-            Put(0, 0, Result("Total laps", plan is null ? "–" : plan.TotalLaps.ToString(culture)));
-            Put(0, 1, Result("Laps per stint", plan is null ? "–" : plan.LapsPerStint.ToString(culture)));
-            Put(0, 2, Result("Final stint", plan is null ? "–" : plan.FinalStintLaps.ToString(culture) + (plan.FinalStintLaps == 1 ? " lap" : " laps")));
-            Put(0, 3, Result("Pit stops", plan is null ? "–" : plan.Stops.ToString(culture), plan is { Stops: > 0 } ? StatsUi.Hue("Gold").Deep : null));
-            Put(1, 0, Result("Fuel in total", plan is null ? "–" : Fuel(plan.TotalFuel), "AccentText"));
-            Put(1, 1, Result(plan is { Stops: 0 } ? "Fuel to start" : "Fuel per stint", plan is null ? "–" : Fuel(plan.FuelPerStint)));
-            Put(1, 2, Result("Final stint fuel", plan is null ? "–" : Fuel(plan.FinalStintFuel)));
-            if (!settings.ByLaps && plan is { Stops: > 0 } && settings.PitLoss > 0)
-                Put(1, 3, Result("Time in the pits", StatFormat.Duration(plan.Stops * settings.PitLoss)));
-            warning.Visibility = plan is null ? Visibility.Visible : Visibility.Collapsed;
-            warning.Text = "Fill in a race length, lap time and fuel use to see the plan.";
+            if (plan is null)
+            {
+                headline.Text = "–";
+                subline.Text = "";
+                warning.Visibility = Visibility.Visible;
+                warning.Text = "Fill in a race length, lap time and fuel use to see the plan.";
+                return;
+            }
+            warning.Visibility = Visibility.Collapsed;
+            headline.Text = "Start with " + Fuel(plan.FuelPerStint);
+            subline.Text = plan.Stops == 0 ? "No stop needed" : $"{RaceFormat.Count(plan.Stops, "stop")} · {RaceFormat.Count(plan.LapsPerStint, "lap")} per stint";
+            Fact("Race laps", plan.TotalLaps.ToString(culture));
+            Fact("Fuel in total", Fuel(plan.TotalFuel));
+            if (plan.Stops > 0)
+            {
+                Fact("Fuel per stint", Fuel(plan.FuelPerStint));
+                Fact("Final stint", RaceFormat.Count(plan.FinalStintLaps, "lap") + " · " + Fuel(plan.FinalStintFuel));
+                if (!settings.ByLaps && settings.PitLoss > 0)
+                    Fact("Time in the pits", StatFormat.Duration(plan.Stops * settings.PitLoss));
+            }
         }
 
         FrameworkElement LengthInput()
@@ -87,7 +106,8 @@ internal static class FuelCalculator
             perLapBox.ValueChanged += v => { car.PerLap = v / Unit(); save(); Recalc(); };
             tankBox = new NumberBox(Math.Round(car.Tank * Unit(), 1), unit, 70) { Minimum = 1, Maximum = 1000, Step = 1, Decimals = 1 };
             tankBox.ValueChanged += v => { car.Tank = v / Unit(); save(); Recalc(); };
-            fuelHost.Content = new StackPanel { Children = { perLapBox, Spaced(tankBox) } };
+            perLapHost.Content = perLapBox;
+            tankHost.Content = tankBox;
         }
 
         lengthHost.Content = LengthInput();
@@ -120,21 +140,55 @@ internal static class FuelCalculator
         var formation = new CheckBox { Content = "Formation lap", IsChecked = settings.FormationLap, ToolTip = "Fuel for a formation lap before the start" };
         formation.Click += (_, _) => { settings.FormationLap = formation.IsChecked == true; save(); Recalc(); };
 
-        var inputs = new SettingsFlow();
-        inputs.Children.Add(Ui.SettingRow("Race length", null, new StackPanel { Children = { mode, Spaced(lengthHost) } }));
-        inputs.Children.Add(Ui.SettingRow("Lap time", "Remembered for this car", lapBox));
-        inputs.Children.Add(Ui.SettingRow("Fuel use and tank", "Per lap, then the car's usable tank; remembered for this car", new StackPanel { Children = { units, Spaced(fuelHost) } }));
-        inputs.Children.Add(Ui.SettingRow("Pit stop", "Time a stop costs over a racing lap (timed races)", lossBox));
-        inputs.Children.Add(Ui.SettingRow("Margin", null, new StackPanel { Orientation = Orientation.Horizontal, Children = { extra, formation } }));
+        var inputs = new StackPanel();
+        inputs.Children.Add(Input("Race length", new StackPanel { Children = { mode, Spaced(lengthHost) } }));
+        inputs.Children.Add(Input("Lap time", lapBox, "Remembered for this car"));
+        inputs.Children.Add(Input("Units", units));
+        inputs.Children.Add(Input("Fuel per lap", perLapHost, "Remembered for this car"));
+        inputs.Children.Add(Input("Usable tank", tankHost, "Remembered for this car"));
+        lossRow = Input("Pit stop", lossBox, "Time a stop costs over a racing lap");
+        inputs.Children.Add(lossRow);
+        inputs.Children.Add(Input("Margin", new StackPanel { Orientation = Orientation.Horizontal, Children = { extra, formation } }));
 
-        var resultsBlock = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
-        var rule = new Border { Height = 1, Margin = new Thickness(0, 0, 0, 14) };
-        rule.SetResourceReference(Border.BackgroundProperty, "Line");
-        resultsBlock.Children.Add(rule);
-        resultsBlock.Children.Add(results);
-        resultsBlock.Children.Add(warning);
+        var summary = new Tile
+        {
+            Style = Ui.Res<Style>("Inset"), Padding = new Thickness(18, 16, 18, 16), VerticalAlignment = VerticalAlignment.Top,
+            Child = new StackPanel { Children = { new TextBlock { Text = "Plan", Style = Ui.Res<Style>("Eyebrow") }, headline, subline, facts, warning } },
+        };
+        var layout = new Grid();
+        layout.ColumnDefinitions.Add(new ColumnDefinition());
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(380) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.Children.Add(inputs);
+        layout.Children.Add(summary);
+        void Place()
+        {
+            bool under = layout.ActualWidth is > 0 and < 820;
+            Grid.SetRow(summary, under ? 1 : 0);
+            Grid.SetColumn(summary, under ? 0 : 1);
+            Grid.SetColumnSpan(summary, under ? 2 : 1);
+            layout.ColumnDefinitions[1].Width = under ? new GridLength(0) : new GridLength(380);
+            summary.Margin = under ? new Thickness(0, 12, 0, 0) : new Thickness(24, 0, 0, 0);
+        }
+        Place();
+        layout.SizeChanged += (_, e) => { if (e.WidthChanged) Place(); };
         Recalc();
-        return StatsSections.Section("Fuel calculator", "I.Droplet", carName, null, new StackPanel { Children = { inputs, resultsBlock } });
+        return StatsSections.Section("Fuel calculator", "I.Droplet", carName, null, layout);
+    }
+
+    private static FrameworkElement Input(string label, FrameworkElement control, string? hint = null)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        var text = new TextBlock { Text = label, Style = Ui.Res<Style>("Body"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 7, 12, 0) };
+        if (hint is not null) Ui.AddInfo(text, hint);
+        grid.Children.Add(text);
+        control.HorizontalAlignment = HorizontalAlignment.Left;
+        Grid.SetColumn(control, 1);
+        grid.Children.Add(control);
+        return grid;
     }
 
     internal const double ShortestLap = 10;
@@ -176,10 +230,4 @@ internal static class FuelCalculator
         return e;
     }
 
-    private static FrameworkElement Result(string label, string value, string? brush = null)
-    {
-        var v = new TextBlock { Text = value, Style = Ui.Res<Style>("BigValue"), FontSize = 20 };
-        if (brush is not null) v.SetResourceReference(TextBlock.ForegroundProperty, brush);
-        return new StackPanel { Margin = new Thickness(0, 0, 16, 0), Children = { v, new TextBlock { Text = label, Style = Ui.Res<Style>("Caption") } } };
-    }
 }

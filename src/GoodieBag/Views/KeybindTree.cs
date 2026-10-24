@@ -17,16 +17,20 @@ internal sealed class KeybindTree : Tile
     private readonly Action<string>? _navigate;
     private readonly Func<HotkeyEntry, bool> _include;
     private readonly int _skip;
+    private readonly Func<string, string> _label;
+    private readonly bool _flat;
     private readonly StackPanel _root = new();
     private bool _arranging;
     private string _query = "";
 
-    public KeybindTree(AppServices app, Func<HotkeyEntry, bool> include, int skip = 0, Action<string>? navigate = null)
+    public KeybindTree(AppServices app, Func<HotkeyEntry, bool> include, int skip = 0, Action<string>? navigate = null, Func<string, string>? label = null, bool flat = false)
     {
+        _flat = flat;
         _app = app;
         _include = include;
         _skip = skip;
         _navigate = navigate;
+        _label = label ?? (l => l);
         Style = Ui.Res<Style>("Card");
         Padding = new Thickness(14, 8, 14, 10);
         Child = _root;
@@ -104,7 +108,7 @@ internal sealed class KeybindTree : Tile
         _root.Children.Clear();
         _groups.Clear();
         _counts.Clear();
-        var entries = _app.Hotkeys.Catalog().Where(e => _app.Hotkeys.IsAvailable(e) && _include(e) && e.Path.Count > _skip).ToList();
+        var entries = _app.Hotkeys.Catalog().Where(e => _app.Hotkeys.IsAvailable(e) && _include(e) && (_flat ? e.Path.Count >= _skip : e.Path.Count > _skip)).ToList();
         if (entries.Count == 0)
         {
             _root.Children.Add(new TextBlock { Text = "No keybinds yet: window profiles, display profiles and the overlay add theirs when they're on.", Style = Ui.Res<Style>("Caption") });
@@ -313,7 +317,7 @@ internal sealed class KeybindTree : Tile
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(_navigate is null ? 0 : 30) });
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
-        names.Children.Add(new TextBlock { Text = entry.Label, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Label });
+        names.Children.Add(new TextBlock { Text = _label(entry.Label), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = entry.Label });
         if (entry.Note is { } note)
             names.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = note, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis }));
         grid.Children.Add(names);

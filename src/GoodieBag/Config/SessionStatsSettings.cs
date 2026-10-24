@@ -28,7 +28,7 @@ public sealed class SessionStatsSettings
 
     public double ReplaySpeed { get; set; } = 1;
 
-    public double ReplayZoom { get; set; } = 0.8;
+    public double ReplayZoom { get; set; } = 0.5;
 
     public bool ReplayTurn { get; set; } = true;
 
@@ -55,6 +55,6 @@ public sealed class SessionStatsSettings
         if (Range is not ("week" or "month" or "season" or "all")) Range = "season";
         if (ReplaySync is not ("distance" or "time")) ReplaySync = "distance";
         if (!SessionStats.LapReplay.Speeds.Contains(ReplaySpeed)) ReplaySpeed = 1;
-        ReplayZoom = double.IsFinite(ReplayZoom) ? Math.Clamp(ReplayZoom, 0, 1) : 0.8;
+        ReplayZoom = double.IsFinite(ReplayZoom) ? Math.Clamp(ReplayZoom, 0, 1) : 0.5;
     }
 }

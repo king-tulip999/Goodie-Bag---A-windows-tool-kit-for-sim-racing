@@ -70,6 +70,7 @@ internal static class ThemeManager
             res[$"Tool{i + 1}Deep"] = Freeze(new SolidColorBrush(tints[i].Deep));
         }
         res["MeterFill"] = Freeze(new SolidColorBrush(MeterFillColor));
+        res["TimingBest"] = Freeze(new SolidColorBrush(spec.Dark ? TimingBestDark : TimingBestLight));
         res["Changed"] = res["Accent"];
         res["CardEdgeThickness"] = new Thickness(1);
         res["BtnEdgeThickness"] = spec.ButtonEdge;
@@ -140,6 +141,8 @@ internal static class ThemeManager
     };
 
     internal static readonly Color MeterFillColor = Color.FromRgb(0x6F, 0xD9, 0xA3);
+
+    internal static readonly Color TimingBestDark = Color.FromRgb(0xB9, 0x7C, 0xFF), TimingBestLight = Color.FromRgb(0x7E, 0x3F, 0xD0);
 
     internal static List<(Color Soft, Color Deep)> ToolTints(IReadOnlyDictionary<string, Color> p, bool dark) =>
         ToolHues.Select(hue => (Mix(p["Surface"], hue, 0.2), dark ? Mix(hue, Colors.White, 0.3) : Mix(hue, Colors.Black, 0.52))).ToList();

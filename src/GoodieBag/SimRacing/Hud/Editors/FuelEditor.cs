@@ -10,7 +10,7 @@ internal static class FuelEditor
         ContentTitle = "Sections",
         Groups = new HudGroup[]
         {
-            new("look", "Look", HudTab.Layout, true, O("title"), O("statusEdge")),
+            new("look", "Title and edges", HudTab.Layout, true, O("title"), O("statusEdge")),
             new("rates", "Rates", HudTab.Layout, true, O("avgLaps") with { ShowIf = o => Has("parts", "grid")(o) && Has("gridRows", "avgN")(o) }),
             new("parts", "Sections", HudTab.Content, true, new PickerSetting("parts", NoCategories)),
             new("shows", "In the sections", HudTab.Content, true,

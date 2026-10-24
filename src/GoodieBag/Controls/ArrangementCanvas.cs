@@ -38,11 +38,32 @@ public sealed class ArrangementCanvas : Canvas
 
     public bool Animate { get; set; } = true;
 
+    public double MinFitHeight { get; set; } = 200;
+
+    public double MaxFitHeight { get; set; } = 440;
+
+    private const double Pad = 40, MaxScale = 0.13;
+
     public ArrangementCanvas()
     {
         ClipToBounds = true;
         Background = Brushes.Transparent;
-        SizeChanged += (_, _) => Layout(animate: false);
+        Height = MinFitHeight;
+        SizeChanged += (_, e) =>
+        {
+            if (e.WidthChanged) FitHeight();
+            Layout(animate: false);
+        };
+    }
+
+    private void FitHeight()
+    {
+        if (_tiles.Count == 0 || ActualWidth <= 0) return;
+        double w = _tiles.Max(t => t.X + t.Width) - _tiles.Min(t => t.X);
+        double h = _tiles.Max(t => t.Y + t.Height) - _tiles.Min(t => t.Y);
+        double scale = Math.Min((ActualWidth - Pad * 2) / Math.Max(1, w), MaxScale);
+        double fit = Math.Round(Math.Clamp(h * scale + Pad * 2, MinFitHeight, MaxFitHeight));
+        if (Math.Abs(fit - Height) > 0.5) Height = fit;
     }
 
     public void SetTiles(List<ArrangeTile> tiles, string? selected)
@@ -58,6 +79,7 @@ public sealed class ArrangementCanvas : Canvas
             _visuals[tile.Key] = border;
             Children.Add(border);
         }
+        FitHeight();
         Layout(animate: false);
     }
 
@@ -75,6 +97,7 @@ public sealed class ArrangementCanvas : Canvas
             if (_visuals.TryGetValue(t.Key, out var v))
                 Fill(v, t);
         }
+        FitHeight();
         Layout(animate);
     }
 
@@ -86,9 +109,8 @@ public sealed class ArrangementCanvas : Canvas
         _minX = _tiles.Min(t => t.X);
         _minY = _tiles.Min(t => t.Y);
         double maxX = _tiles.Max(t => t.X + t.Width), maxY = _tiles.Max(t => t.Y + t.Height);
-        double pad = 40;
-        _scale = Math.Min((ActualWidth - pad * 2) / Math.Max(1, maxX - _minX), (ActualHeight - pad * 2) / Math.Max(1, maxY - _minY));
-        _scale = Math.Min(_scale, 0.18);
+        _scale = Math.Min((ActualWidth - Pad * 2) / Math.Max(1, maxX - _minX), (ActualHeight - Pad * 2) / Math.Max(1, maxY - _minY));
+        _scale = Math.Min(_scale, MaxScale);
         _ox = (ActualWidth - (maxX - _minX) * _scale) / 2;
         _oy = (ActualHeight - (maxY - _minY) * _scale) / 2;
 

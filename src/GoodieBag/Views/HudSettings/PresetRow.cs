@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using GoodieBag.Controls;
 using GoodieBag.SimRacing.Hud.Editors;
 
@@ -31,12 +30,10 @@ internal sealed class PresetRow : DockPanel
         Children.Add(new Tile { Style = Ui.Res<Style>("Segmented"), Child = panel });
         _custom = new Border
         {
-            Child = new TextBlock { Text = "Custom", VerticalAlignment = VerticalAlignment.Center },
-            Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(10, 0, 0, 0), MinHeight = 28, VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock { Text = "Modified", Style = Ui.Res<Style>("Caption"), FontStyle = FontStyles.Italic, VerticalAlignment = VerticalAlignment.Center },
+            Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "Your own settings: they don't match a preset",
         };
-        _custom.SetResourceReference(Border.BackgroundProperty, "AccentSoft");
-        _custom.SetResourceReference(TextElement.ForegroundProperty, "AccentText");
         Children.Add(_custom);
     }
 

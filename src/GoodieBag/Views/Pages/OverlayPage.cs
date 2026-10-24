@@ -56,6 +56,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     public void OnShown()
     {
         _visible.IsChecked = O.Visible;
+        RefreshStatus();
         if (!ReferenceEquals(_built, L)) BuildSettings();
         RenderPreview();
         _app.Tick += RenderPreview;
@@ -76,6 +77,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private void OnOverlayChanged()
     {
         _visible.IsChecked = O.Visible;
+        RefreshStatus();
         if (!ReferenceEquals(_built, L)) BuildSettings();
         RenderPreview();
     }
@@ -90,6 +92,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     {
         if (!_embedded)
             BuildTitle();
+        BuildStatus();
 
         var columns = new Grid();
         columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -122,21 +125,33 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         BuildGeneral();
         BuildPosition();
         BuildMetrics();
-        BuildNote();
+        BuildLook();
         UpdateContrast();
     }
 
-    private void BuildNote()
+    private readonly ContentControl _statusChip = new() { Focusable = false, VerticalAlignment = VerticalAlignment.Center };
+
+    private void BuildStatus()
     {
-        _right.Children.Add(new Tile
-        {
-            Style = Ui.Res<Style>("Inset"),
-            Child = new TextBlock
-            {
-                Text = "The overlay shows over borderless and windowed games, not exclusive fullscreen. On some setups a window on top of the game can stop Windows using its lowest-latency presentation mode; hide the overlay with the keybind for races if you notice it.",
-                Style = Ui.Res<Style>("Caption"),
-            },
-        });
+        var text = new TextBlock { Text = "Shows over borderless and windowed games, not exclusive fullscreen.", Style = Ui.Res<Style>("Body"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        var tip = GoodieBag.Views.HudSettings.HelpTip.For("Nothing is injected into the game, so it's safe with anti-cheat. On some setups a window on top of the game can stop Windows using its lowest-latency presentation mode; hide the overlay with the keybind for races if you notice it.", "Performance Overlay");
+        tip.VerticalAlignment = VerticalAlignment.Center;
+        var left = new TrimRow { Children = { text, tip } };
+        Detached(_visible).VerticalAlignment = VerticalAlignment.Center;
+        _visible.Margin = new Thickness(12, 0, 0, 0);
+        _visible.Content = null;
+        AutomationProperties.SetName(_visible, "Show overlay");
+        var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { _statusChip, _visible } };
+        RefreshStatus();
+        _body.Children.Add(new Tile { Style = Ui.Res<Style>("Card"), Margin = new Thickness(0, 0, 0, 16), Child = Ui.SplitRow(left, right, 16, stackLeft: true) });
+    }
+
+    private void RefreshStatus()
+    {
+        var chip = O.Visible ? Ui.Chip("On", "SageSoft", "SageDeep") : Ui.Chip("Off", "DangerSoft", "Danger");
+        chip.Margin = new Thickness(0);
+        chip.VerticalAlignment = VerticalAlignment.Center;
+        _statusChip.Content = chip;
     }
 
     private void BuildPreview()
@@ -159,15 +174,14 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         scene.Children.Add(Detached(_scene));
         var stack = new StackPanel();
         var head = new Grid();
-        head.ColumnDefinitions.Add(new ColumnDefinition());
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
         var title = Ui.Text("Preview", "H2");
         title.VerticalAlignment = VerticalAlignment.Center;
         head.Children.Add(title);
-        Detached(_visible).VerticalAlignment = VerticalAlignment.Center;
-        _visible.Margin = new Thickness(12, 0, 0, 0);
-        Grid.SetColumn(_visible, 1);
-        head.Children.Add(_visible);
+        var hint = TextFit.TipWhenTrimmed(new TextBlock { Text = "Drag values or group names to reorder", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        Grid.SetColumn(hint, 1);
+        head.Children.Add(hint);
         stack.Children.Add(head);
         stack.Children.Add(new Tile { CornerRadius = ThemeManager.Round(12), Margin = new Thickness(0, 12, 0, 0), Child = new Tile { CornerRadius = ThemeManager.Round(12), Child = scene, ClipToBounds = true } });
         _previewNote.Style = Ui.Res<Style>("Caption");
@@ -341,14 +355,21 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         }, 200);
         pick.Margin = new Thickness(0, 0, 6, 6);
         row.Children.Add(pick);
-        row.Children.Add(Wrapped(Ui.LabeledButton("I.Plus", "New", () => _ = NewLayoutAsync(copy: false), "GhostButton")));
-        row.Children.Add(Wrapped(Ui.LabeledButton("I.Copy", "Duplicate", () => _ = NewLayoutAsync(copy: true), "GhostButton")));
-        var icons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 6) };
-        icons.Children.Add(Ui.IconButton("I.Pencil", "Rename", () => _ = RenameAsync()));
-        var delete = Ui.IconButton("I.Trash", "Delete this layout", () => _ = DeleteAsync());
-        delete.IsEnabled = O.Layouts.Count > 1;
-        icons.Children.Add(delete);
-        row.Children.Add(icons);
+        bool builtIn = L.IsDefault;
+        var dup = Ui.IconButton("I.Copy", "Duplicate this layout", () => _ = NewLayoutAsync(copy: true));
+        var rename = Ui.IconButton("I.Pencil", builtIn ? "The default layout keeps its name" : "Rename this layout", () => _ = RenameAsync());
+        rename.IsEnabled = !builtIn;
+        var delete = Ui.IconButton("I.Trash", builtIn ? "The default layout is always there" : "Delete this layout", () => _ = DeleteAsync());
+        delete.IsEnabled = !builtIn && O.Layouts.Count > 1;
+        foreach (var b in new[] { dup, rename, delete })
+        {
+            ToolTipService.SetShowOnDisabled(b, true);
+            row.Children.Add(Wrapped(b));
+        }
+        row.Children.Add(Wrapped(Ui.LabeledButton("I.Plus", "New layout", () => _ = NewLayoutAsync(copy: false), "PrimaryButton")));
+        var reset = Ui.LabeledButton("I.Restore", "Reset to default", () => _ = ResetLayoutAsync(), "GhostButton");
+        reset.ToolTip = "Puts every setting of this layout back as it comes with Goodie Bag";
+        row.Children.Add(Wrapped(reset));
         stack.Children.Add(row);
         var card = Card(stack);
         Ui.Anchor(card, "overlay.layouts");
@@ -361,7 +382,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         var std = new OverlayLayout();
         Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); Changed(); BuildSettings(); }, shown);
         var general = new SettingsFlow();
-        general.Children.Add(Ui.Text("General", "H2"));
+        general.Children.Add(Ui.Text("Keybinds and data", "H2"));
         general.Children.Add(Ui.SubHeader("Keybinds", first: true));
         general.Children.Add(Anchored(Ui.SettingRow("Show / hide", null, hotkey), "overlay.hotkey"));
         general.Children.Add(Anchored(Ui.SettingRow("Reset FPS statistics", null,
@@ -372,16 +393,24 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
                 i => { O.UpdateIntervalMs = i switch { 0 => 250, 2 => 1000, _ => 500 }; Changed(); }, "Rate",
                 new[] { "Fast: 4 times a second. Smoothest numbers, slightly more CPU", "Normal: twice a second", "Relaxed: once a second. The lightest; numbers jump less" }),
             D(() => O.UpdateIntervalMs == 500, () => O.UpdateIntervalMs = 500, "Normal")), "overlay.rate"));
-        general.Children.Add(Ui.SettingRow("FPS statistics", "Average and 1% low cover the whole session for each game.",
+        general.Children.Add(Ui.SettingRow("FPS statistics", "Average and 1% low cover the whole session for each game; average temperatures, the time the overlay has been showing.",
             Ui.LabeledButton("I.Refresh", "Reset", _app.ResetFpsStats)));
-        general.Children.Add(Ui.SubHeader("Look"));
-        general.Children.Add(Anchored(Ui.SettingRow("Layout style", null,
+        _left.Children.Add(Card(general));
+    }
+
+    private void BuildLook()
+    {
+        var std = new OverlayLayout();
+        Ui.SettingDefault D(Func<bool> same, Action reset, string shown) => new(same, () => { reset(); Changed(); BuildSettings(); }, shown);
+        var general = new SettingsFlow();
+        general.Children.Add(Ui.Text("Look", "H2"));
+        general.Children.Add(Anchored(Ui.SettingRow("Style", null,
             Ui.Segmented(new[] { "Expanded", "Compact" }, (int)L.Style, i => { L.Style = (OverlayStyle)i; Changed(); }, "Style",
                 new[] { "One row per group (CPU, GPU, FPS…), easy to read at a glance", "Everything on one line: takes the least room over your game" }),
             D(() => L.Style == std.Style, () => L.Style = std.Style, std.Style.ToString())), "overlay.style"));
         general.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 160, 5),
             D(() => L.FontScale == std.FontScale, () => L.FontScale = std.FontScale, std.FontScale + "%")), "overlay.font"));
-        general.Children.Add(Anchored(Ui.SettingRow("Background opacity", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5),
+        general.Children.Add(Anchored(Ui.SettingRow("Background", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5),
             D(() => L.BackgroundOpacity == std.BackgroundOpacity, () => L.BackgroundOpacity = std.BackgroundOpacity, std.BackgroundOpacity + "%")), "overlay.opacity"));
         general.Children.Add(Anchored(Ui.SettingRow("Frame-time graph", "Spikes are stutters.",
             Ui.Switch(L.ShowGraph, v => { L.ShowGraph = v; Changed(); }),
@@ -390,7 +419,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         rename.ToolTip = "Your own names for what the overlay shows (e.g. GPU → 7900 XTX)";
         general.Children.Add(Anchored(Ui.SettingRow("Names", null, rename), "overlay.names"));
         BuildColors(general);
-        _left.Children.Add(Card(general));
+        _right.Children.Add(Card(general));
     }
 
     private void BuildPosition()
@@ -505,31 +534,18 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private void BuildMetrics()
     {
         var metrics = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
-        var head = new StackPanel();
-        var title = Ui.Text("What to show", "H2");
-        title.Margin = new Thickness(0, 0, 0, 4);
-        var tip = Ui.IconText("I.Info", new TextBlock { Text = "Values and group names can be dragged into a new order in the live preview", Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap }, "TextMuted");
-        head.Children.Add(title);
-        head.Children.Add(tip);
-        metrics.Children.Add(head);
+        metrics.Children.Add(Ui.Text("What to show", "H2"));
         foreach (var group in L.GroupOrder())
         {
             var row = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
             var label = new TextBlock { Text = group, Style = Ui.Res<Style>("Eyebrow"), Width = 70, Margin = new Thickness(0, 7, 0, 0), VerticalAlignment = VerticalAlignment.Top };
             row.Children.Add(label);
-            var switches = new WrapPanel();
-            foreach (var entry in L.Metrics.Where(m => OverlayLayout.GroupOf(m.Metric) == group))
-            {
-                var e = entry;
-                var sw = Ui.Switch(e.Enabled, v => { e.Enabled = v; Changed(); });
-                sw.Content = ShortLabel(e.Metric);
-                sw.ToolTip = MetricLabel(e.Metric);
-                sw.Width = 150;
-                sw.Margin = new Thickness(0, 3, 8, 3);
-                AutomationProperties.SetName(sw, MetricLabel(e.Metric));
-                switches.Children.Add(sw);
-            }
-            row.Children.Add(switches);
+            var entries = L.Metrics.Where(m => OverlayLayout.GroupOf(m.Metric) == group).ToList();
+            var chips = GoodieBag.Views.HudSettings.SettingRows.Toggles(
+                entries.Select(e => (e.Metric.ToString(), ShortLabel(e.Metric), (string?)MetricLabel(e.Metric))).ToList(),
+                id => entries.First(e => e.Metric.ToString() == id).Enabled,
+                (id, on) => { entries.First(e => e.Metric.ToString() == id).Enabled = on; Changed(); });
+            row.Children.Add(chips);
             metrics.Children.Add(row);
         }
         Ui.Anchor(metrics, "overlay.metrics");
@@ -544,6 +560,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         OverlayMetric.OnePercentLow => "1% low",
         OverlayMetric.FrameTime => "Frame time",
         OverlayMetric.GpuTemp or OverlayMetric.CpuTemp => "Temp",
+        OverlayMetric.AverageGpuTemp or OverlayMetric.AverageCpuTemp => "Average temp",
         OverlayMetric.GpuLoad or OverlayMetric.CpuLoad => "Usage",
         OverlayMetric.GpuHotSpot => "Hot spot",
         OverlayMetric.GpuClock or OverlayMetric.CpuClock => "Clock",
@@ -563,6 +580,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         OverlayMetric.OnePercentLow => "1% low",
         OverlayMetric.FrameTime => "Frame time",
         OverlayMetric.GpuTemp => "GPU temperature",
+        OverlayMetric.AverageGpuTemp => "GPU average temperature",
         OverlayMetric.GpuLoad => "GPU usage",
         OverlayMetric.GpuHotSpot => "GPU hot spot",
         OverlayMetric.GpuClock => "GPU clock",
@@ -570,6 +588,7 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         OverlayMetric.GpuFan => "GPU fan speed",
         OverlayMetric.Vram => "GPU VRAM",
         OverlayMetric.CpuTemp => "CPU temperature",
+        OverlayMetric.AverageCpuTemp => "CPU average temperature",
         OverlayMetric.CpuLoad => "CPU usage",
         OverlayMetric.CpuClock => "CPU clock",
         OverlayMetric.CpuPower => "CPU power",
@@ -660,12 +679,14 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
     private static readonly (OverlayMetric Metric, string Tag)[] TagDefaults =
     {
         (OverlayMetric.AverageFps, "avg"), (OverlayMetric.OnePercentLow, "1%"), (OverlayMetric.GpuHotSpot, "hotspot"), (OverlayMetric.GpuFan, "fan"),
+        (OverlayMetric.AverageGpuTemp, "avg"), (OverlayMetric.AverageCpuTemp, "avg"),
         (OverlayMetric.Fps, ""), (OverlayMetric.GpuTemp, ""), (OverlayMetric.GpuLoad, ""), (OverlayMetric.CpuTemp, ""), (OverlayMetric.CpuLoad, ""),
     };
 
     private async Task RenameAsync()
     {
         var layout = L;
+        if (layout.IsDefault) return;
         string? name = await _window.Prompt("Rename layout", "A name for this layout.", layout.Name, n => n == layout.Name ? null : ValidateName(n, layout));
         if (name is null || name == layout.Name) return;
         string old = layout.Name;
@@ -675,13 +696,25 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
         BuildSettings();
     }
 
+    private async Task ResetLayoutAsync()
+    {
+        var layout = L;
+        if (!await _window.Confirm($"Reset “{layout.Name}” to default?", "What it shows, its order, names, look and place on screen go back to the defaults.", "Reset"))
+            return;
+        var fresh = new OverlayLayout { Name = layout.Name };
+        fresh.Complete();
+        O.Layouts[O.Layouts.IndexOf(layout)] = fresh;
+        Changed();
+        BuildSettings();
+    }
+
     private async Task DeleteAsync()
     {
         var layout = L;
-        if (O.Layouts.Count <= 1 || !await _window.Confirm($"Delete “{layout.Name}”?", "This can't be undone.", "Delete", danger: true))
+        if (layout.IsDefault || O.Layouts.Count <= 1 || !await _window.Confirm($"Delete “{layout.Name}”?", "This can't be undone.", "Delete", danger: true))
             return;
         O.Layouts.Remove(layout);
-        O.ActiveLayout = O.Layouts[0].Name;
+        O.ActiveLayout = (O.Layouts.FirstOrDefault(l => l.IsDefault) ?? O.Layouts[0]).Name;
         Changed();
         BuildSettings();
     }

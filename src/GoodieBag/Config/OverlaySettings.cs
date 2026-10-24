@@ -5,8 +5,8 @@ public enum OverlayCorner { TopLeft, TopRight, BottomLeft, BottomRight }
 public enum OverlayMetric
 {
     Fps, AverageFps, OnePercentLow, FrameTime,
-    GpuTemp, GpuLoad, GpuHotSpot, GpuClock, GpuPower, GpuFan, Vram,
-    CpuTemp, CpuLoad, CpuClock, CpuPower,
+    GpuTemp, AverageGpuTemp, GpuLoad, GpuHotSpot, GpuClock, GpuPower, GpuFan, Vram,
+    CpuTemp, AverageCpuTemp, CpuLoad, CpuClock, CpuPower,
     Ram, Ping, Network, Fans,
 }
 
@@ -74,7 +74,11 @@ public sealed class OverlayMetricEntry
 
 public sealed class OverlayLayout
 {
-    public string Name { get; set; } = "Default";
+    public const string DefaultName = "Default";
+
+    public string Name { get; set; } = DefaultName;
+
+    public bool IsDefault => string.Equals(Name, DefaultName, StringComparison.OrdinalIgnoreCase);
 
     public List<OverlayMetricEntry> Metrics { get; set; } = DefaultMetrics();
 
@@ -115,9 +119,9 @@ public sealed class OverlayLayout
     public static string GroupOf(OverlayMetric m) => m switch
     {
         OverlayMetric.Fps or OverlayMetric.AverageFps or OverlayMetric.OnePercentLow or OverlayMetric.FrameTime => "FPS",
-        OverlayMetric.GpuTemp or OverlayMetric.GpuLoad or OverlayMetric.GpuHotSpot or OverlayMetric.GpuClock or OverlayMetric.GpuPower or OverlayMetric.GpuFan => "GPU",
+        OverlayMetric.GpuTemp or OverlayMetric.AverageGpuTemp or OverlayMetric.GpuLoad or OverlayMetric.GpuHotSpot or OverlayMetric.GpuClock or OverlayMetric.GpuPower or OverlayMetric.GpuFan => "GPU",
         OverlayMetric.Vram => "VRAM",
-        OverlayMetric.CpuTemp or OverlayMetric.CpuLoad or OverlayMetric.CpuClock or OverlayMetric.CpuPower => "CPU",
+        OverlayMetric.CpuTemp or OverlayMetric.AverageCpuTemp or OverlayMetric.CpuLoad or OverlayMetric.CpuClock or OverlayMetric.CpuPower => "CPU",
         OverlayMetric.Ram => "RAM",
         OverlayMetric.Ping or OverlayMetric.Network => "NET",
         _ => "FAN",
@@ -216,6 +220,8 @@ public sealed class OverlaySettings
     {
         if (Layouts.Count == 0)
             Layouts.Add(ShowGpu is null ? new OverlayLayout() : Migrated());
+        if (!Layouts.Any(l => l.IsDefault))
+            Layouts.Insert(0, new OverlayLayout());
         foreach (var layout in Layouts)
             layout.Complete();
         if (Layouts.All(l => l.Name != ActiveLayout))

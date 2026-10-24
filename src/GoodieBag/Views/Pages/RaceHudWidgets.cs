@@ -247,15 +247,18 @@ internal sealed class RaceHudWidgets
         if (!_general && (_selected is null || widgets.All(x => x.Id != _selected))) _selected = widgets.FirstOrDefault()?.Id;
         if (_selected is null && !_inPage) _general = true;
         string group = "hudnav" + GetHashCode();
-        RadioButton Item(string text, bool on, bool? dot, Action pick)
+        RadioButton Item(string text, bool on, HudWidgetConfig? widget, Action pick)
         {
             var row = new DockPanel { LastChildFill = true };
-            if (dot is { } shown)
+            if (widget is { } w)
             {
-                var mark = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(10, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = shown ? "On screen" : "Switched off" };
-                mark.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, shown ? "Sage" : "LineStrong");
-                DockPanel.SetDock(mark, Dock.Right);
-                row.Children.Add(mark);
+                var shown = Ui.Switch(w.Enabled, v => { w.Enabled = v; Changed(); Fill(); });
+                shown.ToolTip = w.Enabled ? "Shown: switch off to hide this widget" : "Hidden: switch on to show this widget";
+                shown.Margin = new Thickness(10, 0, 0, 0);
+                shown.VerticalAlignment = VerticalAlignment.Center;
+                System.Windows.Automation.AutomationProperties.SetName(shown, "Show " + text);
+                DockPanel.SetDock(shown, Dock.Right);
+                row.Children.Add(shown);
             }
             row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center }));
             var b = new RadioButton { Style = Ui.Res<Style>("NavItem"), GroupName = group, IsChecked = on, Content = row, HorizontalContentAlignment = HorizontalAlignment.Stretch, Height = 34 };
@@ -268,11 +271,11 @@ internal sealed class RaceHudWidgets
             _nav.Children.Add(Eyebrow("Overlay"));
             _nav.Children.Add(Item("Settings", _general, null, () => { _general = true; Host?.Pick(null); Fill(); }));
         }
-        _nav.Children.Add(Eyebrow(layout is null ? "Widgets" : $"Widgets · {layout.Name}"));
+        _nav.Children.Add(Eyebrow(_inPage || layout is null ? "Widgets" : $"Widgets · {layout.Name}"));
         foreach (var w in widgets)
         {
             var id = w.Id;
-            _nav.Children.Add(Item(NameOf(w), !_general && id == _selected, w.Enabled, () => { _general = false; _selected = id; Host?.Pick(id); Fill(); }));
+            _nav.Children.Add(Item(NameOf(w), !_general && id == _selected, w, () => { _general = false; _selected = id; Host?.Pick(id); Fill(); }));
         }
         var add = Ui.LabeledButton("I.Plus", "Add widget", () => { }, "SoftButton");
         add.Click += (_, _) => AddMenu(add);
@@ -291,13 +294,8 @@ internal sealed class RaceHudWidgets
         else
         {
             var def = HudCatalog.Find(picked.Kind);
-            var on = Ui.Switch(picked.Enabled, v => { picked.Enabled = v; Changed(); Fill(); });
-            on.ToolTip = "Show this widget";
-            on.VerticalAlignment = VerticalAlignment.Center;
             var remove = RemoveButton(picked);
-            remove.Margin = new Thickness(8, 0, 0, 0);
-            var title = TitleCard(NameOf(picked), def?.Description ?? "This widget was made by a newer version of Goodie Bag. It's kept, but not drawn.",
-                new StackPanel { Orientation = Orientation.Horizontal, Children = { on, remove } });
+            var title = TitleCard(NameOf(picked), def?.Description ?? "This widget was made by a newer version of Goodie Bag. It's kept, but not drawn.", remove, def?.Limits);
             if (_inPage) _pickedCard = title;
             body.Children.Add(title);
             if (def is not null && _inPage) body.Children.Add(PreviewBeside(picked, def));
@@ -494,13 +492,20 @@ internal sealed class RaceHudWidgets
         return actions;
     }
 
-    private static FrameworkElement TitleCard(string title, string text, FrameworkElement? toggle)
+    private static FrameworkElement TitleCard(string title, string text, FrameworkElement? toggle, string? more = null)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var words = new StackPanel();
-        words.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = title, Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis }));
+        var name = TextFit.TipWhenTrimmed(new TextBlock { Text = title, Style = Ui.Res<Style>("H2"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+        if (more is null) words.Children.Add(name);
+        else
+        {
+            var tip = HelpTip.For(more, title);
+            tip.VerticalAlignment = VerticalAlignment.Center;
+            words.Children.Add(new TrimRow { Children = { name, tip } });
+        }
         words.Children.Add(new TextBlock { Text = text, Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 16, 0) });
         grid.Children.Add(words);
         if (toggle is not null)
@@ -514,7 +519,7 @@ internal sealed class RaceHudWidgets
 
     private FrameworkElement Tabs(HudEditorDef editor)
     {
-        var names = new List<(string Id, string Title)> { (LayoutTab, "Layout") };
+        var names = new List<(string Id, string Title)> { (LayoutTab, "Look") };
         if (editor.Has(HudTab.Content)) names.Add((ContentTab, editor.ContentTitle));
         names.Add((VisibilityTab, "When shown"));
         names.Add((PositionTab, "Placement"));
@@ -583,8 +588,6 @@ internal sealed class RaceHudWidgets
             stack.Children.Add(box);
         }
         RefreshVisibility();
-        if (tab == HudTab.Layout && def.Limits is { } limits)
-            stack.Children.Add(new TextBlock { Text = limits, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
         return stack;
     }
 

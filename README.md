@@ -10,7 +10,7 @@ Every feature is a plugin you can switch off, and when one's off it runs nothing
 
 ### Window Profiles
 
-Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once.
+Pick a program and give its window an exact size and spot: a game stretched across triple screens, held at a fixed resolution, or moved onto a side screen, with its borders removed. Presets cover your own displays, triple 1080p / 1440p / 4K and common window sizes. Profiles apply when the program starts (with a delay for games that resize themselves), with a keybind, from the tray or with one click, and groups move several programs at once. Each profile shows a small picture of where its window goes on your displays.
 
 <p>
   <img src="screenshots/window-profiles.png" alt="Window Profiles" width="49%">
@@ -37,7 +37,7 @@ Curves, presets, calibration and an emergency failsafe. When you quit you can ke
 
 ### Hardware Monitor
 
-A dashboard of CPU, GPU, memory, network, storage, fans and frame rate, with every sensor your PC exposes. The **Performance Overlay** (FPS, 1% lows, temps, usage) lives here too, and you can drag things into whatever order you want.
+A dashboard of CPU, GPU, memory, network, storage, fans and frame rate. The **Performance Overlay** (FPS, 1% lows, average FPS and temperatures, usage) lives here too: drag its readings into whatever order you want, keep several layouts, and reset any of them to the default.
 
 <p>
   <img src="screenshots/hardware-monitor.png" alt="Hardware Monitor dashboard" width="49%">
@@ -59,7 +59,7 @@ Relative, Standings, Fuel & strategy, Lap timing & delta, Lap history, Tires, We
 
 #### iRacing Setup Manager
 
-All your setups sorted by car and class. Rename, move, import share packs and pick up new downloads. A fuel calculator for the selected car works out the race laps, fuel and stops.
+All your setups sorted by car and class. Rename, move, import share packs and pick up new downloads. A fuel calculator for the selected car tells you how much fuel to start with and how many stops you'll need.
 
 ![iRacing Setup Manager](screenshots/iracing-setup-manager.png)
 
@@ -71,7 +71,7 @@ iRacing's settings in plain language (search, see what differs from iRacing's de
 
 #### FOV Calculator
 
-Single and triple screens, compare rigs, and write the result straight into iRacing.
+Single and triple screens, compare rigs, and write the result straight into iRacing. It tells you when iRacing's FOV doesn't match your rig, or your side screens aren't at the best angle.
 
 ![FOV Calculator](screenshots/fov-calculator.png)
 
@@ -128,7 +128,7 @@ Works on Windows 10 and 11 (x64).
 
 ## GRR League plugin
 
-If you race in the GRR league, turn on the GRR League plugin (Settings → Plugins). It shows your next race, the championship, results and the schedule from the GRR website without leaving the app. It's off by default, so nobody else sees it.
+If you race in the GRR league, turn on the GRR League plugin (Settings → Plugins). It shows your next race and the season's schedule, the championship and results for your class, and where you stand, all from the GRR website without leaving the app. It's off by default, so nobody else sees it.
 
 ![GRR League](screenshots/grr-league.png)
 

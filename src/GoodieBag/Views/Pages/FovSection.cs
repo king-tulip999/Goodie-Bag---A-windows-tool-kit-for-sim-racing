@@ -78,7 +78,7 @@ internal sealed class FovSection : StackPanel
             _top.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
         for (int i = 0; i < 3; i++) _top.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var inputsCard = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 14, 18, 14), Child = _inputs };
-        var left = new StackPanel();
+        var left = new Grid();
         left.Children.Add(inputsCard);
         _top.Children.Add(left);
         var diagramStack = new DockPanel();
@@ -415,10 +415,14 @@ internal sealed class FovSection : StackPanel
         _numbers.Children.Clear();
         _numbers.Children.Add(_tools);
         var numbers = _mode == 2 ? (Panel)_numbers : new UniformGrid { Columns = 3, Margin = new Thickness(-6, 0, -6, 0) };
-        numbers.Children.Add(Number("Horizontal FOV", $"{r.HorizontalFovTotal:0.0}°", r.Triple ? $"All three screens · center {r.HorizontalFovCentre:0.0}°" : "iRacing, AMS2, LFS, RaceRoom", "I.Eye", "SageSoft", "SageDeep"));
-        numbers.Children.Add(Number("Vertical FOV", $"{r.VerticalFov:0.0}°", r.Triple && C.MixedSides ? $"Center · sides {r.VerticalFovSide:0.0}°" : "AC, ACC, LMU, rF2, AMS1, BeamNG", "I.Sliders", "SlateSoft", "SlateDeep"));
+        const string HorizontalGames = "Games that take a horizontal FOV: iRacing, AMS2, LFS, RaceRoom";
+        const string VerticalGames = "Games that take a vertical FOV: AC, ACC, LMU, rF2, AMS1, BeamNG";
+        numbers.Children.Add(Number("Horizontal FOV", $"{r.HorizontalFovTotal:0.0}°", r.Triple ? $"All three screens · center {r.HorizontalFovCentre:0.0}°" : "For horizontal-FOV games", "I.Eye", "SageSoft", "SageDeep", HorizontalGames));
+        numbers.Children.Add(Number("Vertical FOV", $"{r.VerticalFov:0.0}°", r.Triple && C.MixedSides ? $"Center · sides {r.VerticalFovSide:0.0}°" : "For vertical-FOV games", "I.Sliders", "SlateSoft", "SlateDeep", VerticalGames));
+        bool offIdeal = r.Triple && !C.AutoAngle && Math.Abs(r.SideAngle - r.OptimalSideAngle) >= 3;
         numbers.Children.Add(r.Triple
-            ? Number("Side angle", $"{r.SideAngle:0.0}°", C.AutoAngle ? $"Turned in from flat · {180 - r.SideAngle:0.0}° between screens" : $"Your angle · ideal is {r.OptimalSideAngle:0.0}°", "I.Rotate", "ApricotSoft", "ApricotDeep")
+            ? Number("Side angle", $"{r.SideAngle:0.0}°", C.AutoAngle ? $"Turned in from flat · {180 - r.SideAngle:0.0}° between screens" : $"Your angle · ideal is {r.OptimalSideAngle:0.0}°", "I.Rotate", "ApricotSoft", "ApricotDeep",
+                offIdeal ? $"{Math.Abs(r.SideAngle - r.OptimalSideAngle):0.0}° {(r.SideAngle > r.OptimalSideAngle ? "more" : "less")} than the angle that faces you square-on. Side angle → Ideal uses it." : null, warn: offIdeal)
             : Number("Detail", $"{r.PixelsPerDegree:0.0}", "Pixels per degree (horizontal)", "I.Rotate", "ApricotSoft", "ApricotDeep"));
         if (numbers != _numbers) _numbers.Children.Add(numbers);
         _measureCard.Margin = _mode == 2 ? new Thickness(6, 0, 6, 12) : new Thickness(0);
@@ -451,8 +455,15 @@ internal sealed class FovSection : StackPanel
             : _iracingFov is { } now
                 ? Math.Abs(now - target) < 0.15 ? $"iRacing is already set for this rig ({now:0.#}°)." : $"iRacing's FOV is {now:0.#}° now; for this rig it should be {target:0.#}°."
                 : "Found iRacing's settings in Documents\\iRacing.";
-        _iracing.Children.Add(new TextBlock { Text = status, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8),
-            Foreground = Ui.Res<Brush>(folder is null ? "ApricotDeep" : "Text") });
+        bool differs = folder is not null && _iracingFov is { } set && Math.Abs(set - target) >= 0.15;
+        var statusText = new TextBlock { Text = status, Style = Ui.Res<Style>("H3"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Ui.Res<Brush>(folder is null ? "ApricotDeep" : differs ? "WarnDeep" : "Text") };
+        var write = Ui.LabeledButton("I.Download", "Write into iRacing", () => _ = ExportIntoIracing(), "PrimaryButton");
+        write.ToolTip = $"FOV {target:0.#}° into app.ini and the screen setup into rendererDX11Monitor.ini (iRacing must be closed)";
+        write.IsEnabled = folder is not null;
+        var statusRow = Ui.SplitRow(statusText, write, 16, stackLeft: true);
+        statusRow.Margin = new Thickness(0, 10, 0, 12);
+        _iracing.Children.Add(statusRow);
         string[] steps =
         {
             "Import reads the screen size, distance, bezel, side angle and curve iRacing has now, so you start from your current setup.",
@@ -479,7 +490,6 @@ internal sealed class FovSection : StackPanel
         }
         B("I.Folder", "Import from iRacing", ImportFromIracingFolder, "SoftButton", "Read rendererDX11Monitor.ini in Documents\\iRacing").IsEnabled = folder is not null;
         B("I.Folder", "Import a file…", ImportFromFile, "GhostButton", "Read a rendererDX11Monitor.ini you saved somewhere else");
-        B("I.Download", "Write into iRacing", () => _ = ExportIntoIracing(), "PrimaryButton", $"FOV {target:0.#}° into app.ini and the screen setup into rendererDX11Monitor.ini (iRacing must be closed)").IsEnabled = folder is not null;
         B("I.Save", "Save copies…", ExportCopies, "GhostButton", "Updated app.ini and rendererDX11Monitor.ini plus _backup copies, in a folder you pick").IsEnabled = folder is not null;
         _iracing.Children.Add(buttons);
     }
@@ -707,7 +717,7 @@ internal sealed class FovSection : StackPanel
         {
             var cell = new StackPanel { Margin = new Thickness(8, 4, 8, 4), ToolTip = help };
             cell.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = label, Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis }));
-            cell.Children.Add(new TextBlock { Text = value, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>("AccentText") });
+            cell.Children.Add(new TextBlock { Text = value, FontSize = 15, FontWeight = FontWeights.SemiBold });
             grid.Children.Add(cell);
         }
         if (r.Triple)
@@ -882,7 +892,7 @@ internal sealed class FovSection : StackPanel
         return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 14, 18, 14), Child = stack };
     }
 
-    private static Tile Number(string title, string value, string note, string icon, string soft, string deep)
+    private static Tile Number(string title, string value, string note, string icon, string soft, string deep, string? tip = null, bool warn = false)
     {
         var stack = new StackPanel();
         var head = new StackPanel { Orientation = Orientation.Horizontal };
@@ -893,9 +903,12 @@ internal sealed class FovSection : StackPanel
         });
         head.Children.Add(new TextBlock { Text = title, Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
         stack.Children.Add(head);
-        stack.Children.Add(new TextBlock { Text = value, FontSize = 28, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>(deep), Margin = new Thickness(0, 4, 0, 0) });
-        stack.Children.Add(new TextBlock { Text = note, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap });
-        return new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(6, 0, 6, 12), Child = stack };
+        stack.Children.Add(new TextBlock { Text = value, FontSize = 28, FontWeight = FontWeights.SemiBold, Foreground = Ui.Res<Brush>(warn ? "WarnDeep" : "Text"), Margin = new Thickness(0, 4, 0, 0) });
+        var noteText = new TextBlock { Text = note, Style = Ui.Res<Style>("Caption"), TextWrapping = TextWrapping.Wrap };
+        stack.Children.Add(warn ? Ui.IconText("I.Alert", noteText, "WarnDeep") : noteText);
+        var tile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(6, 0, 6, 12), Child = stack, ToolTip = tip };
+        if (warn) tile.BorderBrush = Ui.Res<Brush>("Warn");
+        return tile;
     }
 
     private static Tile Banner(string soft, string text)

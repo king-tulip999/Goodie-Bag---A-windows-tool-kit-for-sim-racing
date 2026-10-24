@@ -191,7 +191,8 @@ internal sealed class AppServices : IDisposable
     public void ResetFpsStats()
     {
         Frames.Reset();
-        Notify("FPS statistics reset", "Average and 1% low start over from now.", NoticeKind.Success);
+        Overlay.ResetAverages();
+        Notify("FPS statistics reset", "Average FPS, 1% low and average temperatures start over from now.", NoticeKind.Success);
     }
 
     public void SetPerformance(SensorRate rate, int? customMs = null, BackgroundUsage? background = null)

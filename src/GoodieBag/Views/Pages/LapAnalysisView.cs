@@ -53,6 +53,8 @@ internal sealed class AnalysisState
 
     public bool Zoomed => D0 > 0.5 || D1 < Length - 0.5;
 
+    public bool Single => Lines.Count == 1;
+
     public event Action? ZoomChanged, CursorChanged;
 
     public void Zoom(double a, double b)
@@ -101,10 +103,10 @@ internal static class LapAnalysisView
             var chip = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 14, 2), VerticalAlignment = VerticalAlignment.Center };
             var swatch = new Border { Width = 18, Height = 4, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
             swatch.SetResourceReference(Border.BackgroundProperty, line.BrushKey);
-            if (line.Reference) swatch.Opacity = 0.6;
+            if (line.Reference && !s.Single) swatch.Opacity = 0.6;
             chip.Children.Add(swatch);
             chip.Children.Add(new TextBlock { Text = line.Label, Style = Ui.Res<Style>("Body"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
-            if (line.Reference) chip.Children.Add(new TextBlock { Text = "Reference", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+            if (line.Reference && !s.Single) chip.Children.Add(new TextBlock { Text = "Reference", Style = Ui.Res<Style>("Caption"), Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
             int lapNumber = data.Laps.FirstOrDefault(l => ReferenceEquals(l.Trace, line.Trace)).Lap;
             if (lapNumber > 0)
             {
@@ -138,33 +140,22 @@ internal static class LapAnalysisView
             deleteShared.Margin = new Thickness(4, 0, 0, 0);
         }
 
-        var mapMode = Ui.Segmented(new[] { "Laps", "Speed", "Delta" }, (int)s.MapColors, i => { s.MapColors = (MapColors)i; s.RaiseCursor(); }, "lapMapColors",
-            new[] { "Each lap in its color", "The first lap colored by speed: slow to fast", "The first lap colored by where it gains (or loses) time on the reference" });
+        var mapMode = s.Single
+            ? Ui.Segmented(new[] { "Plain", "Speed" }, (int)s.MapColors, i => { s.MapColors = (MapColors)i; s.RaiseCursor(); }, "lapMapColors",
+                new[] { "The lap in its color", "The lap colored by speed: slow to fast" })
+            : Ui.Segmented(new[] { "Laps", "Speed", "Delta" }, (int)s.MapColors, i => { s.MapColors = (MapColors)i; s.RaiseCursor(); }, "lapMapColors",
+                new[] { "Each lap in its color", "The first lap colored by speed: slow to fast", "The first lap colored by where it gains (or loses) time on the reference" });
         var reset = Ui.LabeledButton("I.Restore", "Reset zoom", s.ResetZoom);
         reset.IsEnabled = false;
         s.ZoomChanged += () => reset.IsEnabled = s.Zoomed;
         var lanesButton = Ui.LabeledButton("I.Sliders", "Lanes", () => { });
         lanesButton.Click += (_, _) => OpenLanes(lanesButton, settings, lanesChanged);
 
-        var windy = s.Lines.Any(l => l.Wind is not null);
-        var windBox = WindBox(s);
-        windBox.Visibility = windy && settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
-        var windButton = Ui.LabeledButton("I.Wind", "Wind", () => { });
-        windButton.ToolTip = "Wind speed and direction on each lap, on the map";
-        Ui.SetToggled(windButton, settings.AnalysisWind);
-        windButton.Click += (_, _) =>
-        {
-            settings.AnalysisWind = !settings.AnalysisWind;
-            Ui.SetToggled(windButton, settings.AnalysisWind);
-            windBox.Visibility = settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
-            actions.Save();
-        };
         var refRow = Labeled("Reference", refPick);
         if (deleteShared is not null) refRow.Children.Add(deleteShared);
         var right = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        foreach (var e in new FrameworkElement[] { refRow, import, mapMode, windButton, reset, lanesButton })
+        foreach (var e in new FrameworkElement[] { refRow, import, reset, lanesButton })
         {
-            if (e == windButton && !windy) continue;
             e.Margin = new Thickness(10, 2, 0, 2);
             e.VerticalAlignment = VerticalAlignment.Center;
             right.Children.Add(e);
@@ -174,13 +165,13 @@ internal static class LapAnalysisView
 
         var map = new LapMap(s) { ToolTip = "The wheel zooms in on the spot under the pointer (the charts follow); double-click = the whole lap" };
         var mapCursor = new MapCursor(s, map) { IsHitTestVisible = false };
-        var mapHost = new Grid { ClipToBounds = true, Children = { map, mapCursor, windBox } };
+        var mapHost = new Grid { ClipToBounds = true, Children = { map, mapCursor } };
         var chartHost = new Grid();
         TraceChart? chart = null;
         ChartCursor? chartCursor = null;
         void ShowLanes()
         {
-            var lanes = (settings.AnalysisLanes ?? Config.SessionStatsSettings.DefaultLanes.ToList()).Where(LaneNames.ContainsKey).ToList();
+            var lanes = (settings.AnalysisLanes ?? Config.SessionStatsSettings.DefaultLanes.ToList()).Where(LaneNames.ContainsKey).Where(l => !(s.Single && l == "delta")).ToList();
             if (lanes.Count == 0) lanes.Add("speed");
             if (chart is not null && chart.Lanes.SequenceEqual(lanes)) return;
             chart?.Detach();
@@ -195,9 +186,16 @@ internal static class LapAnalysisView
         ShowLanes();
         lanesChanged = () => { ShowLanes(); actions.Save(); };
 
-        var mapCard = Card(StatsSections.Chart("Line", s.Lines.Any(l => l.Line is not null) ? "Where each lap drove; the wide band is the reference's" : null, mapHost));
+        mapMode.VerticalAlignment = VerticalAlignment.Top;
+        var mapTitle = StatsSections.Chart("Line", s.Lines.Any(l => l.Line is not null) ? (s.Single ? "Where the lap drove" : "Where each lap drove; the wide band is the reference's") : null, new Border());
+        mapTitle.Children.RemoveAt(mapTitle.Children.Count - 1);
+        var mapBody = new StackPanel { Children = { Ui.SplitRow(mapTitle, mapMode, 12, stackLeft: true) } };
+        mapHost.Margin = new Thickness(0, 12, 0, 0);
+        mapBody.Children.Add(mapHost);
+        var mapCard = Card(mapBody);
         var chartCard = Card(StatsSections.Chart("Telemetry", "Drag across to zoom, double-click for the whole lap"
-            + (s.Lines.Any(l => l.PushToPass.Count > 0) ? "; strips along the bottom of each lane = push-to-pass in use" : ""), chartHost));
+            + (s.Lines.Any(l => l.PushToPass.Count > 0) ? "; strips along the bottom of each lane = push-to-pass in use" : "")
+            + (s.Single ? ". One lap only: tick more laps in the session's lap list to compare them" : ""), chartHost));
         mapCard.Margin = chartCard.Margin = new Thickness(0);
         void MatchHeights()
         {
@@ -214,52 +212,6 @@ internal static class LapAnalysisView
         page.Children.Add(new LapReplayView(data, s, settings, memory, actions.Save));
         s.ResetZoom();
         return page;
-    }
-
-    private static FrameworkElement WindBox(AnalysisState s)
-    {
-        var rows = new Grid();
-        foreach (var width in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
-            rows.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
-        rows.RowDefinitions.Add(new RowDefinition());
-        rows.Children.Add(Cell(new TextBlock { Text = "Wind", Style = Ui.Res<Style>("Caption"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) }, 0, 0, 4));
-        int row = 1;
-        foreach (var line in s.Lines)
-        {
-            if (line.Wind is not { } wind) continue;
-            rows.RowDefinitions.Add(new RowDefinition());
-            var swatch = new Border { Width = 4, Height = 16, Margin = new Thickness(0, 2, 8, 2), VerticalAlignment = VerticalAlignment.Center };
-            swatch.SetResourceReference(Border.BackgroundProperty, line.BrushKey);
-            if (line.Reference) swatch.Opacity = 0.6;
-            double to = wind.From + Math.PI;
-            var arrow = new Icon
-            {
-                Data = Geometry.Parse("M12 20V4M6 10l6-6 6 6"), Width = 16, Height = 16, StrokeThickness = 2.2, Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(to * 180 / Math.PI),
-            };
-            arrow.SetResourceReference(Icon.ForegroundProperty, line.BrushKey);
-            double speed = s.Imperial ? wind.Kph / 1.609344 : wind.Kph;
-            var value = new TextBlock { Text = $"{line.Short}  {speed:0} {(s.Imperial ? "mph" : "km/h")}", Style = Ui.Res<Style>("Body"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-            var point = new TextBlock { Text = SimRacing.Race.RaceFormat.Compass(to), Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center };
-            rows.Children.Add(Cell(swatch, row, 0));
-            rows.Children.Add(Cell(arrow, row, 1));
-            rows.Children.Add(Cell(value, row, 2));
-            rows.Children.Add(Cell(point, row, 3));
-            row++;
-        }
-        return new Tile
-        {
-            Style = Ui.Res<Style>("Card"), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 4, 4, 0),
-            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Child = rows,
-        };
-
-        static UIElement Cell(FrameworkElement e, int row, int column, int span = 1)
-        {
-            Grid.SetRow(e, row);
-            Grid.SetColumn(e, column);
-            Grid.SetColumnSpan(e, span);
-            return e;
-        }
     }
 
     internal static string SharedLabel(SharedLapInfo lap, string car) =>
@@ -559,13 +511,13 @@ internal sealed class LapMap : FrameworkElement, IKeepsWheel
             int a = (int)(_s.D0 / lt.StepM), b = Math.Min(lt.Points - 1, (int)Math.Ceiling(_s.D1 / lt.StepM));
             if (ReferenceEquals(line, colored) && Values(line) is { } values)
             {
-                if (zoomed) dc.DrawGeometry(null, PenOf(line, 0.25), Path(xy.X, xy.Y, 0, lt.Points - 1, view));
+                if (zoomed) dc.DrawGeometry(null, PenOf(line, 0.25, _s.Single), Path(xy.X, xy.Y, 0, lt.Points - 1, view));
                 DrawBuckets(dc, xy, values, a, b, view);
                 continue;
             }
             if (colored is not null && !line.Reference) continue;
-            if (zoomed) dc.DrawGeometry(null, PenOf(line, 0.25), Path(xy.X, xy.Y, 0, lt.Points - 1, view));
-            dc.DrawGeometry(null, PenOf(line, line.Reference ? 0.7 : 1), Path(xy.X, xy.Y, a, b, view));
+            if (zoomed) dc.DrawGeometry(null, PenOf(line, 0.25, _s.Single), Path(xy.X, xy.Y, 0, lt.Points - 1, view));
+            dc.DrawGeometry(null, PenOf(line, line.Reference && !_s.Single ? 0.7 : 1, _s.Single), Path(xy.X, xy.Y, a, b, view));
         }
         foreach (double d in _s.SectorDistances.Prepend(0))
         {
@@ -631,12 +583,12 @@ internal sealed class LapMap : FrameworkElement, IKeepsWheel
         }
     }
 
-    private static Pen PenOf(AnalysisLine line, double opacity)
+    private static Pen PenOf(AnalysisLine line, double opacity, bool single)
     {
         var brush = LapAnalysisView.Brush(line.BrushKey).Clone();
         brush.Opacity = opacity;
-        var pen = new Pen(brush, line.Reference ? 2 : 2.5) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-        if (line.Reference) pen.DashStyle = new DashStyle(new[] { 3.0, 2.0 }, 0);
+        var pen = new Pen(brush, line.Reference && !single ? 2 : 2.5) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        if (line.Reference && !single) pen.DashStyle = new DashStyle(new[] { 3.0, 2.0 }, 0);
         pen.Freeze();
         return pen;
     }
@@ -816,8 +768,8 @@ internal sealed class TraceChart : FrameworkElement
             foreach (var line in _s.Lines)
             {
                 if (!line.Lanes.TryGetValue(lane, out var series)) continue;
-                if (series.A is { } a) dc.DrawGeometry(null, PenFor(line, false, lane), Decimated(a, line.Trace.StepM, Y, lane == "gear"));
-                if (series.B is { } b) dc.DrawGeometry(null, PenFor(line, true, lane), Decimated(b, line.Trace.StepM, Y, false));
+                if (series.A is { } a) dc.DrawGeometry(null, PenFor(line, false, lane, _s.Single), Decimated(a, line.Trace.StepM, Y, lane == "gear"));
+                if (series.B is { } b) dc.DrawGeometry(null, PenFor(line, true, lane, _s.Single), Decimated(b, line.Trace.StepM, Y, false));
             }
             dc.Pop();
             top += h;
@@ -870,8 +822,15 @@ internal sealed class TraceChart : FrameworkElement
         return (lo - pad, hi + pad);
     }
 
-    private static Pen PenFor(AnalysisLine line, bool second, string lane)
+    private static Pen PenFor(AnalysisLine line, bool second, string lane, bool single)
     {
+        if (single)
+        {
+            string key = lane == "pedals" ? (second ? "Danger" : StatsUi.Hue("Sage").Deep) : line.BrushKey;
+            var solid = new Pen(LapAnalysisView.Brush(key), 1.6) { LineJoin = PenLineJoin.Round };
+            solid.Freeze();
+            return solid;
+        }
         var brush = LapAnalysisView.Brush(line.BrushKey);
         if (line.Reference || second) { brush = brush.Clone(); brush.Opacity = line.Reference && second ? 0.45 : 0.7; }
         var pen = new Pen(brush, line.Reference ? 1.4 : 1.6) { LineJoin = PenLineJoin.Round };

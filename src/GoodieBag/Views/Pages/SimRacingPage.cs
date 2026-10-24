@@ -52,7 +52,7 @@ internal sealed class SimRacingPage : UserControl, IPage, IScreenshotStates, ICa
         _view.Add(Def("setups", "Your car setups by car: find, rename, move, import and share them with league mates without File Explorer.",
             () => _setups = new SetupManagerSection(_app, _window), "simracing.setups",
             () => _setups?.OnShown(), () => _setups?.OnHidden()));
-        _view.Add(Def("hud", "In-game widgets from iRacing's live telemetry: Relative, Standings, fuel, delta, flags, inputs and more, in layouts that switch by session.",
+        _view.Add(Def("hud", "",
             () => _hud = new RaceHudSection(_app, _window), "simracing.hud.panel",
             () => _hud?.OnShown(), () => _hud?.OnHidden()));
         _view.Add(Def("tradingpaints", "Start the official Trading Paints Downloader, by hand or automatically with Goodie Bag or iRacing.",

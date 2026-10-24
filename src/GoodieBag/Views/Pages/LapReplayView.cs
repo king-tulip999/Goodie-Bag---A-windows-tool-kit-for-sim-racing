@@ -27,7 +27,7 @@ internal sealed class ReplayCar
 
 internal sealed class LapReplayView : Grid
 {
-    private const double MinStage = 420, MaxStage = 900;
+    private const double MinStage = 420, MaxStage = 760;
     private const long ReadoutMs = 66;
     private readonly AnalysisState _s;
     private readonly Config.SessionStatsSettings _settings;
@@ -87,14 +87,13 @@ internal sealed class LapReplayView : Grid
             var lines = _cars.Select(c => (c.X, c.Y, c.Trace.StepM, c.Trace.LengthM)).ToList();
             _ = PlaceMapAsync(map, lines);
         }
-        _stage.ZoomStep += delta => SetZoom(_settings.ReplayZoom + delta);
         _stage.WentFree += () => { _save(); SyncCamera(); };
         var overlay = new Grid { Margin = new Thickness(14) };
 
         var cards = new ReplayCardRow { VerticalAlignment = VerticalAlignment.Top };
         foreach (var car in _cars.OrderBy(c => c.Line.Reference ? 1 : 0))
         {
-            var card = new ReplayCard(car, settings.Imperial, () => Follow(car));
+            var card = new ReplayCard(car, settings.Imperial, () => Follow(car), _cars.Count == 1);
             _cards.Add(card);
             cards.Children.Add(card);
         }
@@ -155,17 +154,18 @@ internal sealed class LapReplayView : Grid
             });
         }
 
-        _zoom = new Slider { Minimum = 0, Maximum = 1, Value = settings.ReplayZoom, Width = 150, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
+        _zoom = new Slider { Minimum = 0, Maximum = 1, Value = settings.ReplayZoom, Width = 120, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
         _zoom.ValueChanged += (_, e) => SetZoom(e.NewValue);
-        _zoom.ToolTip = "Zoom (the wheel over the track too); all the way out = the whole lap";
+        _zoom.ToolTip = "Zoom; all the way out = the whole lap";
         var turn = Ui.LabeledButton("I.Rotate", "Turn with car", () => { });
         Ui.SetToggled(turn, settings.ReplayTurn);
         turn.Click += (_, _) => { settings.ReplayTurn = !settings.ReplayTurn; Ui.SetToggled(turn, settings.ReplayTurn); _stage.Update(); _wind?.Turn(_stage.Rotation); _save(); };
         turn.ToolTip = "Keep the followed car pointing up (off = north up)";
         turn.Margin = new Thickness(10, 0, 0, 0);
         var zoomRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var showRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         _camera = Ui.Segmented(new[] { "Follow car", "Free" }, settings.ReplayFree ? 1 : 0, i => SetFree(i == 1), "replayCamera",
-            new[] { "The camera stays on the followed car (click a card to pick it)", "Drag to move around the track, the wheel zooms where the pointer is" });
+            new[] { "The camera stays on the followed car (click a card to pick it)", "Drag to move around the track" });
         _camera.VerticalAlignment = VerticalAlignment.Center;
         _camera.Margin = new Thickness(0, 0, 10, 0);
         zoomRow.Children.Add(_camera);
@@ -178,9 +178,9 @@ internal sealed class LapReplayView : Grid
         var tips = Ui.LabeledButton("I.Flag", "Tips", () => { });
         Ui.SetToggled(tips, settings.ReplayTips);
         tips.ToolTip = "Notes on the track where the lap brakes, picks up the throttle or carries speed differently from the reference";
-        tips.Margin = new Thickness(6, 0, 0, 0);
+        tips.Margin = new Thickness(0);
         tips.Click += (_, _) => { settings.ReplayTips = !settings.ReplayTips; Ui.SetToggled(tips, settings.ReplayTips); _stage.Update(); _save(); };
-        zoomRow.Children.Add(tips);
+        showRow.Children.Add(tips);
         if (_wind is not null)
         {
             var windButton = Ui.LabeledButton("I.Wind", "Wind", () => { });
@@ -194,10 +194,9 @@ internal sealed class LapReplayView : Grid
                 _wind.Visibility = settings.AnalysisWind ? Visibility.Visible : Visibility.Collapsed;
                 _save();
             };
-            zoomRow.Children.Add(windButton);
+            showRow.Children.Add(windButton);
         }
         zoomRow.VerticalAlignment = VerticalAlignment.Center;
-        zoomRow.Margin = new Thickness(18, 0, 0, 0);
 
         var legend = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
         var colors = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(-12, 0, 0, 0) };
@@ -252,17 +251,18 @@ internal sealed class LapReplayView : Grid
         _clock.Style = Ui.Res<Style>("H3");
         _clock.VerticalAlignment = VerticalAlignment.Center;
         _clock.Margin = new Thickness(14, 0, 0, 0);
-        _clock.MinWidth = 150;
+        _clock.MinWidth = 128;
         Typography.SetNumeralAlignment(_clock, FontNumeralAlignment.Tabular);
         var speeds = LapReplay.Speeds.Select(v => new Choice(v.ToString(CultureInfo.InvariantCulture), v.ToString("0.##", CultureInfo.CurrentCulture) + "×")).ToList();
         var speed = Ui.Combo(speeds, settings.ReplaySpeed.ToString(CultureInfo.InvariantCulture), c =>
         {
             if (double.TryParse(c.Id, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) { _settings.ReplaySpeed = v; _save(); }
-        }, 90);
+        }, 78);
         speed.ToolTip = "Playback speed";
         speed.Margin = new Thickness(10, 0, 0, 0);
         speed.VerticalAlignment = VerticalAlignment.Center;
-        var left = new WrapPanel { Orientation = Orientation.Horizontal, Children = { _play, _clock, speed, zoomRow } };
+        var playRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { _play, _clock, speed } };
+        bool compared = _cars.Any(c => !c.Line.Reference) && _cars.Any(c => c.Line.Reference);
 
         foreach (var t in new[] { _gapSeconds, _gapMetres })
         {
@@ -271,15 +271,15 @@ internal sealed class LapReplayView : Grid
             t.VerticalAlignment = VerticalAlignment.Center;
             Typography.SetNumeralAlignment(t, FontNumeralAlignment.Tabular);
         }
-        _gapSeconds.MinWidth = 64;
-        _gapMetres.MinWidth = 64;
+        _gapSeconds.MinWidth = 58;
+        _gapMetres.MinWidth = 50;
         _gapMetres.Margin = new Thickness(10, 0, 0, 0);
         var gapLabel = new TextBlock { Text = "Delta", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         var gap = new StackPanel { Orientation = Orientation.Horizontal, Children = { gapLabel, _gapSeconds, _gapMetres } };
         gap.ToolTip = "Behind (+) or ahead (−) of the reference: in time at this spot, and in distance after the same time";
         _refSwitch = Ui.Switch(settings.ReplayShowReference, ShowReference);
         var refSwitch = _refSwitch;
-        var refRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var refRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         refRow.Children.Add(new TextBlock { Text = "Reference", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
         refRow.Children.Add(refSwitch);
         refRow.ToolTip = "Show the reference lap's line and car";
@@ -289,13 +289,33 @@ internal sealed class LapReplayView : Grid
             _save();
             Place(force: true);
         }, "replaySync", new[] { "Every car at the same spot: the gap shows in time", "Every car after the same time since the line: they race, the gap shows on track" });
-        sync.Margin = new Thickness(18, 0, 0, 0);
         sync.VerticalAlignment = VerticalAlignment.Center;
-        var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { gap, refRow, sync } };
+        var syncRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        syncRow.Children.Add(new TextBlock { Text = "Sync", Style = Ui.Res<Style>("Caption"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        syncRow.Children.Add(sync);
+        if (compared) showRow.Children.Add(refRow);
+        gap.VerticalAlignment = VerticalAlignment.Center;
+
+        var groups = new WrapPanel { Orientation = Orientation.Horizontal };
+        void Group(FrameworkElement part)
+        {
+            if (groups.Children.Count > 0)
+            {
+                var rule = new Border { Width = 1, Height = 26, Margin = new Thickness(10, 4, 10, 4), VerticalAlignment = VerticalAlignment.Center };
+                rule.SetResourceReference(Border.BackgroundProperty, "Line");
+                groups.Children.Add(rule);
+            }
+            part.Margin = new Thickness(0, 4, 0, 4);
+            groups.Children.Add(part);
+        }
+        Group(playRow);
+        Group(zoomRow);
+        if (showRow.Children.Count > 0) Group(showRow);
+        if (compared) { Group(gap); Group(syncRow); }
 
         var bar = new StackPanel();
         bar.Children.Add(_scrubber);
-        bar.Children.Add(Ui.SplitRow(left, right, 16));
+        bar.Children.Add(groups);
         _barTile = new Tile { Style = Ui.Res<Style>("Card"), Padding = new Thickness(20, 14, 20, 14), Child = bar };
         SetRow(_barTile, 1);
         Children.Add(_barTile);
@@ -620,7 +640,7 @@ internal sealed class ReplayWind : Tile
     }
 }
 
-internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
+internal sealed class ReplayStage : FrameworkElement
 {
     public const double TrackWidth = TrackFit.FallbackWidth;
     private const double MaxScale = 22;
@@ -661,7 +681,6 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
         public required Size Box;
     }
 
-    public event Action<double>? ZoomStep;
 
     public event Action? WentFree;
 
@@ -786,14 +805,6 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
 
     protected override void OnRender(DrawingContext dc) => dc.DrawRectangle(Ui.Res<Brush>("Bg"), null, new Rect(RenderSize));
 
-    protected override void OnMouseWheel(MouseWheelEventArgs e)
-    {
-        base.OnMouseWheel(e);
-        if (_settings.ReplayFree) ZoomFree(e.Delta > 0 ? 1.2 : 1 / 1.2, e.GetPosition(this));
-        else ZoomStep?.Invoke(e.Delta > 0 ? 0.06 : -0.06);
-        e.Handled = true;
-    }
-
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
@@ -839,14 +850,9 @@ internal sealed class ReplayStage : FrameworkElement, IKeepsWheel
         Update();
     }
 
-    public void ZoomFree(double by, Point? at = null)
+    public void ZoomFree(double by)
     {
-        var c = Anchor(0);
-        var p = at ?? c;
-        double wx = _freeX + (p.X - c.X) / _freeScale, wy = _freeY - (p.Y - c.Y) / _freeScale;
         _freeScale = Math.Clamp(_freeScale * by, Scale(0) * 0.5, MaxScale * 2);
-        _freeX = wx - (p.X - c.X) / _freeScale;
-        _freeY = wy + (p.Y - c.Y) / _freeScale;
         Update();
     }
 
@@ -1244,7 +1250,7 @@ internal sealed class ReplayCard : Tile
 
     public ReplayCar Car { get; }
 
-    public ReplayCard(ReplayCar car, bool imperial, Action follow)
+    public ReplayCard(ReplayCar car, bool imperial, Action follow, bool onlyOne = false)
     {
         Car = car;
         _imperial = imperial;
@@ -1258,7 +1264,7 @@ internal sealed class ReplayCard : Tile
         swatch.SetResourceReference(Border.BackgroundProperty, car.Line.BrushKey);
         var name = TextFit.TipWhenTrimmed(new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Driver : car.Line.Short, Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis });
         var sub = TextFit.TipWhenTrimmed(new TextBlock { Text = car.Line.Driver.Length > 0 ? car.Line.Short : "", Style = Ui.Res<Style>("Caption"), FontSize = 12, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis });
-        if (car.Line.Reference) sub.Text = sub.Text.Length > 0 ? sub.Text + " · reference" : "Reference";
+        if (car.Line.Reference && !onlyOne) sub.Text = sub.Text.Length > 0 ? sub.Text + " · reference" : "Reference";
         sub.ToolTip = sub.Text;
         var time = new TextBlock { Text = StatFormat.LapTime(car.Trace.LapTime), Style = Ui.Res<Style>("Body"), FontSize = 14.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Top };
         Typography.SetNumeralAlignment(time, FontNumeralAlignment.Tabular);

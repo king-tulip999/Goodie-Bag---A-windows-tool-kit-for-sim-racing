@@ -101,7 +101,8 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         newGroup.Margin = new Thickness(0, 0, 8, 0);
         var create = Ui.LabeledButton("I.Plus", "New profile", () => _ = EditAsync(new WindowProfile(), isNew: true), "PrimaryButton");
         int n = S.Profiles.Count;
-        _body.Children.Add(Ui.SectionHeader("Your profiles", RaceFormatCount(n) + " · drag to arrange", newGroup, create));
+        _body.Children.Add(Ui.SectionHeader("Your profiles", RaceFormatCount(n) + (S.Layout.Count > 1 ? " · drag to arrange" : ""), newGroup, create));
+        _screens = Screens();
 
         var grid = new PanelGrid(S.Layout, _app.Save) { LiveEdit = true, RowHeight = 1, Gap = 0, PanelSpacing = 12 };
         int order = 0;
@@ -151,6 +152,18 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         return new Tile { Style = Ui.Res<Style>("Card"), Child = stack };
     }
 
+    private List<LayoutTile> _screens = new();
+
+    private List<LayoutTile> Screens()
+    {
+        try
+        {
+            return _app.Displays.GetMonitors().Where(m => m.Active).OrderBy(m => m.X)
+                .Select(m => new LayoutTile(m.X, m.Y, m.Width, m.Height, m.Number > 0 ? m.Number.ToString() : "", "", false)).ToList();
+        }
+        catch { return new List<LayoutTile>(); }
+    }
+
     private Tile ProfileCard(WindowProfile p) =>
         new() { Style = Ui.Res<Style>("Card"), Padding = new Thickness(18, 14, 18, 16), Child = ProfileRow(p), Cursor = System.Windows.Input.Cursors.Hand, ToolTip = "Click to edit, drag to arrange" };
 
@@ -165,8 +178,13 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         badge.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(badge);
 
-        var title = new TrimRow { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        var names = new StackPanel { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        var title = new TrimRow();
         title.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = p.Name, Style = Ui.Res<Style>("H3"), FontSize = 16, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }));
+        names.Children.Add(title);
+        var exe = TextFit.TipWhenTrimmed(new TextBlock { Text = p.ProcessName.Length > 0 ? p.ProcessName : "No program picked", Style = Ui.Res<Style>("Caption"), TextTrimming = TextTrimming.CharacterEllipsis });
+        TextCase.Verbatim(exe);
+        names.Children.Add(exe);
         if (running)
         {
             var chip = Ui.Chip("Running", "ActiveModeBg", "ActiveModeFg");
@@ -174,8 +192,8 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
             chip.VerticalAlignment = VerticalAlignment.Center;
             title.Children.Add(chip);
         }
-        Grid.SetColumn(title, 1);
-        row.Children.Add(title);
+        Grid.SetColumn(names, 1);
+        row.Children.Add(names);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var apply = Ui.LabeledButton("I.Zap", "Apply", () => _ = _app.WindowProfiles.ApplyAsync(p), running ? "PrimaryButton" : "GhostButton");
@@ -200,18 +218,25 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
     {
         var facts = new (string Label, string Value, bool Verbatim)[]
         {
-            ("Program", p.ProcessName.Length > 0 ? p.ProcessName : SimRacing.Race.RaceFormat.Missing, true),
             ("Size", p.Width is { } w && p.Height is { } h ? $"{w}×{h}" : "Keep its size", false),
             ("Position", $"{p.X}, {p.Y}", false),
-            ("Style", StyleOf(p), false),
+            ("Borders", StyleOf(p), false),
             ("Keybind", p.Hotkey is null ? "Not set" : Hotkeys.Hotkey.Display(p.Hotkey), false),
             ("Applying", ApplyingOf(p), false),
         };
         var grid = new Grid { Margin = new Thickness(54, 14, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        if (_screens.Count > 0)
+        {
+            var thumb = new MonitorLayoutView { Width = 120, Height = 48, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Where the window goes on your displays" };
+            thumb.SetTiles(_screens);
+            if (p.Width is { } tw && p.Height is { } th) thumb.SetTarget(new Rect(p.X, p.Y, tw, th));
+            grid.Children.Add(thumb);
+        }
         for (int i = 0; i < facts.Length; i++)
         {
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(i == 0 ? 1.4 : 1, GridUnitType.Star) });
-            var cell = new Border { BorderThickness = new Thickness(i == 0 ? 0 : 1, 0, 0, 0), Padding = new Thickness(i == 0 ? 0 : 14, 1, 10, 1) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var cell = new Border { BorderThickness = new Thickness(i == 0 ? 0 : 1, 0, 0, 0), Padding = new Thickness(i == 0 ? 0 : 14, 1, 10, 1), VerticalAlignment = VerticalAlignment.Center };
             cell.SetResourceReference(Border.BorderBrushProperty, "Line");
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = facts[i].Label, Style = Ui.Res<Style>("Caption") });
@@ -219,7 +244,7 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
             if (facts[i].Verbatim) TextCase.Verbatim(value);
             text.Children.Add(value);
             cell.Child = text;
-            Grid.SetColumn(cell, i);
+            Grid.SetColumn(cell, i + 1);
             grid.Children.Add(cell);
         }
         return grid;
@@ -227,10 +252,10 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
 
     private static string StyleOf(WindowProfile p) => (p.RemoveBorders, p.HideTitleBar) switch
     {
-        (true, true) => "Borderless, no title bar",
-        (true, false) => "Borderless",
-        (false, true) => "No title bar",
-        _ => "As it is",
+        (true, true) => "Removed, no title strip",
+        (true, false) => "Removed",
+        (false, true) => "No title strip",
+        _ => "Kept",
     };
 
     private string ApplyingOf(WindowProfile p) =>

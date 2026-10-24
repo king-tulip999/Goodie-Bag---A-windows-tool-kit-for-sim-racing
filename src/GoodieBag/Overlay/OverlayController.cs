@@ -24,6 +24,7 @@ internal sealed class OverlayController : IDisposable
     private Func<System.Drawing.Size, Graphics>? _surface;
     private bool _fpsErrorReported, _drawErrorLogged;
     private int _ticks;
+    private readonly RunningAverage _gpuTemp = new(), _cpuTemp = new();
 
     public event Action<string, string>? Problem;
 
@@ -167,7 +168,21 @@ internal sealed class OverlayController : IDisposable
     public Bitmap RenderPreview(OverlayLayout layout, FrameStats? frames, double[] frameTimes)
     {
         string? fpsNote = _frames.Error is not null && frames is null ? "needs admin" : null;
-        return _previewRenderer.Render(layout, new OverlayData(_hardware.Latest, frames, fpsNote, _fans(), _network.Latest, frameTimes), 1f);
+        var hw = _hardware.Latest;
+        if (!_running) SampleTemps(hw);
+        return _previewRenderer.Render(layout, new OverlayData(hw, frames, fpsNote, _fans(), _network.Latest, frameTimes, _gpuTemp.Value, _cpuTemp.Value), 1f);
+    }
+
+    public void ResetAverages()
+    {
+        _gpuTemp.Reset();
+        _cpuTemp.Reset();
+    }
+
+    private void SampleTemps(HardwareSnapshot? hw)
+    {
+        _gpuTemp.Add(hw?.GpuTemp);
+        _cpuTemp.Add(hw?.CpuTemp);
     }
 
     private void Tick()
@@ -199,7 +214,9 @@ internal sealed class OverlayController : IDisposable
             var screen = TargetScreen(layout);
             float scale = DpiScale(screen);
             var times = layout.ShowGraph && stats is not null ? _frames.GetFrameTimes(pid, 120) : Array.Empty<double>();
-            var data = new OverlayData(_hardware.Latest, stats, fpsNote, layout.Shows(OverlayMetric.Fans) ? _fans() : Array.Empty<(string, float?)>(), _network.Latest, times);
+            var hw = _hardware.Latest;
+            SampleTemps(hw);
+            var data = new OverlayData(hw, stats, fpsNote, layout.Shows(OverlayMetric.Fans) ? _fans() : Array.Empty<(string, float?)>(), _network.Latest, times, _gpuTemp.Value, _cpuTemp.Value);
 
             var size = _renderer.Render(layout, data, scale, _surface!);
             _window.Present(Position(layout, screen, size, scale), 255);

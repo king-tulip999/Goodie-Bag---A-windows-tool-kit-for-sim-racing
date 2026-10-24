@@ -119,26 +119,6 @@ internal static class PerfProbe
             window.Navigate("monitor");
             await Task.Delay(2000);
             await Idle("idle_monitor", window, lines);
-            if (window.PageOf("monitor") is Views.Pages.HardwareMonitorPage monitor)
-            {
-                monitor.ShowSection("sensors");
-                await Rendered(window);
-                await Task.Delay(1000);
-                string back = monitor.Sections.FirstOrDefault(x => x.Id != "sensors")?.Id ?? "sensors";
-                for (int i = 0; i < 3; i++)
-                {
-                    var clock = Stopwatch.StartNew();
-                    monitor.ShowSection(back);
-                    await Rendered(window);
-                    Put($"sensors_leave_{i}_ms", clock.Elapsed.TotalMilliseconds);
-                    await Task.Delay(500);
-                    clock.Restart();
-                    monitor.ShowSection("sensors");
-                    await Rendered(window);
-                    Put($"sensors_open_{i}_ms", clock.Elapsed.TotalMilliseconds);
-                    await Task.Delay(500);
-                }
-            }
             window.Navigate("windows");
             await Task.Delay(2000);
             await Idle("idle_windows", window, lines);

@@ -15,7 +15,9 @@ internal sealed record OverlayData(
     string? FpsNote,
     IReadOnlyList<(string Name, float? Rpm)> Fans,
     NetworkSnapshot? Network,
-    double[] FrameTimes);
+    double[] FrameTimes,
+    float? AverageGpuTemp = null,
+    float? AverageCpuTemp = null);
 
 internal readonly record struct OverlayHit(string Group, OverlayMetric? Metric, RectangleF Rect);
 
@@ -211,6 +213,7 @@ internal sealed class OverlayRenderer : IDisposable
                 case OverlayMetric.FrameTime: group.Cells.Add(new(Tag(""), f is null ? Missing : f.FrameTimeMs.ToString("0.0"), "ms", "00.0")); break;
 
                 case OverlayMetric.GpuTemp: group.Cells.Add(new(Tag(""), Num(hw?.GpuTemp), "°C", "100", TempTone(hw?.GpuTemp, 80, 90))); break;
+                case OverlayMetric.AverageGpuTemp: group.Cells.Add(new(Tag("avg"), Num(d.AverageGpuTemp), "°C", "100", TempTone(d.AverageGpuTemp, 80, 90))); break;
                 case OverlayMetric.GpuLoad: group.Cells.Add(new(Tag(""), Num(hw?.GpuLoad), "%", "100")); break;
                 case OverlayMetric.GpuHotSpot: group.Cells.Add(new(Tag("hotspot"), Num(hw?.GpuHotSpot), "°C", "100", TempTone(hw?.GpuHotSpot, 95, 105))); break;
                 case OverlayMetric.GpuClock: group.Cells.Add(new(Tag(""), Num(hw?.GpuClockMhz), "MHz", "0000")); break;
@@ -221,6 +224,7 @@ internal sealed class OverlayRenderer : IDisposable
                     break;
 
                 case OverlayMetric.CpuTemp: group.Cells.Add(new(Tag(""), Num(hw?.CpuTemp), "°C", "100", TempTone(hw?.CpuTemp, 80, 90))); break;
+                case OverlayMetric.AverageCpuTemp: group.Cells.Add(new(Tag("avg"), Num(d.AverageCpuTemp), "°C", "100", TempTone(d.AverageCpuTemp, 80, 90))); break;
                 case OverlayMetric.CpuLoad: group.Cells.Add(new(Tag(""), Num(hw?.CpuLoad), "%", "100")); break;
                 case OverlayMetric.CpuClock: group.Cells.Add(new(Tag(""), hw?.CpuClockMhz is { } mhz ? (mhz / 1000).ToString("0.00") : Missing, "GHz", "0.00")); break;
                 case OverlayMetric.CpuPower: group.Cells.Add(new(Tag(""), Num(hw?.CpuPower), "W", "000")); break;

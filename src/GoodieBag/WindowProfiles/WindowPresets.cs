@@ -9,6 +9,23 @@ internal sealed record ScreenArea(string Name, int X, int Y, int Width, int Heig
 
 internal static class WindowPresets
 {
+    private static readonly string[] BuildSuffixes = { "-Win64-Shipping", "-Win32-Shipping", "_Win64", "-Win64", ".x64", "_x64", "-x64", " x64", ".x86", "_x86", "-x86", "_64", "-64" };
+
+    public static string FriendlyName(string process)
+    {
+        string name = process.Trim();
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+        foreach (var suffix in BuildSuffixes)
+        {
+            if (name.Length > suffix.Length + 1 && name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                name = name[..^suffix.Length];
+                break;
+            }
+        }
+        return name.Trim(' ', '.', '_', '-');
+    }
+
     public const string Yours = "Your displays";
     public const string Triples = "Triple screens";
     public const string Sizes = "Window sizes on the main display";

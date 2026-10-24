@@ -128,9 +128,7 @@ public static class ConfigStore
         config.Ui.MonitorSectionsVersion = 2;
         config.Ui.LandingLayout ??= new();
         config.Ui.LandingLayout.RemoveAll(slot => slot.Id == "home");
-        foreach (var layout in new[] { config.Ui.SensorsLayout, config.Fans.Layout })
-            PanelSlot.MigrateToOrder(layout);
-        config.Ui.SensorsLayout.RemoveAll(slot => !slot.Id.StartsWith('/'));
+        PanelSlot.MigrateToOrder(config.Fans.Layout);
         IgnoreCaseKeys(config);
         return config;
     }
@@ -138,7 +136,7 @@ public static class ConfigStore
     private static void RemoveNullItems(AppConfig config)
     {
         RemoveNulls(config, 0);
-        foreach (var layout in new[] { config.Ui.SensorsLayout, config.Fans.Layout, config.SimRacing.PanelLayout })
+        foreach (var layout in new[] { config.Fans.Layout, config.SimRacing.PanelLayout })
             layout.RemoveAll(slot => slot.Id is null);
     }
 
