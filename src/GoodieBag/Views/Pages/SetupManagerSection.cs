@@ -758,21 +758,23 @@ internal sealed class SetupManagerSection : StackPanel
         var name = Ui.Text(car.Name, "H2");
         name.VerticalAlignment = VerticalAlignment.Center;
         title.Children.Add(name);
+        var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var chip = Ui.Chip(car.Class);
         chip.Margin = new Thickness(10, 0, 0, 0);
         chip.VerticalAlignment = VerticalAlignment.Center;
-        title.Children.Add(chip);
+        identity.Children.Add(chip);
         var raw = new TextBlock { Text = car.Dir, Style = Ui.Res<Style>("Caption"), FontFamily = Ui.Res<FontFamily>("MonoFont"), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "The folder's real name on disk (never renamed)" };
-        title.Children.Add(raw);
+        identity.Children.Add(raw);
         var rename = Ui.IconButton("I.Pencil", "Change the name or class Goodie Bag shows", () => EditCarName(car), "QuietIconButton");
         rename.VerticalAlignment = VerticalAlignment.Center;
-        title.Children.Add(rename);
+        identity.Children.Add(rename);
+        title.Children.Add(identity);
         var actions = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
         actions.Children.Add(Spaced(Ui.LabeledButton("I.Download", "Import", () => PickImport(target), "PrimaryButton"), "Copy .sto files or a .zip share pack into " + Label(target)));
         actions.Children.Add(Spaced(Ui.LabeledButton("I.External", sel.Count > 0 ? $"Share / Export ({sel.Count})" : "Share / Export", () => Export(car, sel.Count > 0 ? sel : new List<SetupNode> { target })), "Save a share pack for league mates, or plain copies"));
         actions.Children.Add(Spaced(Ui.LabeledButton("I.Plus", "New folder", () => NewFolder(target)), "Make a folder inside " + Label(target)));
         actions.Children.Add(Spaced(Ui.LabeledButton("I.Folder", "Open in Explorer", () => OpenFolder(target)), "Open " + Label(target) + " in File Explorer"));
-        var head = Ui.SplitRow(title, actions);
+        var head = Ui.SplitRow(title, actions, stackLeft: true);
         DockPanel.SetDock(head, Dock.Top);
         stack.Children.Add(head);
 
@@ -812,9 +814,9 @@ internal sealed class SetupManagerSection : StackPanel
             buttons.Children.Add(Spaced(Ui.LabeledButton("I.Trash", "Delete", () => Delete(sel), "DangerButton"), "Move to the Recycle Bin"));
             var clear = Ui.IconButton("I.X", "Clear the selection", () => { _selected.Clear(); RenderExplorer(); }, "QuietIconButton");
             buttons.Children.Add(clear);
-            var bar = Ui.SplitRow(selected, buttons);
-            bar.Margin = new Thickness(0, 10, 0, 0);
-            var barTile = new Tile { Style = Ui.Res<Style>("Inset"), Background = Ui.Res<Brush>("AccentSoft"), Padding = new Thickness(0, 6, 6, 6), Child = bar };
+            buttons.Margin = new Thickness(12, 0, 0, 0);
+            var bar = Ui.SplitRow(selected, buttons, stackLeft: true);
+            var barTile = new Tile { Style = Ui.Res<Style>("Inset"), Background = Ui.Res<Brush>("AccentSoft"), Padding = new Thickness(0, 6, 6, 6), Margin = new Thickness(0, 10, 0, 0), Child = bar };
             DockPanel.SetDock(barTile, Dock.Top);
             stack.Children.Add(barTile);
         }

@@ -187,7 +187,7 @@ internal sealed class WindowProfilesPage : UserControl, IPage, IScreenshotStates
         names.Children.Add(exe);
         if (running)
         {
-            var chip = Ui.Chip("Running", "ActiveModeBg", "ActiveModeFg");
+            var chip = Ui.Chip("Running", "SageSoft", "SageDeep");
             chip.Margin = new Thickness(0, 2, 6, 2);
             chip.VerticalAlignment = VerticalAlignment.Center;
             title.Children.Add(chip);

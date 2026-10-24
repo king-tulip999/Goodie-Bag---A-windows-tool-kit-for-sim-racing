@@ -52,7 +52,7 @@ internal static class Palettes
         ["Coral"] = Hex("#F07A35"), ["CoralSoft"] = Hex("#2D1D19"), ["CoralDeep"] = Hex("#FF9A5C"),
         ["Slate"] = Hex("#49C8F5"), ["SlateSoft"] = Hex("#14303C"), ["SlateDeep"] = Hex("#8ADCFA"),
         ["Plum"] = Hex("#7E7E7E"), ["PlumSoft"] = Hex("#202020"), ["PlumDeep"] = Hex("#B8B8B8"),
-        ["Knob"] = Hex("#F0F0F0"), ["SwitchTrack"] = Hex("#2E2E2E"), ["SwitchTrackHover"] = Hex("#393939"),
+        ["Knob"] = Hex("#F0F0F0"), ["SwitchTrack"] = Hex("#2E2E2E"), ["SwitchTrackHover"] = Hex("#393939"), ["SwitchBorder"] = Hex("#555555"),
         ["MeterTrack"] = Hex("#242424"), ["GridLine"] = Hex("#1E1E1E"),
         ["Meter1"] = Hex("#DC1A78"), ["Meter2"] = Hex("#DC1A78"), ["Meter3"] = Hex("#DC1A78"), ["Meter4"] = Hex("#E8AE3C"), ["Meter5"] = Hex("#F25555"),
         ["ScrollThumbBrush"] = Hex("#3A3A3A"), ["ScrollThumbBrushHover"] = Hex("#4A4A4A"), ["ScrollThumbBrushDrag"] = Hex("#5A5A5A"),

@@ -408,9 +408,9 @@ internal sealed class OverlayPage : UserControl, IPage, IScreenshotStates
             Ui.Segmented(new[] { "Expanded", "Compact" }, (int)L.Style, i => { L.Style = (OverlayStyle)i; Changed(); }, "Style",
                 new[] { "One row per group (CPU, GPU, FPS…), easy to read at a glance", "Everything on one line: takes the least room over your game" }),
             D(() => L.Style == std.Style, () => L.Style = std.Style, std.Style.ToString())), "overlay.style"));
-        general.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 160, 5),
+        general.Children.Add(Anchored(Ui.SettingRow("Text size", null, Ui.SliderWithValue(60, 200, L.FontScale, "{0:0}%", v => { L.FontScale = (int)v; Changed(); }, 130, 5),
             D(() => L.FontScale == std.FontScale, () => L.FontScale = std.FontScale, std.FontScale + "%")), "overlay.font"));
-        general.Children.Add(Anchored(Ui.SettingRow("Background", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 160, 5),
+        general.Children.Add(Anchored(Ui.SettingRow("Background", null, Ui.SliderWithValue(0, 100, L.BackgroundOpacity, "{0:0}%", v => { L.BackgroundOpacity = (int)v; Changed(); }, 130, 5),
             D(() => L.BackgroundOpacity == std.BackgroundOpacity, () => L.BackgroundOpacity = std.BackgroundOpacity, std.BackgroundOpacity + "%")), "overlay.opacity"));
         general.Children.Add(Anchored(Ui.SettingRow("Frame-time graph", "Spikes are stutters.",
             Ui.Switch(L.ShowGraph, v => { L.ShowGraph = v; Changed(); }),

@@ -352,7 +352,9 @@ internal sealed class ItemPicker : StackPanel
                 DockPanel.SetDock(tag, Dock.Right);
                 line.Children.Add(tag);
             }
-            line.Children.Add(new TextBlock { Text = c.Label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap });
+            var label = new TextBlock { Text = c.Label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            if (!added && !blocked) label.SetResourceReference(TextBlock.ForegroundProperty, "Text");
+            line.Children.Add(label);
             var b = new Button
             {
                 Style = Ui.Res<Style>("QuietButton"), Content = line, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8, 6, 8, 6),

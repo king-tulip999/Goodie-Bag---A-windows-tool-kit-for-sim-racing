@@ -992,7 +992,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         view.Children.Add(Ui.SplitRow(name, tools));
         view.Children.Add(new TextBlock
         {
-            Text = "Every keyboard shortcut in Goodie Bag, plus iRacing's own keys (saved to its controls file), grouped by where it comes from. Click a box and press the keys; Esc clears it. Keybinds of plugins that are off are hidden (and kept).",
+            Text = "Click a box and press the keys; Esc clears it. iRacing's keys are saved to its controls file. Keybinds of plugins that are off are hidden and kept.",
             Style = Ui.Res<Style>("Muted"), TextWrapping = TextWrapping.Wrap, MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, Ui.HeaderGap),
         });
         view.Children.Add(host);
@@ -1047,7 +1047,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         Para("What it's used for here",
             "Reading CPU temperature, CPU power and motherboard sensors, and setting motherboard fan speeds when Fan Control is on. Nothing else. Goodie Bag doesn't send data anywhere and has no account or telemetry.");
         Para("Is it required?",
-            "No. Without it, everything else works: GPU temperatures and fans, frame rate, displays, modes, overlay, sim racing tools. CPU temperature shows as “Not available” and motherboard fans can't be controlled.");
+            "No. Without it, everything else works: GPU temperatures and fans, frame rate, displays, window profiles, overlays, sim racing tools. CPU temperature shows as “Not available” and motherboard fans can't be controlled.");
         Para("Is it safe?",
             "The driver is signed for Windows and works through small modules written for one job each (an AMD or Intel CPU's sensors, a fan controller chip), instead of the old driver's open access to any hardware address. Some anti-cheat systems are strict about any low-level driver; if a game ever complains, uninstall PawnIO and Goodie Bag carries on without it.");
         Para("How to install or remove it",
@@ -1298,7 +1298,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
         var button = Ui.LabeledButton("I.Undo", "Reset Goodie Bag", () => _ = ResetAsync(), "DangerButton");
         button.ToolTip = "Asks first. Your current settings are kept as a copy in the settings folder.";
         var row = Ui.SettingRow("Back to defaults",
-            "Every setting, mode, profile, layout and fan curve. Goodie Bag restarts; a copy of your settings is kept.",
+            "Every setting, profile, layout and fan curve. Goodie Bag restarts; a copy of your settings is kept.",
             button);
         Ui.Anchor(row, "settings.reset");
         return row;
@@ -1397,7 +1397,7 @@ internal sealed class SettingsPage : UserControl, IPage, IScreenshotStates, ICan
             void Para(string text) => stack.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
             Para("CPU temperatures and motherboard fans (case, CPU and pump headers) are read and controlled through PawnIO, a small free driver.");
             Para("It replaces WinRing0, the older driver Windows Defender now flags as unsafe, and is installed for the whole PC.");
-            Para("Without it everything else still works: GPU temperatures and fans, frame rate, displays, modes and the overlays.");
+            Para("Without it everything else still works: GPU temperatures and fans, frame rate, displays, window profiles and the overlays.");
             var hide = new CheckBox { Content = "Don't show this again", IsChecked = U.HidePawnIoPrompt, Margin = new Thickness(0, 16, 0, 0) };
             stack.Children.Add(hide);
             var card = Ui.Dialog(_window, "Install the PawnIO driver?", "It isn't installed on this PC.", stack,

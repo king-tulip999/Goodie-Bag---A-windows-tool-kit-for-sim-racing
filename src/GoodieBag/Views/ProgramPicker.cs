@@ -53,7 +53,9 @@ internal static class ProgramPicker
             foreach (var p in programs.Where(p => f.Length == 0 || p.Name.Contains(f, StringComparison.OrdinalIgnoreCase) || p.Process.Contains(f, StringComparison.OrdinalIgnoreCase)).Take(60))
             {
                 var row = new StackPanel();
-                row.Children.Add(TextFit.TipWhenTrimmed(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis }));
+                var name = TextFit.TipWhenTrimmed(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                name.SetResourceReference(TextBlock.ForegroundProperty, "Text");
+                row.Children.Add(name);
                 row.Children.Add(TextCase.Verbatim(new TextBlock { Text = p.Process + ".exe", Style = Ui.Res<Style>("Caption") }));
                 var b = new Button { Style = Ui.Res<Style>("QuietButton"), Content = row, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 6, 10, 6) };
                 var chosen = p;

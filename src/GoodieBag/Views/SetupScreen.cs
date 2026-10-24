@@ -255,7 +255,7 @@ internal sealed class SetupScreen : UserControl
         var start = Ui.Switch(_startup?.Enabled == true, on => _ = SetStartupAsync(on));
         start.IsEnabled = !_app.Demo && _startup is not null;
         panel.Children.Add(Row(Ui.SettingRow("Start with Windows",
-            _app.Demo ? "Not available in demo mode." : "Starts when you sign in, so modes, keybinds and fans are ready. With Start in background on, it starts in the tray.", start)));
+            _app.Demo ? "Not available in demo mode." : "Starts when you sign in, so window profiles, keybinds and fans are ready. With Start in background on, it starts in the tray.", start)));
         panel.Children.Add(Ui.Divider());
         panel.Children.Add(Row(Ui.SettingRow("Start in background", "Opens in the tray instead of this window whenever Goodie Bag starts. Click the bag icon in the tray to open it.",
             Ui.Switch(u.StartMinimized, v => { u.StartMinimized = v; _app.Save(); }))));

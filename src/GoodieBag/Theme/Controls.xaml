@@ -601,7 +601,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <c:Tile x:Name="Box" Width="18" Height="18" CornerRadius="{DynamicResource R.Tiny}" c:Tile.Chamfer="True" BorderThickness="1.5" BorderBrush="{DynamicResource LineStrong}" Background="{DynamicResource TileRaised}" VerticalAlignment="Center">
+                        <c:Tile x:Name="Box" Width="18" Height="18" CornerRadius="{DynamicResource R.Tiny}" c:Tile.Chamfer="True" BorderThickness="1.5" BorderBrush="{DynamicResource InputEdge}" Background="{DynamicResource TileRaised}" VerticalAlignment="Center">
                             <c:Icon x:Name="Tick" Data="{StaticResource I.Check}" Width="12" Height="12" Foreground="{DynamicResource OnAccent}" StrokeThickness="3" Opacity="0" />
                         </c:Tile>
                         <ContentPresenter x:Name="CP" Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center" />

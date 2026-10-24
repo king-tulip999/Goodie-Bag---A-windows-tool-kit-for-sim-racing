@@ -101,8 +101,7 @@ public sealed class LineChart : FrameworkElement
         var gridPen = _gridPen;
         var labelBrush = ThemeManager.Brush("TextFaint", Brushes.Gray);
 
-        const double left = 38, right = 38, top = 8, bottom = 20;
-        var plot = new Rect(left, top, Math.Max(1, w - left - right), Math.Max(1, h - top - bottom));
+        const double gutter = 38, labelGap = 6, top = 8, bottom = 20;
         double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
         if (_ranges.Length < Series.Count)
@@ -123,17 +122,32 @@ public sealed class LineChart : FrameworkElement
             ranges[si] = (s.Min, max);
         }
 
+        FormattedText AxisLabel(int si, int i)
+        {
+            var (min, max) = ranges[si];
+            double value = max - (max - min) * i / 4;
+            string label = Series[si].Format is { } format ? format(value) : $"{value:0}{Series[si].Unit}";
+            return Label(label, labelBrush, dpi);
+        }
+
+        double left = gutter, right = gutter;
+        for (int si = 0; si < Math.Min(2, Series.Count); si++)
+            for (int i = 0; i <= 4; i++)
+            {
+                double need = AxisLabel(si, i).Width + labelGap;
+                if (si == 0) left = Math.Max(left, need);
+                else right = Math.Max(right, need);
+            }
+        var plot = new Rect(left, top, Math.Max(1, w - left - right), Math.Max(1, h - top - bottom));
+
         for (int i = 0; i <= 4; i++)
         {
             double y = plot.Top + plot.Height * i / 4;
             dc.DrawLine(gridPen, new Point(plot.Left, y), new Point(plot.Right, y));
             for (int si = 0; si < Math.Min(2, Series.Count); si++)
             {
-                var (min, max) = ranges[si];
-                double value = max - (max - min) * i / 4;
-                string label = Series[si].Format is { } format ? format(value) : $"{value:0}{Series[si].Unit}";
-                var text = Label(label, labelBrush, dpi);
-                double x = si == 0 ? plot.Left - text.Width - 6 : plot.Right + 6;
+                var text = AxisLabel(si, i);
+                double x = si == 0 ? plot.Left - text.Width - labelGap : plot.Right + labelGap;
                 dc.DrawText(text, new Point(x, y - text.Height / 2));
             }
         }

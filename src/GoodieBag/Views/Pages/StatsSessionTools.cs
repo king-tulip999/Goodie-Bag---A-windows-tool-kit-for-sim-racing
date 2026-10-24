@@ -120,7 +120,7 @@ internal static class StatsSessionTools
                     track.SetResourceReference(Border.BackgroundProperty, soft);
                     track.SizeChanged += (_, e) => fill.Width = e.NewSize.Width * Math.Clamp(left, 0, 1);
                     var cell = new StackPanel { ToolTip = $"{names[z]}: {left * 100:0.0}% left", Margin = new Thickness(0, 0, z < 2 ? 10 : 0, 0) };
-                    var zone = new TextBlock { Text = names[z], Style = Ui.Res<Style>("Caption"), FontSize = 10 };
+                    var zone = new TextBlock { Text = names[z], Style = Ui.Res<Style>("Caption"), FontSize = 11.5 };
                     zone.SetResourceReference(TextBlock.ForegroundProperty, "TextFaint");
                     cell.Children.Add(zone);
                     cell.Children.Add(Number($"{left * 100:0.0}", "Caption"));
